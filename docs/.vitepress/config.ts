@@ -3,9 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'HAPI',
   description: 'Control your AI agents from anywhere',
+  base: '/docs/',
 
   head: [
-    ['link', { rel: 'icon', href: '/favicon.ico' }],
+    ['link', { rel: 'icon', href: '/docs/favicon.ico' }],
   ],
 
   themeConfig: {
