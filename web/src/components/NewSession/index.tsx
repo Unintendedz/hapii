@@ -90,6 +90,7 @@ export function NewSession(props: {
     const [initialPresetApplied, setInitialPresetApplied] = useState(false)
     const worktreeInputRef = useRef<HTMLInputElement>(null)
     const skipNextAgentModelReset = useRef(false)
+    const checkedPathsSignatureRef = useRef('')
 
     const presetDirectory = props.initialPreset?.directory?.trim() ?? ''
     const projectPreset = useMemo(
@@ -205,17 +206,35 @@ export function NewSession(props: {
     const allPaths = useDirectorySuggestions(machineId, sessions, recentPaths)
 
     const pathsToCheck = useMemo(
-        () => Array.from(new Set(allPaths)).slice(0, 1000),
+        () => Array.from(new Set(allPaths)).slice(0, 300),
         [allPaths]
     )
+
+    const pathsCheckSignature = useMemo(() => {
+        if (!machineId || pathsToCheck.length === 0) {
+            return ''
+        }
+        return `${machineId}\n${pathsToCheck.join('\n')}`
+    }, [machineId, pathsToCheck])
 
     useEffect(() => {
         let cancelled = false
 
         if (!machineId || pathsToCheck.length === 0) {
+            checkedPathsSignatureRef.current = ''
             setPathExistence((current) => (Object.keys(current).length === 0 ? current : {}))
             return () => { cancelled = true }
         }
+
+        if (!isDirectoryFocused) {
+            return () => { cancelled = true }
+        }
+
+        if (checkedPathsSignatureRef.current === pathsCheckSignature) {
+            return () => { cancelled = true }
+        }
+
+        checkedPathsSignatureRef.current = pathsCheckSignature
 
         void props.api.checkMachinePathsExists(machineId, pathsToCheck)
             .then((result) => {
@@ -231,7 +250,7 @@ export function NewSession(props: {
         return () => {
             cancelled = true
         }
-    }, [machineId, pathsToCheck, props.api])
+    }, [isDirectoryFocused, machineId, pathsCheckSignature, pathsToCheck, props.api])
 
     const verifiedPaths = useMemo(
         () => allPaths.filter((path) => pathExistence[path]),
