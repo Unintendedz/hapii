@@ -32,6 +32,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { useToast } from '@/lib/toast-context'
 import { useTranslation } from '@/lib/use-translation'
 import { fetchLatestMessages, seedMessageWindowFromSession } from '@/lib/message-window-store'
+import { resolveSessionIdForSend } from '@/lib/session-resume'
 import FilesPage from '@/routes/sessions/files'
 import FilePage from '@/routes/sessions/file'
 import TerminalPage from '@/routes/sessions/terminal'
@@ -260,11 +261,20 @@ function SessionPage() {
         isSending,
     } = useSendMessage(api, sessionId, {
         resolveSessionId: async (currentSessionId) => {
-            if (!api || !session || session.active) {
+            if (!api) {
                 return currentSessionId
             }
             try {
-                return await api.resumeSession(currentSessionId)
+                return await resolveSessionIdForSend({
+                    api,
+                    sessionId: currentSessionId,
+                    session: session && session.id === currentSessionId ? session : null,
+                    syncSessionCache: (nextSession) => {
+                        queryClient.setQueryData(queryKeys.session(currentSessionId), {
+                            session: nextSession
+                        })
+                    }
+                })
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Resume failed'
                 addToast({
@@ -315,7 +325,6 @@ function SessionPage() {
             // 'no-session' and 'pending' don't need toast - either invalid state or expected behavior
         }
     })
-
     // Get agent type from session metadata for slash commands
     const agentType = session?.metadata?.flavor ?? 'claude'
     const {
