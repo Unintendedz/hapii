@@ -62,6 +62,9 @@ Bun workspaces; `shared` consumed by cli, hub, web.
 - Types: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `build`, `ci`, `perf`, `revert`
 - Scope: package name (prefer one of `web`, `hub`, `cli`, `shared`, `docs`, `website`)
 - Subject: imperative, lowercase, no trailing period
+- Breaking changes: `type(scope)!: subject` and/or `BREAKING CHANGE: ...` footer
+- Examples: `fix(web): wait for session warmup before sending`, `docs(agents): document commit message rules`
+- Avoid: `update`, `wip`, `fix stuff`
 
 ## Common commands (repo root)
 
@@ -158,7 +161,7 @@ Agent requirement: after changing `web/` or `hub/`, include runtime replacement 
 - Run: `bun run test` (from root) or `bun run test` (from package)
 - Hub tests: `hub/src/**/*.test.ts`
 - CLI tests: `cli/src/**/*.test.ts`
-- No web tests currently
+- Web tests: `web/src/**/*.test.{ts,tsx}` (Vitest + jsdom)
 
 ## Common tasks
 
