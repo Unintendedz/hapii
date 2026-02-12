@@ -54,6 +54,19 @@ function makeArchivedSession(
     } as unknown as SessionSummary
 }
 
+function makeActiveSession(
+    id: string,
+    path: string,
+    updatedAt: number,
+    name: string
+): SessionSummary {
+    const base = makeArchivedSession(id, path, updatedAt, name)
+    return {
+        ...base,
+        active: true,
+    }
+}
+
 function makeProjectSessions(projectKey: string, path: string, count: number, startTs: number): SessionSummary[] {
     return Array.from({ length: count }, (_, index) => {
         const n = index + 1
@@ -134,5 +147,34 @@ describe('SessionList archived load more behavior', () => {
         expect(screen.queryByText('beta-10')).toBeNull()
 
         expect(screen.getAllByRole('button', { name: 'Load more archived sessions' })).toHaveLength(1)
+    })
+
+    it('does not pin archived section to viewport when expanded', () => {
+        render(
+            <I18nProvider>
+                <SessionList
+                    activeSessions={[
+                        makeActiveSession('active-1', '/projects/live', 1_700_001_500, 'active-1'),
+                    ]}
+                    archivedSessions={[
+                        ...makeProjectSessions('alpha', '/projects/alpha', 10, 1_700_001_000),
+                    ]}
+                    archivedTotal={10}
+                    onSelect={vi.fn()}
+                    onNewSession={vi.fn()}
+                    onRefresh={vi.fn()}
+                    isLoading={false}
+                    api={null}
+                />
+            </I18nProvider>
+        )
+
+        const archivedToggle = screen.getByRole('button', { name: /^Archived/ })
+        fireEvent.click(archivedToggle)
+
+        const archivedSection = archivedToggle.closest('div')
+        expect(archivedSection).toBeTruthy()
+        expect(archivedSection?.className).not.toContain('sticky')
+        expect(archivedSection?.className).not.toContain('bottom-0')
     })
 })

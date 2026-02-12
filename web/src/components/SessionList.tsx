@@ -600,7 +600,7 @@ export function SessionList(props: {
                 {renderGroups('active', activeGroups, false)}
 
                 {hasArchivedSection ? (
-                    <div className="sticky bottom-0 mt-4 border-t border-[var(--app-divider)] bg-[var(--app-secondary-bg)]/95 backdrop-blur">
+                    <div className="mt-4 border-t border-[var(--app-divider)] bg-[var(--app-secondary-bg)]">
                         <button
                             type="button"
                             onClick={() => setIsArchivedSectionCollapsed(prev => !prev)}
