@@ -4,6 +4,8 @@ import {
     loadPreferredYoloMode,
     savePreferredAgent,
     savePreferredYoloMode,
+    loadProjectPreset,
+    saveProjectPreset,
 } from './preferences'
 
 describe('NewSession preferences', () => {
@@ -36,5 +38,27 @@ describe('NewSession preferences', () => {
 
         expect(localStorage.getItem('hapi:newSession:agent')).toBe('gemini')
         expect(localStorage.getItem('hapi:newSession:yolo')).toBe('true')
+    })
+
+    it('saves and loads project presets', () => {
+        saveProjectPreset('/tmp/project-a', {
+            machineId: 'machine-1',
+            agent: 'claude',
+            model: 'sonnet',
+            yoloMode: true,
+            sessionType: 'simple'
+        })
+
+        expect(loadProjectPreset('/tmp/project-a')).toEqual({
+            machineId: 'machine-1',
+            agent: 'claude',
+            model: 'sonnet',
+            yoloMode: true,
+            sessionType: 'simple'
+        })
+    })
+
+    it('returns null for missing project presets', () => {
+        expect(loadProjectPreset('/tmp/does-not-exist')).toBeNull()
     })
 })

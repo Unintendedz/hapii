@@ -10,7 +10,9 @@ import {
     useMatchRoute,
     useNavigate,
     useParams,
+    useSearch,
 } from '@tanstack/react-router'
+import type { SessionSummary } from '@/types/api'
 import { App } from '@/App'
 import { SessionChat } from '@/components/SessionChat'
 import { SessionList } from '@/components/SessionList'
@@ -94,6 +96,26 @@ function SettingsIcon(props: { className?: string }) {
     )
 }
 
+function resolveQuickCreateAgent(flavor: string | null | undefined): 'claude' | 'codex' | 'gemini' | 'opencode' | undefined {
+    if (flavor === 'claude' || flavor === 'codex' || flavor === 'gemini' || flavor === 'opencode') {
+        return flavor
+    }
+    return undefined
+}
+
+function resolveQuickCreateModel(session: SessionSummary | null, agent: 'claude' | 'codex' | 'gemini' | 'opencode' | undefined): string | undefined {
+    if (!session || agent !== 'claude') {
+        return undefined
+    }
+    if (session.modelMode === 'sonnet') {
+        return 'sonnet'
+    }
+    if (session.modelMode === 'opus') {
+        return 'opus'
+    }
+    return undefined
+}
+
 function SessionsPage() {
     const { api } = useAppContext()
     const navigate = useNavigate()
@@ -115,6 +137,24 @@ function SessionsPage() {
     const handleRefresh = useCallback(() => {
         void refetch()
     }, [refetch])
+
+    const handleQuickCreateInDirectory = useCallback((payload: {
+        directory: string
+        seedSession: SessionSummary | null
+    }) => {
+        const seedAgent = resolveQuickCreateAgent(payload.seedSession?.metadata?.flavor)
+        const seedModel = resolveQuickCreateModel(payload.seedSession, seedAgent)
+
+        navigate({
+            to: '/sessions/new',
+            search: {
+                directory: payload.directory,
+                machineId: payload.seedSession?.metadata?.machineId,
+                agent: seedAgent,
+                model: seedModel,
+            }
+        })
+    }, [navigate])
 
     const visibleSessions = [...activeSessions, ...archivedSessions]
     const totalSessions = activeSessions.length + archivedTotal
@@ -169,6 +209,7 @@ function SessionsPage() {
                         onLoadMoreArchived={() => {
                             void loadMoreArchived()
                         }}
+                        onQuickCreateInDirectory={handleQuickCreateInDirectory}
                         selectedSessionId={selectedSessionId}
                         onSelect={(sessionId) => navigate({
                             to: '/sessions/$sessionId',
@@ -351,6 +392,7 @@ function NewSessionPage() {
     const goBack = useAppGoBack()
     const queryClient = useQueryClient()
     const { machines, isLoading: machinesLoading, error: machinesError } = useMachines(api, true)
+    const search = useSearch({ from: '/sessions/new' })
 
     const handleCancel = useCallback(() => {
         navigate({ to: '/sessions' })
@@ -394,6 +436,14 @@ function NewSessionPage() {
                 api={api}
                 machines={machines}
                 isLoading={machinesLoading}
+                initialPreset={{
+                    directory: search.directory,
+                    machineId: search.machineId,
+                    agent: search.agent,
+                    model: search.model,
+                    yoloMode: search.yolo,
+                    sessionType: search.sessionType,
+                }}
                 onCancel={handleCancel}
                 onSuccess={handleSuccess}
             />
@@ -487,9 +537,68 @@ const sessionFileRoute = createRoute({
     component: FilePage,
 })
 
+type NewSessionSearch = {
+    directory?: string
+    machineId?: string
+    agent?: 'claude' | 'codex' | 'gemini' | 'opencode'
+    model?: string
+    yolo?: boolean
+    sessionType?: 'simple' | 'worktree'
+}
+
 const newSessionRoute = createRoute({
     getParentRoute: () => sessionsRoute,
     path: 'new',
+    validateSearch: (search: Record<string, unknown>): NewSessionSearch => {
+        const directory = typeof search.directory === 'string' && search.directory.trim().length > 0
+            ? search.directory.trim()
+            : undefined
+
+        const machineId = typeof search.machineId === 'string' && search.machineId.trim().length > 0
+            ? search.machineId.trim()
+            : undefined
+
+        const agentValue = typeof search.agent === 'string' ? search.agent : undefined
+        const agent = agentValue === 'claude' || agentValue === 'codex' || agentValue === 'gemini' || agentValue === 'opencode'
+            ? agentValue
+            : undefined
+
+        const model = typeof search.model === 'string' && search.model.trim().length > 0
+            ? search.model.trim()
+            : undefined
+
+        const yolo = search.yolo === true || search.yolo === 'true'
+            ? true
+            : search.yolo === false || search.yolo === 'false'
+                ? false
+                : undefined
+
+        const sessionTypeValue = typeof search.sessionType === 'string' ? search.sessionType : undefined
+        const sessionType = sessionTypeValue === 'simple' || sessionTypeValue === 'worktree'
+            ? sessionTypeValue
+            : undefined
+
+        const result: NewSessionSearch = {}
+        if (directory !== undefined) {
+            result.directory = directory
+        }
+        if (machineId !== undefined) {
+            result.machineId = machineId
+        }
+        if (agent !== undefined) {
+            result.agent = agent
+        }
+        if (model !== undefined) {
+            result.model = model
+        }
+        if (yolo !== undefined) {
+            result.yolo = yolo
+        }
+        if (sessionType !== undefined) {
+            result.sessionType = sessionType
+        }
+        return result
+    },
     component: NewSessionPage,
 })
 

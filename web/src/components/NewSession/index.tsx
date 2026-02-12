@@ -8,6 +8,7 @@ import { useActiveSuggestions, type Suggestion } from '@/hooks/useActiveSuggesti
 import { useDirectorySuggestions } from '@/hooks/useDirectorySuggestions'
 import { useRecentPaths } from '@/hooks/useRecentPaths'
 import type { AgentType, SessionType } from './types'
+import { MODEL_OPTIONS } from './types'
 import { ActionButtons } from './ActionButtons'
 import { AgentSelector } from './AgentSelector'
 import { DirectorySection } from './DirectorySection'
@@ -18,14 +19,26 @@ import {
     loadPreferredYoloMode,
     savePreferredAgent,
     savePreferredYoloMode,
+    loadProjectPreset,
+    saveProjectPreset,
 } from './preferences'
 import { SessionTypeSelector } from './SessionTypeSelector'
 import { YoloToggle } from './YoloToggle'
+
+export type NewSessionInitialPreset = {
+    directory?: string
+    machineId?: string
+    agent?: AgentType
+    model?: string
+    yoloMode?: boolean
+    sessionType?: SessionType
+}
 
 export function NewSession(props: {
     api: ApiClient
     machines: Machine[]
     isLoading?: boolean
+    initialPreset?: NewSessionInitialPreset
     onSuccess: (sessionId: string) => void
     onCancel: () => void
 }) {
@@ -50,7 +63,26 @@ export function NewSession(props: {
     const [sessionType, setSessionType] = useState<SessionType>('simple')
     const [worktreeName, setWorktreeName] = useState('')
     const [error, setError] = useState<string | null>(null)
+    const [initialPresetApplied, setInitialPresetApplied] = useState(false)
     const worktreeInputRef = useRef<HTMLInputElement>(null)
+    const skipNextAgentModelReset = useRef(false)
+
+    const presetDirectory = props.initialPreset?.directory?.trim() ?? ''
+    const projectPreset = useMemo(
+        () => (presetDirectory ? loadProjectPreset(presetDirectory) : null),
+        [presetDirectory]
+    )
+
+    const mergedPreset = useMemo<NewSessionInitialPreset>(() => {
+        return {
+            directory: presetDirectory || undefined,
+            machineId: projectPreset?.machineId ?? props.initialPreset?.machineId,
+            agent: projectPreset?.agent ?? props.initialPreset?.agent,
+            model: projectPreset?.model ?? props.initialPreset?.model,
+            yoloMode: projectPreset?.yoloMode ?? props.initialPreset?.yoloMode,
+            sessionType: projectPreset?.sessionType ?? props.initialPreset?.sessionType,
+        }
+    }, [presetDirectory, projectPreset, props.initialPreset])
 
     useEffect(() => {
         if (sessionType === 'worktree') {
@@ -59,6 +91,10 @@ export function NewSession(props: {
     }, [sessionType])
 
     useEffect(() => {
+        if (skipNextAgentModelReset.current) {
+            skipNextAgentModelReset.current = false
+            return
+        }
         setModel('auto')
     }, [agent])
 
@@ -71,6 +107,59 @@ export function NewSession(props: {
     }, [yoloMode])
 
     useEffect(() => {
+        if (initialPresetApplied) {
+            return
+        }
+
+        const hasPreset = Boolean(
+            mergedPreset.directory
+            || mergedPreset.machineId
+            || mergedPreset.agent
+            || mergedPreset.model
+            || mergedPreset.sessionType
+            || typeof mergedPreset.yoloMode === 'boolean'
+        )
+
+        if (!hasPreset) {
+            setInitialPresetApplied(true)
+            return
+        }
+
+        if (mergedPreset.directory) {
+            setDirectory(mergedPreset.directory)
+        }
+        if (mergedPreset.sessionType) {
+            setSessionType(mergedPreset.sessionType)
+        }
+        if (typeof mergedPreset.yoloMode === 'boolean') {
+            setYoloMode(mergedPreset.yoloMode)
+        }
+
+        if (mergedPreset.agent) {
+            skipNextAgentModelReset.current = true
+            setAgent(mergedPreset.agent)
+        }
+
+        if (mergedPreset.model) {
+            const targetAgent = mergedPreset.agent ?? agent
+            const isValidModel = MODEL_OPTIONS[targetAgent].some((option) => option.value === mergedPreset.model)
+            setModel(isValidModel ? mergedPreset.model : 'auto')
+        }
+
+        if (mergedPreset.machineId) {
+            if (props.machines.length === 0) {
+                return
+            }
+            if (props.machines.some((machine) => machine.id === mergedPreset.machineId)) {
+                setMachineId(mergedPreset.machineId)
+            }
+        }
+
+        setInitialPresetApplied(true)
+    }, [agent, initialPresetApplied, mergedPreset, props.machines])
+
+    useEffect(() => {
+        if (!initialPresetApplied) return
         if (props.machines.length === 0) return
         if (machineId && props.machines.find((m) => m.id === machineId)) return
 
@@ -79,12 +168,14 @@ export function NewSession(props: {
 
         if (foundLast) {
             setMachineId(foundLast.id)
-            const paths = getRecentPaths(foundLast.id)
-            if (paths[0]) setDirectory(paths[0])
+            if (!directory.trim()) {
+                const paths = getRecentPaths(foundLast.id)
+                if (paths[0]) setDirectory(paths[0])
+            }
         } else if (props.machines[0]) {
             setMachineId(props.machines[0].id)
         }
-    }, [props.machines, machineId, getLastUsedMachineId, getRecentPaths])
+    }, [directory, getLastUsedMachineId, getRecentPaths, initialPresetApplied, machineId, props.machines])
 
     const recentPaths = useMemo(
         () => getRecentPaths(machineId),
@@ -228,6 +319,13 @@ export function NewSession(props: {
                 haptic.notification('success')
                 setLastUsedMachineId(machineId)
                 addRecentPath(machineId, directory.trim())
+                saveProjectPreset(directory.trim(), {
+                    machineId,
+                    agent,
+                    model,
+                    yoloMode,
+                    sessionType
+                })
                 props.onSuccess(result.sessionId)
                 return
             }

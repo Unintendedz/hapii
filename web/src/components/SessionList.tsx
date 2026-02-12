@@ -338,6 +338,10 @@ export function SessionList(props: {
     hasMoreArchived: boolean
     isLoadingMoreArchived: boolean
     onLoadMoreArchived: () => void
+    onQuickCreateInDirectory?: (payload: {
+        directory: string
+        seedSession: SessionSummary | null
+    }) => void
     onSelect: (sessionId: string) => void
     onNewSession: () => void
     onRefresh: () => void
@@ -359,6 +363,7 @@ export function SessionList(props: {
     const [collapseOverrides, setCollapseOverrides] = useState<Map<string, boolean>>(
         () => new Map()
     )
+    const [isArchivedSectionCollapsed, setIsArchivedSectionCollapsed] = useState(true)
 
     const makeGroupKey = (section: GroupSection, directory: string): string => `${section}:${directory}`
 
@@ -398,30 +403,65 @@ export function SessionList(props: {
         })
     }, [activeGroups, archivedGroups])
 
+    useEffect(() => {
+        if (!selectedSessionId) {
+            return
+        }
+
+        const selectedInArchived = archivedGroups.some((group) =>
+            group.sessions.some((session) => session.id === selectedSessionId)
+        )
+
+        if (selectedInArchived) {
+            setIsArchivedSectionCollapsed(false)
+        }
+    }, [archivedGroups, selectedSessionId])
+
     const renderGroups = (section: GroupSection, groups: SessionGroup[], compactItems: boolean) => {
         return groups.map((group) => {
             const isCollapsed = isGroupCollapsed(section, group)
+            const quickCreateSeed = group.sessions[0] ?? null
             return (
                 <div key={makeGroupKey(section, group.directory)}>
-                    <button
-                        type="button"
-                        onClick={() => toggleGroup(section, group.directory, isCollapsed)}
-                        className={`sticky top-0 z-10 flex w-full items-center gap-2 px-3 ${section === 'archived' ? 'py-1.5' : 'py-2'} text-left bg-[var(--app-bg)] border-b border-[var(--app-divider)] transition-colors hover:bg-[var(--app-secondary-bg)]`}
+                    <div
+                        className={`group flex w-full items-center gap-2 px-3 ${section === 'archived' ? 'py-1.5' : 'py-2'} text-left bg-[var(--app-bg)] border-b border-[var(--app-divider)] transition-colors hover:bg-[var(--app-secondary-bg)] ${section === 'active' ? 'sticky top-0 z-10' : ''}`}
                     >
-                        <ChevronIcon
-                            className="h-4 w-4 text-[var(--app-hint)]"
-                            collapsed={isCollapsed}
-                        />
-                        <FolderIcon className="h-3.5 w-3.5 shrink-0 text-[var(--app-hint)]" />
-                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <span className="break-words text-sm font-semibold text-[var(--app-hint)]" title={group.directory}>
-                                {group.displayName}
-                            </span>
-                            <span className="shrink-0 text-xs text-[var(--app-hint)]">
-                                ({group.sessions.length})
-                            </span>
-                        </div>
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => toggleGroup(section, group.directory, isCollapsed)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                            <ChevronIcon
+                                className="h-4 w-4 text-[var(--app-hint)]"
+                                collapsed={isCollapsed}
+                            />
+                            <FolderIcon className="h-3.5 w-3.5 shrink-0 text-[var(--app-hint)]" />
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <span className="break-words text-sm font-semibold text-[var(--app-hint)]" title={group.directory}>
+                                    {group.displayName}
+                                </span>
+                                <span className="shrink-0 text-xs text-[var(--app-hint)]">
+                                    ({group.sessions.length})
+                                </span>
+                            </div>
+                        </button>
+                        {section === 'active' && props.onQuickCreateInDirectory ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    props.onQuickCreateInDirectory?.({
+                                        directory: group.directory,
+                                        seedSession: quickCreateSeed
+                                    })
+                                }}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--app-link)] transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                                title={t('sessions.quickCreate')}
+                                aria-label={t('sessions.quickCreate')}
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                            </button>
+                        ) : null}
+                    </div>
                     {!isCollapsed ? (
                         <div className={`ml-5 flex flex-col divide-y divide-[var(--app-divider)] border-b border-[var(--app-divider)] pl-2 ${section === 'archived' ? 'border-l border-dashed border-[var(--app-divider)]' : 'border-l border-[var(--app-divider)]'}`}>
                             {group.sessions.map((session) => (
@@ -444,6 +484,7 @@ export function SessionList(props: {
 
     const visibleSessionsCount = props.activeSessions.length + props.archivedSessions.length
     const visibleGroupCount = activeGroups.length + archivedGroups.length
+    const hasArchivedSection = props.archivedTotal > 0 || props.archivedSessions.length > 0 || props.hasMoreArchived
 
     return (
         <div className="mx-auto flex w-full max-w-content flex-col">
@@ -471,38 +512,48 @@ export function SessionList(props: {
                 ) : null}
                 {renderGroups('active', activeGroups, false)}
 
-                {archivedGroups.length > 0 ? (
-                    <div className="px-3 pb-2 pt-4">
-                        <div className="flex items-center gap-2">
-                            <div className="h-px flex-1 bg-[var(--app-divider)]" />
-                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--app-hint)]">
-                                {t('sessions.archived.section')}
-                            </span>
-                            <div className="h-px flex-1 bg-[var(--app-divider)]" />
-                        </div>
-                        <div className="mt-1 text-[11px] text-[var(--app-hint)]">
-                            {t('sessions.archived.loaded', {
-                                n: props.archivedSessions.length,
-                                m: props.archivedTotal
-                            })}
-                        </div>
-                    </div>
-                ) : null}
-
-                {renderGroups('archived', archivedGroups, true)}
-
-                {props.hasMoreArchived ? (
-                    <div className="px-3 py-3">
+                {hasArchivedSection ? (
+                    <div className="sticky bottom-0 mt-4 border-t border-[var(--app-divider)] bg-[var(--app-secondary-bg)]/95 backdrop-blur">
                         <button
                             type="button"
-                            onClick={props.onLoadMoreArchived}
-                            disabled={props.isLoadingMoreArchived}
-                            className="w-full rounded-md border border-[var(--app-divider)] bg-[var(--app-secondary-bg)] px-3 py-2 text-sm font-medium text-[var(--app-fg)] transition-colors hover:bg-[var(--app-subtle-bg)] disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => setIsArchivedSectionCollapsed(prev => !prev)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)]"
                         >
-                            {props.isLoadingMoreArchived
-                                ? t('sessions.archived.loadingMore')
-                                : t('sessions.archived.loadMore')}
+                            <ChevronIcon
+                                className="h-4 w-4 text-[var(--app-hint)]"
+                                collapsed={isArchivedSectionCollapsed}
+                            />
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--app-hint)]">
+                                {t('sessions.archived.section')}
+                            </span>
+                            <span className="ml-auto text-[11px] text-[var(--app-hint)]">
+                                {t('sessions.archived.loaded', {
+                                    n: props.archivedSessions.length,
+                                    m: props.archivedTotal
+                                })}
+                            </span>
                         </button>
+
+                        {!isArchivedSectionCollapsed ? (
+                            <div className="border-t border-[var(--app-divider)] bg-[var(--app-bg)]">
+                                {renderGroups('archived', archivedGroups, true)}
+
+                                {props.hasMoreArchived ? (
+                                    <div className="px-3 py-3">
+                                        <button
+                                            type="button"
+                                            onClick={props.onLoadMoreArchived}
+                                            disabled={props.isLoadingMoreArchived}
+                                            className="w-full rounded-md border border-[var(--app-divider)] bg-[var(--app-secondary-bg)] px-3 py-2 text-sm font-medium text-[var(--app-fg)] transition-colors hover:bg-[var(--app-subtle-bg)] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {props.isLoadingMoreArchived
+                                                ? t('sessions.archived.loadingMore')
+                                                : t('sessions.archived.loadMore')}
+                                        </button>
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
             </div>

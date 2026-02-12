@@ -67,6 +67,45 @@ bun run dev             # hub + web concurrently
 bun run build:single-exe # All-in-one binary
 ```
 
+## Local replacement SOP
+
+Goal: replace currently-running local instance; keep remote control stable.
+
+1. Detect runtime mode first.
+
+```bash
+ps aux | rg "hapi hub|hapi runner|bun run dev|bun --watch run src/index.ts|vite|pm2"
+```
+
+2. If running from source dev (`bun run dev`):
+- Stop current dev process (`Ctrl+C`).
+- From repo root: `bun install` (if lockfile changed), `bun typecheck`, `bun run test`.
+- Start again: `bun run dev`.
+- Force-refresh web app once (especially installed PWA).
+
+3. If running single-exe / packaged binary (`hapi hub`):
+- Rebuild local binary with latest web assets:
+
+```bash
+bun run build:single-exe
+```
+
+- Restart hub process with the same launch method (foreground/nohup/pm2/systemd).
+- Restart runner only when CLI/shared protocol changed (RPC/schema/session lifecycle changes).
+
+4. Process manager commands:
+- pm2: `pm2 restart hapi-hub` and (if needed) `pm2 restart hapi-runner`.
+- systemd user service: `systemctl --user restart hapi-hub` and (if needed) `systemctl --user restart hapi-runner`.
+
+5. Post-replace checks (fail fast):
+
+```bash
+curl -fsS http://127.0.0.1:3006/api/sessions?archived=false >/dev/null
+curl -fsS "http://127.0.0.1:3006/api/sessions?archived=true&limit=1&offset=0" >/dev/null
+```
+
+Agent requirement: after changing `web/` or `hub/`, include runtime replacement steps in final handoff.
+
 ## Key source dirs
 
 ### CLI (`cli/src/`)

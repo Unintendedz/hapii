@@ -1,4 +1,4 @@
-import { feature } from 'bun:bundle';
+import { arch, platform } from 'node:os';
 
 import difftasticArchiveLicense from '../../tools/archives/difftastic-LICENSE' assert { type: 'file' };
 import ripgrepArchiveLicense from '../../tools/archives/ripgrep-LICENSE' assert { type: 'file' };
@@ -26,8 +26,50 @@ const COMMON_ASSETS: EmbeddedAsset[] = [
     asset('tools/tunwg/LICENSE', tunwgLicense)
 ];
 
+let resolvedFeatureFn: ((featureName: string) => boolean) | null | undefined;
+
+async function getFeatureFn(): Promise<((featureName: string) => boolean) | null> {
+    if (resolvedFeatureFn !== undefined) {
+        return resolvedFeatureFn;
+    }
+
+    try {
+        const mod = await import('bun:bundle') as { feature?: unknown };
+        resolvedFeatureFn = typeof mod.feature === 'function'
+            ? mod.feature as (featureName: string) => boolean
+            : null;
+    } catch {
+        resolvedFeatureFn = null;
+    }
+
+    return resolvedFeatureFn;
+}
+
+function getPlatformTarget(): string {
+    const platformName = platform();
+    const archName = arch();
+
+    if (platformName === 'darwin' && archName === 'arm64') return 'arm64-darwin';
+    if (platformName === 'darwin' && archName === 'x64') return 'x64-darwin';
+    if (platformName === 'linux' && archName === 'arm64') return 'arm64-linux';
+    if (platformName === 'linux' && archName === 'x64') return 'x64-linux';
+    if (platformName === 'win32' && archName === 'x64') return 'x64-win32';
+
+    throw new Error(`Unsupported platform: ${archName}-${platformName}`);
+}
+
+async function matchesBuildTarget(featureName: string, target: string): Promise<boolean> {
+    const featureFn = await getFeatureFn();
+    if (featureFn) {
+        return featureFn(featureName);
+    }
+
+    // Fallback for runtimes where bun:bundle isn't exposed.
+    return getPlatformTarget() === target;
+}
+
 async function selectEmbeddedAssets(): Promise<EmbeddedAsset[]> {
-    if (feature('HAPI_TARGET_DARWIN_ARM64')) {
+    if (await matchesBuildTarget('HAPI_TARGET_DARWIN_ARM64', 'arm64-darwin')) {
         const [
             { default: difftasticArm64Darwin },
             { default: ripgrepArm64Darwin },
@@ -45,7 +87,7 @@ async function selectEmbeddedAssets(): Promise<EmbeddedAsset[]> {
         ];
     }
 
-    if (feature('HAPI_TARGET_DARWIN_X64')) {
+    if (await matchesBuildTarget('HAPI_TARGET_DARWIN_X64', 'x64-darwin')) {
         const [
             { default: difftasticX64Darwin },
             { default: ripgrepX64Darwin },
@@ -63,7 +105,7 @@ async function selectEmbeddedAssets(): Promise<EmbeddedAsset[]> {
         ];
     }
 
-    if (feature('HAPI_TARGET_LINUX_ARM64')) {
+    if (await matchesBuildTarget('HAPI_TARGET_LINUX_ARM64', 'arm64-linux')) {
         const [
             { default: difftasticArm64Linux },
             { default: ripgrepArm64Linux },
@@ -81,7 +123,7 @@ async function selectEmbeddedAssets(): Promise<EmbeddedAsset[]> {
         ];
     }
 
-    if (feature('HAPI_TARGET_LINUX_X64')) {
+    if (await matchesBuildTarget('HAPI_TARGET_LINUX_X64', 'x64-linux')) {
         const [
             { default: difftasticX64Linux },
             { default: ripgrepX64Linux },
@@ -99,7 +141,7 @@ async function selectEmbeddedAssets(): Promise<EmbeddedAsset[]> {
         ];
     }
 
-    if (feature('HAPI_TARGET_WIN32_X64')) {
+    if (await matchesBuildTarget('HAPI_TARGET_WIN32_X64', 'x64-win32')) {
         const [
             { default: difftasticX64Win32 },
             { default: ripgrepX64Win32 },

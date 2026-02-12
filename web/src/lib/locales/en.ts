@@ -41,6 +41,7 @@ export default {
   // Sessions page
   'sessions.count': '{n} sessions in {m} projects',
   'sessions.new': 'New Session',
+  'sessions.quickCreate': 'New in this project',
   'sessions.active.section': 'Active',
   'sessions.archived.section': 'Archived',
   'sessions.archived.loaded': '{n} of {m} archived sessions shown',
