@@ -156,8 +156,31 @@ export class ApiClient {
         return await res.json() as AuthResponse
     }
 
-    async getSessions(): Promise<SessionsResponse> {
-        return await this.request<SessionsResponse>('/api/sessions')
+    async getSessions(options?: { archived?: boolean; limit?: number; offset?: number }): Promise<SessionsResponse> {
+        if (options?.limit !== undefined && (!Number.isInteger(options.limit) || options.limit <= 0)) {
+            throw new Error('limit must be a positive integer')
+        }
+        if (options?.offset !== undefined && (!Number.isInteger(options.offset) || options.offset < 0)) {
+            throw new Error('offset must be a non-negative integer')
+        }
+        if (options?.offset !== undefined && options.limit === undefined) {
+            throw new Error('offset requires limit')
+        }
+
+        const params = new URLSearchParams()
+        if (options?.archived !== undefined) {
+            params.set('archived', options.archived ? 'true' : 'false')
+        }
+        if (options?.limit !== undefined) {
+            params.set('limit', String(options.limit))
+        }
+        if (options?.offset !== undefined) {
+            params.set('offset', String(options.offset))
+        }
+
+        const qs = params.toString()
+        const url = '/api/sessions' + (qs ? ('?' + qs) : '')
+        return await this.request<SessionsResponse>(url)
     }
 
     async getPushVapidPublicKey(): Promise<PushVapidPublicKeyResponse> {

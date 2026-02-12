@@ -28,6 +28,20 @@ const uploadDeleteSchema = z.object({
     path: z.string().min(1)
 })
 
+const sessionsQuerySchema = z.object({
+    archived: z.enum(['true', 'false']).optional(),
+    limit: z.coerce.number().int().positive().max(200).optional(),
+    offset: z.coerce.number().int().min(0).optional()
+}).superRefine((value, context) => {
+    if (value.offset !== undefined && value.limit === undefined) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['offset'],
+            message: 'offset requires limit'
+        })
+    }
+})
+
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 function estimateBase64Bytes(base64: string): number {
@@ -46,10 +60,24 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
             return engine
         }
 
+        const parsedQuery = sessionsQuerySchema.safeParse(c.req.query())
+        if (!parsedQuery.success) {
+            return c.json({ error: 'Invalid query' }, 400)
+        }
+
+        const { archived, limit, offset } = parsedQuery.data
         const getPendingCount = (s: Session) => s.agentState?.requests ? Object.keys(s.agentState.requests).length : 0
+        const isArchived = (s: Session) => !s.active
 
         const namespace = c.get('namespace')
-        const sessions = engine.getSessionsByNamespace(namespace)
+        let sessions = engine.getSessionsByNamespace(namespace)
+        if (archived === 'true') {
+            sessions = sessions.filter(isArchived)
+        } else if (archived === 'false') {
+            sessions = sessions.filter((session) => !isArchived(session))
+        }
+
+        const sortedSessions = sessions
             .sort((a, b) => {
                 // Active sessions first
                 if (a.active !== b.active) {
@@ -64,9 +92,27 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
                 // Then by updatedAt
                 return b.updatedAt - a.updatedAt
             })
-            .map(toSessionSummary)
 
-        return c.json({ sessions })
+        const pageOffset = offset ?? 0
+        const pagedSessions = limit === undefined
+            ? sortedSessions
+            : sortedSessions.slice(pageOffset, pageOffset + limit)
+        const response = {
+            sessions: pagedSessions.map(toSessionSummary),
+            ...(limit === undefined ? {} : {
+                page: {
+                    limit,
+                    offset: pageOffset,
+                    hasMore: pageOffset + pagedSessions.length < sortedSessions.length,
+                    nextOffset: pageOffset + pagedSessions.length < sortedSessions.length
+                        ? pageOffset + pagedSessions.length
+                        : null,
+                    total: sortedSessions.length
+                }
+            })
+        }
+
+        return c.json(response)
     })
 
     app.get('/sessions/:id', (c) => {

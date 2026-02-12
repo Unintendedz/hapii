@@ -31,7 +31,11 @@ export function NewSession(props: {
 }) {
     const { haptic } = usePlatform()
     const { spawnSession, isPending, error: spawnError } = useSpawnSession(props.api)
-    const { sessions } = useSessions(props.api)
+    const { activeSessions, archivedSessions } = useSessions(props.api)
+    const sessions = useMemo(
+        () => [...activeSessions, ...archivedSessions],
+        [activeSessions, archivedSessions]
+    )
     const isFormDisabled = Boolean(isPending || props.isLoading)
     const { getRecentPaths, addRecentPath, getLastUsedMachineId, setLastUsedMachineId } = useRecentPaths()
 

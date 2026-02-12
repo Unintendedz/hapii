@@ -41,6 +41,11 @@ export default {
   // Sessions page
   'sessions.count': '{n} sessions in {m} projects',
   'sessions.new': 'New Session',
+  'sessions.active.section': 'Active',
+  'sessions.archived.section': 'Archived',
+  'sessions.archived.loaded': '{n} of {m} archived sessions shown',
+  'sessions.archived.loadMore': 'Load more archived sessions',
+  'sessions.archived.loadingMore': 'Loading more…',
 
   // Session list
   'session.item.path': 'path',

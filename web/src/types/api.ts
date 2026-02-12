@@ -59,7 +59,18 @@ export type AuthResponse = {
     }
 }
 
-export type SessionsResponse = { sessions: SessionSummary[] }
+export type SessionsPage = {
+    limit: number
+    offset: number
+    hasMore: boolean
+    nextOffset: number | null
+    total: number
+}
+
+export type SessionsResponse = {
+    sessions: SessionSummary[]
+    page?: SessionsPage
+}
 export type SessionResponse = { session: Session }
 export type MessagesResponse = {
     messages: DecryptedMessage[]

@@ -17,6 +17,8 @@ type SessionGroup = {
     hasActiveSession: boolean
 }
 
+type GroupSection = 'active' | 'archived'
+
 function getGroupDisplayName(directory: string): string {
     if (directory === 'Other') return directory
     const parts = directory.split(/[\\/]+/).filter(Boolean)
@@ -184,11 +186,12 @@ function SessionItem(props: {
     session: SessionSummary
     onSelect: (sessionId: string) => void
     showPath?: boolean
+    compact?: boolean
     api: ApiClient | null
     selected?: boolean
 }) {
     const { t } = useTranslation()
-    const { session: s, onSelect, showPath = true, api, selected = false } = props
+    const { session: s, onSelect, showPath = true, compact = false, api, selected = false } = props
     const { haptic } = usePlatform()
     const [menuOpen, setMenuOpen] = useState(false)
     const [menuAnchorPoint, setMenuAnchorPoint] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -220,43 +223,39 @@ function SessionItem(props: {
     const statusDotClass = s.active
         ? (s.thinking ? 'bg-[#007AFF]' : 'bg-[var(--app-badge-success-text)]')
         : 'bg-[var(--app-hint)]'
+    const progress = getTodoProgress(s)
+
     return (
         <>
             <button
                 type="button"
                 {...longPressHandlers}
-                className={`session-list-item flex w-full flex-col gap-1.5 px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] select-none ${selected ? 'bg-[var(--app-secondary-bg)]' : ''}`}
+                className={`session-list-item flex w-full flex-col ${compact ? 'gap-1 px-3 py-2' : 'gap-1.5 px-3 py-3'} text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] select-none ${selected ? 'bg-[var(--app-secondary-bg)]' : ''}`}
                 style={{ WebkitTouchCallout: 'none' }}
                 aria-current={selected ? 'page' : undefined}
             >
                 <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-4 w-4 items-center justify-center" aria-hidden="true">
-                            <span
-                                className={`h-2 w-2 rounded-full ${statusDotClass}`}
-                            />
+                            <span className={`h-2 w-2 rounded-full ${statusDotClass}`} />
                         </span>
-                        <div className="truncate text-[15px] font-medium">
+                        <div className={compact ? 'truncate text-sm font-medium' : 'truncate text-[15px] font-medium'}>
                             {sessionName}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 text-xs">
-                        {s.thinking ? (
-                            <span className="text-[#007AFF] animate-pulse">
+                    <div className={`flex shrink-0 items-center gap-2 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+                        {!compact && s.thinking ? (
+                            <span className="animate-pulse text-[#007AFF]">
                                 {t('session.item.thinking')}
                             </span>
                         ) : null}
-                        {(() => {
-                            const progress = getTodoProgress(s)
-                            if (!progress) return null
-                            return (
-                                <span className="flex items-center gap-1 text-[var(--app-hint)]">
-                                    <BulbIcon className="h-3 w-3" />
-                                    {progress.completed}/{progress.total}
-                                </span>
-                            )
-                        })()}
-                        {s.pendingRequestsCount > 0 ? (
+                        {!compact && progress ? (
+                            <span className="flex items-center gap-1 text-[var(--app-hint)]">
+                                <BulbIcon className="h-3 w-3" />
+                                {progress.completed}/{progress.total}
+                            </span>
+                        ) : null}
+                        {!compact && s.pendingRequestsCount > 0 ? (
                             <span className="text-[var(--app-badge-warning-text)]">
                                 {t('session.item.pending')} {s.pendingRequestsCount}
                             </span>
@@ -271,18 +270,20 @@ function SessionItem(props: {
                         {s.metadata?.path ?? s.id}
                     </div>
                 ) : null}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--app-hint)]">
-                    <span className="inline-flex items-center gap-2">
-                        <span className="flex h-4 w-4 items-center justify-center" aria-hidden="true">
-                            ❖
+                {!compact ? (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--app-hint)]">
+                        <span className="inline-flex items-center gap-2">
+                            <span className="flex h-4 w-4 items-center justify-center" aria-hidden="true">
+                                ❖
+                            </span>
+                            {getAgentLabel(s)}
                         </span>
-                        {getAgentLabel(s)}
-                    </span>
-                    <span>{t('session.item.modelMode')}: {s.modelMode || 'default'}</span>
-                    {s.metadata?.worktree?.branch ? (
-                        <span>{t('session.item.worktree')}: {s.metadata.worktree.branch}</span>
-                    ) : null}
-                </div>
+                        <span>{t('session.item.modelMode')}: {s.modelMode || 'default'}</span>
+                        {s.metadata?.worktree?.branch ? (
+                            <span>{t('session.item.worktree')}: {s.metadata.worktree.branch}</span>
+                        ) : null}
+                    </div>
+                ) : null}
             </button>
 
             <SessionActionMenu
@@ -331,7 +332,12 @@ function SessionItem(props: {
 }
 
 export function SessionList(props: {
-    sessions: SessionSummary[]
+    activeSessions: SessionSummary[]
+    archivedSessions: SessionSummary[]
+    archivedTotal: number
+    hasMoreArchived: boolean
+    isLoadingMoreArchived: boolean
+    onLoadMoreArchived: () => void
     onSelect: (sessionId: string) => void
     onNewSession: () => void
     onRefresh: () => void
@@ -342,23 +348,33 @@ export function SessionList(props: {
 }) {
     const { t } = useTranslation()
     const { renderHeader = true, api, selectedSessionId } = props
-    const groups = useMemo(
-        () => groupSessionsByDirectory(props.sessions),
-        [props.sessions]
+    const activeGroups = useMemo(
+        () => groupSessionsByDirectory(props.activeSessions),
+        [props.activeSessions]
+    )
+    const archivedGroups = useMemo(
+        () => groupSessionsByDirectory(props.archivedSessions),
+        [props.archivedSessions]
     )
     const [collapseOverrides, setCollapseOverrides] = useState<Map<string, boolean>>(
         () => new Map()
     )
-    const isGroupCollapsed = (group: SessionGroup): boolean => {
-        const override = collapseOverrides.get(group.directory)
+
+    const makeGroupKey = (section: GroupSection, directory: string): string => `${section}:${directory}`
+
+    const isGroupCollapsed = (section: GroupSection, group: SessionGroup): boolean => {
+        const key = makeGroupKey(section, group.directory)
+        const override = collapseOverrides.get(key)
         if (override !== undefined) return override
+        if (section === 'archived') return false
         return !group.hasActiveSession
     }
 
-    const toggleGroup = (directory: string, isCollapsed: boolean) => {
+    const toggleGroup = (section: GroupSection, directory: string, isCollapsed: boolean) => {
+        const key = makeGroupKey(section, directory)
         setCollapseOverrides(prev => {
             const next = new Map(prev)
-            next.set(directory, !isCollapsed)
+            next.set(key, !isCollapsed)
             return next
         })
     }
@@ -366,30 +382,80 @@ export function SessionList(props: {
     useEffect(() => {
         setCollapseOverrides(prev => {
             if (prev.size === 0) return prev
-            const next = new Map(prev)
-            const knownGroups = new Set(groups.map(group => group.directory))
+            const knownGroups = new Set([
+                ...activeGroups.map(group => makeGroupKey('active', group.directory)),
+                ...archivedGroups.map(group => makeGroupKey('archived', group.directory))
+            ])
             let changed = false
-            for (const directory of next.keys()) {
-                if (!knownGroups.has(directory)) {
-                    next.delete(directory)
+            const next = new Map(prev)
+            for (const key of next.keys()) {
+                if (!knownGroups.has(key)) {
+                    next.delete(key)
                     changed = true
                 }
             }
             return changed ? next : prev
         })
-    }, [groups])
+    }, [activeGroups, archivedGroups])
+
+    const renderGroups = (section: GroupSection, groups: SessionGroup[], compactItems: boolean) => {
+        return groups.map((group) => {
+            const isCollapsed = isGroupCollapsed(section, group)
+            return (
+                <div key={makeGroupKey(section, group.directory)}>
+                    <button
+                        type="button"
+                        onClick={() => toggleGroup(section, group.directory, isCollapsed)}
+                        className={`sticky top-0 z-10 flex w-full items-center gap-2 px-3 ${section === 'archived' ? 'py-1.5' : 'py-2'} text-left bg-[var(--app-bg)] border-b border-[var(--app-divider)] transition-colors hover:bg-[var(--app-secondary-bg)]`}
+                    >
+                        <ChevronIcon
+                            className="h-4 w-4 text-[var(--app-hint)]"
+                            collapsed={isCollapsed}
+                        />
+                        <FolderIcon className="h-3.5 w-3.5 shrink-0 text-[var(--app-hint)]" />
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className="break-words text-sm font-semibold text-[var(--app-hint)]" title={group.directory}>
+                                {group.displayName}
+                            </span>
+                            <span className="shrink-0 text-xs text-[var(--app-hint)]">
+                                ({group.sessions.length})
+                            </span>
+                        </div>
+                    </button>
+                    {!isCollapsed ? (
+                        <div className={`ml-5 flex flex-col divide-y divide-[var(--app-divider)] border-b border-[var(--app-divider)] pl-2 ${section === 'archived' ? 'border-l border-dashed border-[var(--app-divider)]' : 'border-l border-[var(--app-divider)]'}`}>
+                            {group.sessions.map((session) => (
+                                <SessionItem
+                                    key={session.id}
+                                    session={session}
+                                    onSelect={props.onSelect}
+                                    showPath={false}
+                                    compact={compactItems}
+                                    api={api}
+                                    selected={session.id === selectedSessionId}
+                                />
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
+            )
+        })
+    }
+
+    const visibleSessionsCount = props.activeSessions.length + props.archivedSessions.length
+    const visibleGroupCount = activeGroups.length + archivedGroups.length
 
     return (
-        <div className="mx-auto w-full max-w-content flex flex-col">
+        <div className="mx-auto flex w-full max-w-content flex-col">
             {renderHeader ? (
                 <div className="flex items-center justify-between px-3 py-1">
                     <div className="text-xs text-[var(--app-hint)]">
-                        {t('sessions.count', { n: props.sessions.length, m: groups.length })}
+                        {t('sessions.count', { n: visibleSessionsCount, m: visibleGroupCount })}
                     </div>
                     <button
                         type="button"
                         onClick={props.onNewSession}
-                        className="session-list-new-button p-1.5 rounded-full text-[var(--app-link)] transition-colors"
+                        className="session-list-new-button rounded-full p-1.5 text-[var(--app-link)] transition-colors"
                         title={t('sessions.new')}
                     >
                         <PlusIcon className="h-5 w-5" />
@@ -398,46 +464,47 @@ export function SessionList(props: {
             ) : null}
 
             <div className="flex flex-col">
-                {groups.map((group) => {
-                    const isCollapsed = isGroupCollapsed(group)
-                    return (
-                        <div key={group.directory}>
-                            <button
-                                type="button"
-                                onClick={() => toggleGroup(group.directory, isCollapsed)}
-                                className="sticky top-0 z-10 flex w-full items-center gap-2 px-3 py-2 text-left bg-[var(--app-bg)] border-b border-[var(--app-divider)] transition-colors hover:bg-[var(--app-secondary-bg)]"
-                            >
-                                <ChevronIcon
-                                    className="h-4 w-4 text-[var(--app-hint)]"
-                                    collapsed={isCollapsed}
-                                />
-                                <FolderIcon className="h-3.5 w-3.5 shrink-0 text-[var(--app-hint)]" />
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className="font-semibold text-sm text-[var(--app-hint)] break-words" title={group.directory}>
-                                        {group.displayName}
-                                    </span>
-                                    <span className="shrink-0 text-xs text-[var(--app-hint)]">
-                                        ({group.sessions.length})
-                                    </span>
-                                </div>
-                            </button>
-                            {!isCollapsed ? (
-                                <div className="ml-5 pl-2 border-l border-[var(--app-divider)] flex flex-col divide-y divide-[var(--app-divider)] border-b border-[var(--app-divider)]">
-                                    {group.sessions.map((s) => (
-                                        <SessionItem
-                                            key={s.id}
-                                            session={s}
-                                            onSelect={props.onSelect}
-                                            showPath={false}
-                                            api={api}
-                                            selected={s.id === selectedSessionId}
-                                        />
-                                    ))}
-                                </div>
-                            ) : null}
+                {activeGroups.length > 0 ? (
+                    <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--app-hint)]">
+                        {t('sessions.active.section')}
+                    </div>
+                ) : null}
+                {renderGroups('active', activeGroups, false)}
+
+                {archivedGroups.length > 0 ? (
+                    <div className="px-3 pb-2 pt-4">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-[var(--app-divider)]" />
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--app-hint)]">
+                                {t('sessions.archived.section')}
+                            </span>
+                            <div className="h-px flex-1 bg-[var(--app-divider)]" />
                         </div>
-                    )
-                })}
+                        <div className="mt-1 text-[11px] text-[var(--app-hint)]">
+                            {t('sessions.archived.loaded', {
+                                n: props.archivedSessions.length,
+                                m: props.archivedTotal
+                            })}
+                        </div>
+                    </div>
+                ) : null}
+
+                {renderGroups('archived', archivedGroups, true)}
+
+                {props.hasMoreArchived ? (
+                    <div className="px-3 py-3">
+                        <button
+                            type="button"
+                            onClick={props.onLoadMoreArchived}
+                            disabled={props.isLoadingMoreArchived}
+                            className="w-full rounded-md border border-[var(--app-divider)] bg-[var(--app-secondary-bg)] px-3 py-2 text-sm font-medium text-[var(--app-fg)] transition-colors hover:bg-[var(--app-subtle-bg)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {props.isLoadingMoreArchived
+                                ? t('sessions.archived.loadingMore')
+                                : t('sessions.archived.loadMore')}
+                        </button>
+                    </div>
+                ) : null}
             </div>
         </div>
     )

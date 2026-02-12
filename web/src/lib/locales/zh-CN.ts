@@ -41,6 +41,11 @@ export default {
   // Sessions page
   'sessions.count': '{n} 个会话，{m} 个项目',
   'sessions.new': '新建会话',
+  'sessions.active.section': '未归档',
+  'sessions.archived.section': '已归档',
+  'sessions.archived.loaded': '已显示 {n}/{m} 个归档会话',
+  'sessions.archived.loadMore': '加载更多归档会话',
+  'sessions.archived.loadingMore': '加载更多中…',
 
   // Session list
   'session.item.path': '路径',
