@@ -91,6 +91,7 @@ export function NewSession(props: {
     const worktreeInputRef = useRef<HTMLInputElement>(null)
     const skipNextAgentModelReset = useRef(false)
     const checkedPathsSignatureRef = useRef('')
+    const appliedPresetSignatureRef = useRef<string | null>(null)
 
     const presetDirectory = props.initialPreset?.directory?.trim() ?? ''
     const projectPreset = useMemo(
@@ -108,6 +109,17 @@ export function NewSession(props: {
             sessionType: projectPreset?.sessionType ?? props.initialPreset?.sessionType,
         }
     }, [presetDirectory, projectPreset, props.initialPreset])
+
+    const presetSignature = useMemo(() => {
+        return JSON.stringify({
+            directory: mergedPreset.directory ?? null,
+            machineId: mergedPreset.machineId ?? null,
+            agent: mergedPreset.agent ?? null,
+            model: mergedPreset.model ?? null,
+            yoloMode: typeof mergedPreset.yoloMode === 'boolean' ? mergedPreset.yoloMode : null,
+            sessionType: mergedPreset.sessionType ?? null,
+        })
+    }, [mergedPreset])
 
     useEffect(() => {
         if (sessionType === 'worktree') {
@@ -132,6 +144,12 @@ export function NewSession(props: {
     }, [yoloMode])
 
     useEffect(() => {
+        if (appliedPresetSignatureRef.current !== presetSignature) {
+            setInitialPresetApplied(false)
+        }
+    }, [presetSignature])
+
+    useEffect(() => {
         if (initialPresetApplied) {
             return
         }
@@ -146,12 +164,16 @@ export function NewSession(props: {
         )
 
         if (!hasPreset) {
+            setDirectory('')
+            appliedPresetSignatureRef.current = presetSignature
             setInitialPresetApplied(true)
             return
         }
 
         if (mergedPreset.directory) {
             setDirectory(mergedPreset.directory)
+        } else {
+            setDirectory('')
         }
         if (mergedPreset.sessionType) {
             setSessionType(mergedPreset.sessionType)
@@ -180,8 +202,9 @@ export function NewSession(props: {
             }
         }
 
+        appliedPresetSignatureRef.current = presetSignature
         setInitialPresetApplied(true)
-    }, [agent, initialPresetApplied, mergedPreset, props.machines])
+    }, [agent, initialPresetApplied, mergedPreset, presetSignature, props.machines])
 
     useEffect(() => {
         if (!initialPresetApplied) return

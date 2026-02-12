@@ -184,7 +184,7 @@ function SessionsPage() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => navigate({ to: '/sessions/new' })}
+                                onClick={() => navigate({ to: '/sessions/new', search: {} })}
                                 className="session-list-new-button p-1.5 rounded-full text-[var(--app-link)] transition-colors"
                                 title={t('sessions.new')}
                             >
@@ -215,7 +215,7 @@ function SessionsPage() {
                             to: '/sessions/$sessionId',
                             params: { sessionId },
                         })}
-                        onNewSession={() => navigate({ to: '/sessions/new' })}
+                        onNewSession={() => navigate({ to: '/sessions/new', search: {} })}
                         onRefresh={handleRefresh}
                         isLoading={isLoading}
                         renderHeader={false}
