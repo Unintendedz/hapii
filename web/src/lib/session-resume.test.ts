@@ -2,16 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Session } from '@/types/api'
 import { resolveSessionIdForSend } from './session-resume'
 
-function makeSession(overrides?: Partial<Session>): Session {
-    const now = Date.now()
+function makeSession(nowMs: number, overrides?: Partial<Session>): Session {
     return {
         id: 'session-1',
         namespace: 'default',
         seq: 1,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: nowMs,
+        updatedAt: nowMs,
         active: false,
-        activeAt: now,
+        activeAt: nowMs,
         metadata: {
             path: '/tmp/project',
             host: 'localhost',
@@ -37,7 +36,7 @@ describe('resolveSessionIdForSend', () => {
         const resolved = await resolveSessionIdForSend({
             api: api as never,
             sessionId: 'session-1',
-            session: makeSession({ active: true }),
+            session: makeSession(1_000_000, { active: true }),
         })
 
         expect(resolved).toBe('session-1')
@@ -45,52 +44,33 @@ describe('resolveSessionIdForSend', () => {
         expect(api.resumeSession).not.toHaveBeenCalled()
     })
 
-    it('resumes inactive session when resume token is available', async () => {
-        const inactiveWithToken = makeSession({
-            active: false,
-            metadata: {
-                path: '/tmp/project',
-                host: 'localhost',
-                flavor: 'codex',
-                codexSessionId: 'codex-resume-token',
-            },
-        })
-
-        const api = {
-            getSession: vi.fn(async () => ({ session: inactiveWithToken })),
-            resumeSession: vi.fn(async () => 'session-2'),
-        }
-
-        const resolved = await resolveSessionIdForSend({
-            api: api as never,
-            sessionId: 'session-1',
-            session: inactiveWithToken,
-        })
-
-        expect(resolved).toBe('session-2')
-        expect(api.resumeSession).toHaveBeenCalledWith('session-1')
-    })
-
-    it('waits for fresh session warmup and avoids unnecessary resume', async () => {
+    it('waits for new session to become active and does not attempt resume', async () => {
         let nowMs = 1_000_000
-        const inactiveNoToken = makeSession({
-            createdAt: nowMs - 500,
-            updatedAt: nowMs - 500,
+        const createdAt = nowMs - 500
+
+        const starting = makeSession(nowMs, {
+            createdAt,
+            updatedAt: createdAt,
             active: false,
+            activeAt: createdAt,
             metadata: {
                 path: '/tmp/project',
                 host: 'localhost',
                 flavor: 'codex',
+                // Even if a token exists, we should not resume a session that is still starting.
+                codexSessionId: 'codex-token',
             },
         })
-        const activeAfterWarmup = makeSession({
-            createdAt: inactiveNoToken.createdAt,
+
+        const active = makeSession(nowMs, {
+            createdAt,
             updatedAt: nowMs,
             active: true,
-            metadata: inactiveNoToken.metadata,
+            activeAt: nowMs,
+            metadata: starting.metadata,
         })
 
-        const snapshots = [inactiveNoToken, inactiveNoToken, activeAfterWarmup]
+        const snapshots = [starting, active]
         let index = 0
 
         const api = {
@@ -105,14 +85,14 @@ describe('resolveSessionIdForSend', () => {
         const resolved = await resolveSessionIdForSend({
             api: api as never,
             sessionId: 'session-1',
-            session: inactiveNoToken,
+            session: starting,
             now: () => nowMs,
             sleep: async (ms: number) => {
                 nowMs += ms
             },
-            warmupTimeoutMs: 2_000,
+            inactiveGraceTimeoutMs: 1_000,
+            warmupTimeoutMs: 5_000,
             warmupPollMs: 100,
-            freshSessionWindowMs: 5_000,
         })
 
         expect(resolved).toBe('session-1')
@@ -120,12 +100,15 @@ describe('resolveSessionIdForSend', () => {
         expect(api.getSession).toHaveBeenCalled()
     })
 
-    it('fails fast when session is stale and resume token is unavailable', async () => {
-        let nowMs = 2_000_000
-        const staleInactive = makeSession({
-            createdAt: nowMs - 120_000,
-            updatedAt: nowMs - 120_000,
+    it('throws a starting error if a new session does not become active in time', async () => {
+        let nowMs = 1_000_000
+        const createdAt = nowMs - 500
+
+        const starting = makeSession(nowMs, {
+            createdAt,
+            updatedAt: createdAt,
             active: false,
+            activeAt: createdAt,
             metadata: {
                 path: '/tmp/project',
                 host: 'localhost',
@@ -134,22 +117,99 @@ describe('resolveSessionIdForSend', () => {
         })
 
         const api = {
-            getSession: vi.fn(async () => ({ session: staleInactive })),
+            getSession: vi.fn(async () => ({ session: starting })),
             resumeSession: vi.fn(async () => 'session-2'),
         }
 
         await expect(resolveSessionIdForSend({
             api: api as never,
             sessionId: 'session-1',
-            session: staleInactive,
+            session: starting,
             now: () => nowMs,
             sleep: async (ms: number) => {
                 nowMs += ms
             },
-            warmupTimeoutMs: 2_000,
+            inactiveGraceTimeoutMs: 0,
+            warmupTimeoutMs: 500,
             warmupPollMs: 100,
-            freshSessionWindowMs: 5_000,
         })).rejects.toThrow('Session is still starting')
+
+        expect(api.resumeSession).not.toHaveBeenCalled()
+    })
+
+    it('resumes an inactive session that was previously alive', async () => {
+        let nowMs = 1_000_000
+        const createdAt = nowMs - 10_000
+
+        const inactive = makeSession(nowMs, {
+            createdAt,
+            updatedAt: createdAt,
+            active: false,
+            // Previously alive, so this should not be treated as "starting".
+            activeAt: createdAt + 5_000,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+                codexSessionId: 'codex-resume-token',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: inactive })),
+            resumeSession: vi.fn(async () => 'session-2'),
+        }
+
+        const resolved = await resolveSessionIdForSend({
+            api: api as never,
+            sessionId: 'session-1',
+            session: inactive,
+            now: () => nowMs,
+            sleep: async (ms: number) => {
+                nowMs += ms
+            },
+            inactiveGraceTimeoutMs: 0,
+            warmupTimeoutMs: 1_000,
+            warmupPollMs: 100,
+        })
+
+        expect(resolved).toBe('session-2')
+        expect(api.resumeSession).toHaveBeenCalledWith('session-1')
+    })
+
+    it('fails fast when resume token is unavailable for a non-starting inactive session', async () => {
+        let nowMs = 1_000_000
+        const createdAt = nowMs - 10_000
+
+        const inactive = makeSession(nowMs, {
+            createdAt,
+            updatedAt: createdAt,
+            active: false,
+            activeAt: createdAt + 5_000,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: inactive })),
+            resumeSession: vi.fn(async () => 'session-2'),
+        }
+
+        await expect(resolveSessionIdForSend({
+            api: api as never,
+            sessionId: 'session-1',
+            session: inactive,
+            now: () => nowMs,
+            sleep: async (ms: number) => {
+                nowMs += ms
+            },
+            inactiveGraceTimeoutMs: 0,
+            warmupTimeoutMs: 1_000,
+            warmupPollMs: 100,
+        })).rejects.toThrow('Resume session ID unavailable')
 
         expect(api.resumeSession).not.toHaveBeenCalled()
     })

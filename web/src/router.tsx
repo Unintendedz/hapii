@@ -276,10 +276,33 @@ function SessionPage() {
                     }
                 })
             } catch (error) {
-                const message = error instanceof Error ? error.message : 'Resume failed'
+                const raw = error instanceof Error ? error.message : 'Resume failed'
+                const parsed = (() => {
+                    const match = raw.match(/:\s*(\{[\s\S]*\})\s*$/)
+                    if (!match) {
+                        return null
+                    }
+
+                    try {
+                        const obj = JSON.parse(match[1]) as { error?: unknown; code?: unknown }
+                        const errorText = typeof obj.error === 'string' ? obj.error : null
+                        const codeText = typeof obj.code === 'string' ? obj.code : null
+                        return { error: errorText, code: codeText }
+                    } catch {
+                        return null
+                    }
+                })()
+
+                const body = parsed?.error ?? raw
+                const title = body.includes('Session is still starting')
+                    ? 'Session is starting'
+                    : parsed?.code === 'resume_unavailable' || body.includes('Resume session ID unavailable')
+                        ? 'Resume unavailable'
+                        : 'Resume failed'
+
                 addToast({
-                    title: 'Resume failed',
-                    body: message,
+                    title,
+                    body,
                     sessionId: currentSessionId,
                     url: ''
                 })
