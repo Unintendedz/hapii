@@ -73,6 +73,12 @@ export async function runAgentSession(opts: {
 
         permissionAdapter = new PermissionAdapter(session, backend);
 
+        const activeBackend = backend;
+        const activePermissionAdapter = permissionAdapter;
+        if (!activeBackend || !activePermissionAdapter) {
+            throw new Error('Agent backend not initialized');
+        }
+
         happyServer = await startHappyServer(session);
         const bridgeCommand = getHappyCliCommand(['mcp', '--url', happyServer.url]);
         const mcpServers = [
@@ -84,7 +90,7 @@ export async function runAgentSession(opts: {
             }
         ];
 
-        const agentSessionId = await backend.newSession({
+        const agentSessionId = await activeBackend.newSession({
             cwd: process.cwd(),
             mcpServers
         });
@@ -95,8 +101,8 @@ export async function runAgentSession(opts: {
 
         const handleAbort = async () => {
             logger.debug('[ACP] Abort requested');
-            await backend.cancelPrompt(agentSessionId);
-            await permissionAdapter.cancelAll('User aborted');
+            await activeBackend.cancelPrompt(agentSessionId);
+            await activePermissionAdapter.cancelAll('User aborted');
             thinking = false;
             session.keepAlive(thinking, 'remote');
             sendReady();
@@ -112,7 +118,7 @@ export async function runAgentSession(opts: {
         const handleKillSession = async () => {
             if (shouldExit) return;
             shouldExit = true;
-            await permissionAdapter.cancelAll('Session killed');
+            await activePermissionAdapter.cancelAll('Session killed');
             if (waitAbortController) {
                 waitAbortController.abort();
             }
@@ -140,7 +146,7 @@ export async function runAgentSession(opts: {
             session.keepAlive(thinking, 'remote');
 
             try {
-                await backend.prompt(agentSessionId, promptContent, (message) => {
+                await activeBackend.prompt(agentSessionId, promptContent, (message) => {
                     const converted = convertAgentMessage(message);
                     if (converted) {
                         session.sendCodexMessage(converted);
@@ -155,7 +161,7 @@ export async function runAgentSession(opts: {
             } finally {
                 thinking = false;
                 session.keepAlive(thinking, 'remote');
-                await permissionAdapter.cancelAll('Prompt finished');
+                await activePermissionAdapter.cancelAll('Prompt finished');
                 emitReadyIfIdle({
                     queueSize: () => messageQueue.size(),
                     shouldExit,
