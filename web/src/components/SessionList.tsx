@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionSummary } from '@/types/api'
 import type { ApiClient } from '@/api/client'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -18,6 +18,8 @@ type SessionGroup = {
 }
 
 type GroupSection = 'active' | 'archived'
+
+const ARCHIVED_GROUP_PAGE_SIZE = 8
 
 function getGroupDisplayName(directory: string): string {
     if (directory === 'Other') return directory
@@ -335,9 +337,6 @@ export function SessionList(props: {
     activeSessions: SessionSummary[]
     archivedSessions: SessionSummary[]
     archivedTotal: number
-    hasMoreArchived: boolean
-    isLoadingMoreArchived: boolean
-    onLoadMoreArchived: () => void
     onQuickCreateInDirectory?: (payload: {
         directory: string
         seedSession: SessionSummary | null
@@ -364,8 +363,35 @@ export function SessionList(props: {
         () => new Map()
     )
     const [isArchivedSectionCollapsed, setIsArchivedSectionCollapsed] = useState(true)
+    const [archivedVisibleCounts, setArchivedVisibleCounts] = useState<Map<string, number>>(
+        () => new Map()
+    )
 
     const makeGroupKey = (section: GroupSection, directory: string): string => `${section}:${directory}`
+
+    const getArchivedVisibleCount = useCallback((group: SessionGroup): number => {
+        const override = archivedVisibleCounts.get(group.directory)
+        if (override === undefined) {
+            return Math.min(group.sessions.length, ARCHIVED_GROUP_PAGE_SIZE)
+        }
+        if (!Number.isFinite(override) || override < 0) {
+            return 0
+        }
+        return Math.min(group.sessions.length, Math.floor(override))
+    }, [archivedVisibleCounts])
+
+    const loadMoreArchivedForGroup = useCallback((group: SessionGroup) => {
+        setArchivedVisibleCounts(prev => {
+            const current = prev.get(group.directory) ?? Math.min(group.sessions.length, ARCHIVED_GROUP_PAGE_SIZE)
+            const nextCount = Math.min(group.sessions.length, current + ARCHIVED_GROUP_PAGE_SIZE)
+            if (nextCount <= current) {
+                return prev
+            }
+            const next = new Map(prev)
+            next.set(group.directory, nextCount)
+            return next
+        })
+    }, [])
 
     const isGroupCollapsed = (section: GroupSection, group: SessionGroup): boolean => {
         const key = makeGroupKey(section, group.directory)
@@ -404,6 +430,44 @@ export function SessionList(props: {
     }, [activeGroups, archivedGroups])
 
     useEffect(() => {
+        setArchivedVisibleCounts(prev => {
+            if (prev.size === 0) {
+                return prev
+            }
+
+            const totalsByDirectory = new Map(
+                archivedGroups.map(group => [group.directory, group.sessions.length])
+            )
+            let changed = false
+            const next = new Map<string, number>()
+
+            for (const [directory, count] of prev.entries()) {
+                const total = totalsByDirectory.get(directory)
+                if (total === undefined) {
+                    changed = true
+                    continue
+                }
+
+                const normalized = Math.min(total, Math.max(0, Math.floor(count)))
+                if (normalized <= ARCHIVED_GROUP_PAGE_SIZE) {
+                    changed = true
+                    continue
+                }
+
+                if (normalized !== count) {
+                    changed = true
+                }
+                next.set(directory, normalized)
+            }
+
+            if (!changed && next.size === prev.size) {
+                return prev
+            }
+            return next
+        })
+    }, [archivedGroups])
+
+    useEffect(() => {
         if (!selectedSessionId) {
             return
         }
@@ -417,10 +481,22 @@ export function SessionList(props: {
         }
     }, [archivedGroups, selectedSessionId])
 
+    const visibleArchivedCount = archivedGroups.reduce((sum, group) => {
+        return sum + getArchivedVisibleCount(group)
+    }, 0)
+
     const renderGroups = (section: GroupSection, groups: SessionGroup[], compactItems: boolean) => {
         return groups.map((group) => {
             const isCollapsed = isGroupCollapsed(section, group)
             const quickCreateSeed = group.sessions[0] ?? null
+            const visibleCount = section === 'archived'
+                ? getArchivedVisibleCount(group)
+                : group.sessions.length
+            const visibleSessions = section === 'archived'
+                ? group.sessions.slice(0, visibleCount)
+                : group.sessions
+            const hasMoreInGroup = section === 'archived' && visibleCount < group.sessions.length
+
             return (
                 <div key={makeGroupKey(section, group.directory)}>
                     <div
@@ -464,7 +540,7 @@ export function SessionList(props: {
                     </div>
                     {!isCollapsed ? (
                         <div className={`ml-5 flex flex-col divide-y divide-[var(--app-divider)] border-b border-[var(--app-divider)] pl-2 ${section === 'archived' ? 'border-l border-dashed border-[var(--app-divider)]' : 'border-l border-[var(--app-divider)]'}`}>
-                            {group.sessions.map((session) => (
+                            {visibleSessions.map((session) => (
                                 <SessionItem
                                     key={session.id}
                                     session={session}
@@ -475,6 +551,17 @@ export function SessionList(props: {
                                     selected={session.id === selectedSessionId}
                                 />
                             ))}
+                            {hasMoreInGroup ? (
+                                <div className="px-3 py-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => loadMoreArchivedForGroup(group)}
+                                        className="w-full text-left text-[11px] text-[var(--app-hint)] transition-colors hover:text-[var(--app-fg)]"
+                                    >
+                                        {t('sessions.archived.loadMore')}
+                                    </button>
+                                </div>
+                            ) : null}
                         </div>
                     ) : null}
                 </div>
@@ -482,9 +569,9 @@ export function SessionList(props: {
         })
     }
 
-    const visibleSessionsCount = props.activeSessions.length + props.archivedSessions.length
+    const visibleSessionsCount = props.activeSessions.length + visibleArchivedCount
     const visibleGroupCount = activeGroups.length + archivedGroups.length
-    const hasArchivedSection = props.archivedTotal > 0 || props.archivedSessions.length > 0 || props.hasMoreArchived
+    const hasArchivedSection = props.archivedTotal > 0 || props.archivedSessions.length > 0
 
     return (
         <div className="mx-auto flex w-full max-w-content flex-col">
@@ -528,7 +615,7 @@ export function SessionList(props: {
                             </span>
                             <span className="ml-auto text-[11px] text-[var(--app-hint)]">
                                 {t('sessions.archived.loaded', {
-                                    n: props.archivedSessions.length,
+                                    n: visibleArchivedCount,
                                     m: props.archivedTotal
                                 })}
                             </span>
@@ -538,20 +625,6 @@ export function SessionList(props: {
                             <div className="border-t border-[var(--app-divider)] bg-[var(--app-bg)]">
                                 {renderGroups('archived', archivedGroups, true)}
 
-                                {props.hasMoreArchived ? (
-                                    <div className="px-3 py-3">
-                                        <button
-                                            type="button"
-                                            onClick={props.onLoadMoreArchived}
-                                            disabled={props.isLoadingMoreArchived}
-                                            className="w-full rounded-md border border-[var(--app-divider)] bg-[var(--app-secondary-bg)] px-3 py-2 text-sm font-medium text-[var(--app-fg)] transition-colors hover:bg-[var(--app-subtle-bg)] disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {props.isLoadingMoreArchived
-                                                ? t('sessions.archived.loadingMore')
-                                                : t('sessions.archived.loadMore')}
-                                        </button>
-                                    </div>
-                                ) : null}
                             </div>
                         ) : null}
                     </div>

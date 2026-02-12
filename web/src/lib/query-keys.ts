@@ -1,7 +1,7 @@
 export const queryKeys = {
     sessions: ['sessions'] as const,
     activeSessions: ['sessions', 'active'] as const,
-    archivedSessions: (pageSize: number) => ['sessions', 'archived', pageSize] as const,
+    archivedSessions: ['sessions', 'archived'] as const,
     session: (sessionId: string) => ['session', sessionId] as const,
     messages: (sessionId: string) => ['messages', sessionId] as const,
     machines: ['machines'] as const,

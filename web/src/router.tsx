@@ -126,9 +126,6 @@ function SessionsPage() {
         activeSessions,
         archivedSessions,
         archivedTotal,
-        hasMoreArchived,
-        isLoadingMoreArchived,
-        loadMoreArchived,
         isLoading,
         error,
         refetch
@@ -204,11 +201,6 @@ function SessionsPage() {
                         activeSessions={activeSessions}
                         archivedSessions={archivedSessions}
                         archivedTotal={archivedTotal}
-                        hasMoreArchived={hasMoreArchived}
-                        isLoadingMoreArchived={isLoadingMoreArchived}
-                        onLoadMoreArchived={() => {
-                            void loadMoreArchived()
-                        }}
                         onQuickCreateInDirectory={handleQuickCreateInDirectory}
                         selectedSessionId={selectedSessionId}
                         onSelect={(sessionId) => navigate({
