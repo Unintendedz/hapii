@@ -177,4 +177,42 @@ describe('SessionList archived load more behavior', () => {
         expect(archivedSection?.className).not.toContain('sticky')
         expect(archivedSection?.className).not.toContain('bottom-0')
     })
+
+    it('shows quick-create for both active and archived projects without hover-only classes', () => {
+        const onQuickCreateInDirectory = vi.fn()
+
+        render(
+            <I18nProvider>
+                <SessionList
+                    activeSessions={[
+                        makeActiveSession('active-1', '/projects/live', 1_700_001_500, 'active-1'),
+                    ]}
+                    archivedSessions={[
+                        ...makeProjectSessions('alpha', '/projects/alpha', 2, 1_700_001_000),
+                    ]}
+                    archivedTotal={2}
+                    onQuickCreateInDirectory={onQuickCreateInDirectory}
+                    onSelect={vi.fn()}
+                    onNewSession={vi.fn()}
+                    onRefresh={vi.fn()}
+                    isLoading={false}
+                    api={null}
+                />
+            </I18nProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: /^Archived/ }))
+
+        const quickCreateButtons = screen.getAllByRole('button', { name: 'New in this project' })
+        expect(quickCreateButtons).toHaveLength(2)
+        expect(quickCreateButtons[0].className).not.toContain('md:opacity-0')
+        expect(quickCreateButtons[0].className).not.toContain('md:group-hover:opacity-100')
+
+        fireEvent.click(quickCreateButtons[1])
+        expect(onQuickCreateInDirectory).toHaveBeenCalledTimes(1)
+        expect(onQuickCreateInDirectory).toHaveBeenCalledWith({
+            directory: '/projects/alpha',
+            seedSession: expect.objectContaining({ id: 'alpha-01' })
+        })
+    })
 })

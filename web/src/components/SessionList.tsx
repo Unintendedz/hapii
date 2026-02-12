@@ -521,7 +521,7 @@ export function SessionList(props: {
                                 </span>
                             </div>
                         </button>
-                        {section === 'active' && props.onQuickCreateInDirectory ? (
+                        {props.onQuickCreateInDirectory ? (
                             <button
                                 type="button"
                                 onClick={() => {
@@ -530,7 +530,7 @@ export function SessionList(props: {
                                         seedSession: quickCreateSeed
                                     })
                                 }}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--app-link)] transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--app-link)] transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                                 title={t('sessions.quickCreate')}
                                 aria-label={t('sessions.quickCreate')}
                             >
