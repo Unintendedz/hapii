@@ -121,6 +121,25 @@ function ChevronIcon(props: { className?: string; collapsed?: boolean }) {
     )
 }
 
+function FolderIcon(props: { className?: string }) {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={props.className}
+        >
+            <path d="M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" />
+        </svg>
+    )
+}
+
 function getSessionTitle(session: SessionSummary): string {
     if (session.metadata?.name) {
         return session.metadata.name
@@ -217,7 +236,7 @@ function SessionItem(props: {
                                 className={`h-2 w-2 rounded-full ${statusDotClass}`}
                             />
                         </span>
-                        <div className="truncate text-base font-medium">
+                        <div className="truncate text-[15px] font-medium">
                             {sessionName}
                         </div>
                     </div>
@@ -392,8 +411,9 @@ export function SessionList(props: {
                                     className="h-4 w-4 text-[var(--app-hint)]"
                                     collapsed={isCollapsed}
                                 />
+                                <FolderIcon className="h-3.5 w-3.5 shrink-0 text-[var(--app-hint)]" />
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className="font-medium text-base break-words" title={group.directory}>
+                                    <span className="font-semibold text-sm text-[var(--app-hint)] break-words" title={group.directory}>
                                         {group.displayName}
                                     </span>
                                     <span className="shrink-0 text-xs text-[var(--app-hint)]">
@@ -402,7 +422,7 @@ export function SessionList(props: {
                                 </div>
                             </button>
                             {!isCollapsed ? (
-                                <div className="flex flex-col divide-y divide-[var(--app-divider)] border-b border-[var(--app-divider)]">
+                                <div className="ml-5 pl-2 border-l border-[var(--app-divider)] flex flex-col divide-y divide-[var(--app-divider)] border-b border-[var(--app-divider)]">
                                     {group.sessions.map((s) => (
                                         <SessionItem
                                             key={s.id}
