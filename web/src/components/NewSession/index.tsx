@@ -34,6 +34,30 @@ export type NewSessionInitialPreset = {
     sessionType?: SessionType
 }
 
+function hasSamePathExistence(
+    current: Record<string, boolean>,
+    next: Record<string, boolean>
+): boolean {
+    if (current === next) {
+        return true
+    }
+
+    const currentKeys = Object.keys(current)
+    const nextKeys = Object.keys(next)
+
+    if (currentKeys.length !== nextKeys.length) {
+        return false
+    }
+
+    for (const key of currentKeys) {
+        if (current[key] !== next[key]) {
+            return false
+        }
+    }
+
+    return true
+}
+
 export function NewSession(props: {
     api: ApiClient
     machines: Machine[]
@@ -168,14 +192,10 @@ export function NewSession(props: {
 
         if (foundLast) {
             setMachineId(foundLast.id)
-            if (!directory.trim()) {
-                const paths = getRecentPaths(foundLast.id)
-                if (paths[0]) setDirectory(paths[0])
-            }
         } else if (props.machines[0]) {
             setMachineId(props.machines[0].id)
         }
-    }, [directory, getLastUsedMachineId, getRecentPaths, initialPresetApplied, machineId, props.machines])
+    }, [getLastUsedMachineId, initialPresetApplied, machineId, props.machines])
 
     const recentPaths = useMemo(
         () => getRecentPaths(machineId),
@@ -193,18 +213,19 @@ export function NewSession(props: {
         let cancelled = false
 
         if (!machineId || pathsToCheck.length === 0) {
-            setPathExistence({})
+            setPathExistence((current) => (Object.keys(current).length === 0 ? current : {}))
             return () => { cancelled = true }
         }
 
         void props.api.checkMachinePathsExists(machineId, pathsToCheck)
             .then((result) => {
                 if (cancelled) return
-                setPathExistence(result.exists ?? {})
+                const next = result.exists ?? {}
+                setPathExistence((current) => (hasSamePathExistence(current, next) ? current : next))
             })
             .catch(() => {
                 if (cancelled) return
-                setPathExistence({})
+                setPathExistence((current) => (Object.keys(current).length === 0 ? current : {}))
             })
 
         return () => {
@@ -239,13 +260,7 @@ export function NewSession(props: {
 
     const handleMachineChange = useCallback((newMachineId: string) => {
         setMachineId(newMachineId)
-        const paths = getRecentPaths(newMachineId)
-        if (paths[0]) {
-            setDirectory(paths[0])
-        } else {
-            setDirectory('')
-        }
-    }, [getRecentPaths])
+    }, [])
 
     const handlePathClick = useCallback((path: string) => {
         setDirectory(path)

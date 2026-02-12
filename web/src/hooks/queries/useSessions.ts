@@ -1,10 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import type { SessionSummary } from '@/types/api'
 import { queryKeys } from '@/lib/query-keys'
 
 const ARCHIVED_PAGE_SIZE = 8
+const EMPTY_SESSIONS: SessionSummary[] = []
 
 export function useSessions(api: ApiClient | null): {
     activeSessions: SessionSummary[]
@@ -69,9 +70,15 @@ export function useSessions(api: ApiClient | null): {
         return { activeResult, archivedResult }
     }, [activeQuery, archivedQuery])
 
-    const activeSessions = activeQuery.data?.sessions ?? []
-    const archivedSessions = archivedQuery.data?.pages.flatMap((page) => page.sessions) ?? []
-    const archivedTotal = archivedQuery.data?.pages[0]?.page?.total ?? archivedSessions.length
+    const activeSessions = activeQuery.data?.sessions ?? EMPTY_SESSIONS
+    const archivedPages = archivedQuery.data?.pages
+    const archivedSessions = useMemo(() => {
+        if (!archivedPages) {
+            return EMPTY_SESSIONS
+        }
+        return archivedPages.flatMap((page) => page.sessions)
+    }, [archivedPages])
+    const archivedTotal = archivedPages?.[0]?.page?.total ?? archivedSessions.length
 
     const queryError = activeQuery.error ?? archivedQuery.error
 
