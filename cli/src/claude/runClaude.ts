@@ -53,6 +53,14 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
     });
     logger.debug(`Session created: ${sessionInfo.id}`);
 
+    const startingMode = options.startingMode ?? (startedBy === 'runner' ? 'remote' : 'local');
+    setControlledByUser(session, startingMode);
+
+    let startupKeepAliveInterval: NodeJS.Timeout | null = setInterval(() => {
+        session.keepAlive(false, startingMode);
+    }, 2000);
+    session.keepAlive(false, startingMode);
+
     // Extract SDK metadata in background and update session when ready
     extractSDKMetadataAsync(async (sdkMetadata) => {
         logger.debug('[start] SDK metadata extracted, updating session:', sdkMetadata);
@@ -125,10 +133,6 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
 
     lifecycle.registerProcessHandlers();
     registerKillSessionHandler(session.rpcHandlerManager, lifecycle.cleanupAndExit);
-
-    // Set initial agent state
-    const startingMode = options.startingMode ?? (startedBy === 'runner' ? 'remote' : 'local');
-    setControlledByUser(session, startingMode);
 
     // Import MessageQueue2 and create message queue
     const messageQueue = new MessageQueue2<EnhancedMode>(mode => hashObject({
@@ -312,6 +316,11 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
     let loopError: unknown = null;
     let loopFailed = false;
     try {
+        if (startupKeepAliveInterval) {
+            clearInterval(startupKeepAliveInterval);
+            startupKeepAliveInterval = null;
+        }
+
         await loop({
             path: workingDirectory,
             model: options.model,

@@ -40,6 +40,11 @@ export async function runCodex(opts: {
 
     setControlledByUser(session, startingMode);
 
+    let startupKeepAliveInterval: NodeJS.Timeout | null = setInterval(() => {
+        session.keepAlive(false, startingMode);
+    }, 2000);
+    session.keepAlive(false, startingMode);
+
     const messageQueue = new MessageQueue2<EnhancedMode>((mode) => hashObject({
         permissionMode: mode.permissionMode,
         model: mode.model,
@@ -133,6 +138,11 @@ export async function runCodex(opts: {
     });
 
     try {
+        if (startupKeepAliveInterval) {
+            clearInterval(startupKeepAliveInterval);
+            startupKeepAliveInterval = null;
+        }
+
         await loop({
             path: workingDirectory,
             startingMode,

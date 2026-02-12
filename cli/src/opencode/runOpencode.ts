@@ -45,6 +45,11 @@ export async function runOpencode(opts: {
 
     setControlledByUser(session, startingMode);
 
+    let startupKeepAliveInterval: NodeJS.Timeout | null = setInterval(() => {
+        session.keepAlive(false, startingMode);
+    }, 2000);
+    session.keepAlive(false, startingMode);
+
     const messageQueue = new MessageQueue2<OpencodeMode>((mode) => hashObject({
         permissionMode: mode.permissionMode
     }));
@@ -114,6 +119,11 @@ export async function runOpencode(opts: {
     });
 
     try {
+        if (startupKeepAliveInterval) {
+            clearInterval(startupKeepAliveInterval);
+            startupKeepAliveInterval = null;
+        }
+
         await opencodeLoop({
             path: workingDirectory,
             startingMode,

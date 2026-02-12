@@ -31,6 +31,7 @@ export async function runAgentSession(opts: {
     const initialState: AgentState = {
         controlledByUser: false
     };
+
     const { session } = await bootstrapSession({
         flavor: opts.agentType,
         startedBy: opts.startedBy ?? 'terminal',
@@ -50,68 +51,75 @@ export async function runAgentSession(opts: {
         messageQueue.push(formattedText, {});
     });
 
-    const backend: AgentBackend = AgentRegistry.create(opts.agentType);
-    await backend.initialize();
-
-    const permissionAdapter = new PermissionAdapter(session, backend);
-
-    const happyServer = await startHappyServer(session);
-    const bridgeCommand = getHappyCliCommand(['mcp', '--url', happyServer.url]);
-    const mcpServers = [
-        {
-            name: 'happy',
-            command: bridgeCommand.command,
-            args: bridgeCommand.args,
-            env: []
-        }
-    ];
-
-    const agentSessionId = await backend.newSession({
-        cwd: process.cwd(),
-        mcpServers
-    });
-
     let thinking = false;
     let shouldExit = false;
     let waitAbortController: AbortController | null = null;
 
+    let keepAliveInterval: NodeJS.Timeout | null = null;
+    let backend: AgentBackend | null = null;
+    let permissionAdapter: PermissionAdapter | null = null;
+    let happyServer: Awaited<ReturnType<typeof startHappyServer>> | null = null;
+
+    // Mark session as active as early as possible.
+    // Important: register onUserMessage before allowing webapp sends.
     session.keepAlive(thinking, 'remote');
-    const keepAliveInterval = setInterval(() => {
+    keepAliveInterval = setInterval(() => {
         session.keepAlive(thinking, 'remote');
     }, 2000);
 
-    const sendReady = () => {
-        session.sendSessionEvent({ type: 'ready' });
-    };
-
-    const handleAbort = async () => {
-        logger.debug('[ACP] Abort requested');
-        await backend.cancelPrompt(agentSessionId);
-        await permissionAdapter.cancelAll('User aborted');
-        thinking = false;
-        session.keepAlive(thinking, 'remote');
-        sendReady();
-        if (waitAbortController) {
-            waitAbortController.abort();
-        }
-    };
-
-    session.rpcHandlerManager.registerHandler('abort', async () => {
-        await handleAbort();
-    });
-
-    const handleKillSession = async () => {
-        if (shouldExit) return;
-        shouldExit = true;
-        await permissionAdapter.cancelAll('Session killed');
-        if (waitAbortController) {
-            waitAbortController.abort();
-        }
-    };
-
-    registerKillSessionHandler(session.rpcHandlerManager, handleKillSession);
-
     try {
+        backend = AgentRegistry.create(opts.agentType);
+        await backend.initialize();
+
+        permissionAdapter = new PermissionAdapter(session, backend);
+
+        happyServer = await startHappyServer(session);
+        const bridgeCommand = getHappyCliCommand(['mcp', '--url', happyServer.url]);
+        const mcpServers = [
+            {
+                name: 'happy',
+                command: bridgeCommand.command,
+                args: bridgeCommand.args,
+                env: []
+            }
+        ];
+
+        const agentSessionId = await backend.newSession({
+            cwd: process.cwd(),
+            mcpServers
+        });
+
+        const sendReady = () => {
+            session.sendSessionEvent({ type: 'ready' });
+        };
+
+        const handleAbort = async () => {
+            logger.debug('[ACP] Abort requested');
+            await backend.cancelPrompt(agentSessionId);
+            await permissionAdapter.cancelAll('User aborted');
+            thinking = false;
+            session.keepAlive(thinking, 'remote');
+            sendReady();
+            if (waitAbortController) {
+                waitAbortController.abort();
+            }
+        };
+
+        session.rpcHandlerManager.registerHandler('abort', async () => {
+            await handleAbort();
+        });
+
+        const handleKillSession = async () => {
+            if (shouldExit) return;
+            shouldExit = true;
+            await permissionAdapter.cancelAll('Session killed');
+            if (waitAbortController) {
+                waitAbortController.abort();
+            }
+        };
+
+        registerKillSessionHandler(session.rpcHandlerManager, handleKillSession);
+
         while (!shouldExit) {
             waitAbortController = new AbortController();
             const batch = await messageQueue.waitForMessagesAndGetAsString(waitAbortController.signal);
@@ -157,12 +165,41 @@ export async function runAgentSession(opts: {
             }
         }
     } finally {
-        clearInterval(keepAliveInterval);
-        await permissionAdapter.cancelAll('Session ended');
-        session.sendSessionDeath();
-        await session.flush();
-        session.close();
-        await backend.disconnect();
-        happyServer.stop();
+        if (keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+            keepAliveInterval = null;
+        }
+
+        try {
+            if (permissionAdapter) {
+                await permissionAdapter.cancelAll('Session ended');
+            }
+        } catch (error) {
+            logger.debug('[ACP] permission cleanup failed', error);
+        }
+
+        try {
+            session.sendSessionDeath();
+            await session.flush();
+            session.close();
+        } catch (error) {
+            logger.debug('[ACP] session cleanup failed', error);
+        }
+
+        try {
+            if (backend) {
+                await backend.disconnect();
+            }
+        } catch (error) {
+            logger.debug('[ACP] backend.disconnect failed', error);
+        }
+
+        try {
+            if (happyServer) {
+                happyServer.stop();
+            }
+        } catch (error) {
+            logger.debug('[ACP] happyServer.stop failed', error);
+        }
     }
 }
