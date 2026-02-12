@@ -141,14 +141,38 @@ export async function checkIfRunnerRunningAndCleanupStaleState(): Promise<boolea
     return false;
   }
 
-  // Check if the runner is running
-  if (isProcessAlive(state.pid)) {
-    return true;
+  // PID alone is not a reliable signal: it can be reused by the OS.
+  // Verify that the runner control server is actually responding.
+  if (!isProcessAlive(state.pid)) {
+    logger.debug('[RUNNER RUN] Runner PID not running, cleaning up state');
+    await cleanupRunnerState();
+    return false;
   }
 
-  logger.debug('[RUNNER RUN] Runner PID not running, cleaning up state');
-  await cleanupRunnerState();
-  return false;
+  if (!state.httpPort) {
+    logger.debug('[RUNNER RUN] Runner state missing httpPort, cleaning up state');
+    await cleanupRunnerState();
+    return false;
+  }
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${state.httpPort}/list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(1000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Runner control server unhealthy: HTTP ${response.status}`);
+    }
+
+    return true;
+  } catch (error) {
+    logger.debug('[RUNNER RUN] Runner control server not responding, cleaning up state', error);
+    await cleanupRunnerState();
+    return false;
+  }
 }
 
 /**
