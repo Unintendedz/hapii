@@ -57,7 +57,11 @@ Bun workspaces; `shared` consumed by cli, hub, web.
 - Path alias `@/*` maps to `./src/*` per package
 - Prefer 4-space indentation
 - Zod for runtime validation (schemas in `shared/src/schemas.ts`)
-- Commit messages must be written in English
+- Commit messages: Conventional Commits, English only
+- Format: `type(scope): subject`
+- Types: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `build`, `ci`, `perf`, `revert`
+- Scope: package name (prefer one of `web`, `hub`, `cli`, `shared`, `docs`, `website`)
+- Subject: imperative, lowercase, no trailing period
 
 ## Common commands (repo root)
 
