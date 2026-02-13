@@ -184,12 +184,24 @@ export class RpcGateway {
         return await this.sessionRpc(sessionId, 'ripgrep', { args, cwd }) as RpcCommandResponse
     }
 
-    async listSlashCommands(sessionId: string, agent: string): Promise<{
+    async listSlashCommands(sessionId: string, agent: string, workingDirectory?: string): Promise<{
         success: boolean
         commands?: Array<{ name: string; description?: string; source: 'builtin' | 'user' }>
         error?: string
     }> {
-        return await this.sessionRpc(sessionId, 'listSlashCommands', { agent }) as {
+        return await this.sessionRpc(sessionId, 'listSlashCommands', { agent, workingDirectory }) as {
+            success: boolean
+            commands?: Array<{ name: string; description?: string; source: 'builtin' | 'user' }>
+            error?: string
+        }
+    }
+
+    async listSlashCommandsOnMachine(machineId: string, agent: string, workingDirectory?: string): Promise<{
+        success: boolean
+        commands?: Array<{ name: string; description?: string; source: 'builtin' | 'user' }>
+        error?: string
+    }> {
+        return await this.machineRpc(machineId, 'listSlashCommands', { agent, workingDirectory }) as {
             success: boolean
             commands?: Array<{ name: string; description?: string; source: 'builtin' | 'user' }>
             error?: string
@@ -202,6 +214,18 @@ export class RpcGateway {
         error?: string
     }> {
         return await this.sessionRpc(sessionId, 'listSkills', {}) as {
+            success: boolean
+            skills?: Array<{ name: string; description?: string }>
+            error?: string
+        }
+    }
+
+    async listSkillsOnMachine(machineId: string): Promise<{
+        success: boolean
+        skills?: Array<{ name: string; description?: string }>
+        error?: string
+    }> {
+        return await this.machineRpc(machineId, 'listSkills', {}) as {
             success: boolean
             skills?: Array<{ name: string; description?: string }>
             error?: string

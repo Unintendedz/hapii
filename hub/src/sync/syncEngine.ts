@@ -451,7 +451,28 @@ export class SyncEngine {
         commands?: Array<{ name: string; description?: string; source: 'builtin' | 'user' }>
         error?: string
     }> {
-        return await this.rpcGateway.listSlashCommands(sessionId, agent)
+        const session = this.getSession(sessionId)
+        const cwd = session?.metadata?.path
+        const machineId = session?.metadata?.machineId
+
+        if (machineId && cwd) {
+            try {
+                return await this.rpcGateway.listSlashCommandsOnMachine(machineId, agent, cwd)
+            } catch (error) {
+                // Fallback: sessions started without runner may not have machine-scoped RPC.
+                // If the session itself is active, use session-scoped RPC.
+                if (session?.active) {
+                    return await this.rpcGateway.listSlashCommands(sessionId, agent, cwd)
+                }
+                throw error
+            }
+        }
+
+        if (session?.active) {
+            return await this.rpcGateway.listSlashCommands(sessionId, agent, cwd)
+        }
+
+        throw new Error('Cannot list slash commands: no machine online and session is inactive')
     }
 
     async listSkills(sessionId: string): Promise<{
@@ -459,6 +480,24 @@ export class SyncEngine {
         skills?: Array<{ name: string; description?: string }>
         error?: string
     }> {
-        return await this.rpcGateway.listSkills(sessionId)
+        const session = this.getSession(sessionId)
+        const machineId = session?.metadata?.machineId
+
+        if (machineId) {
+            try {
+                return await this.rpcGateway.listSkillsOnMachine(machineId)
+            } catch (error) {
+                if (session?.active) {
+                    return await this.rpcGateway.listSkills(sessionId)
+                }
+                throw error
+            }
+        }
+
+        if (session?.active) {
+            return await this.rpcGateway.listSkills(sessionId)
+        }
+
+        throw new Error('Cannot list skills: no machine online and session is inactive')
     }
 }
