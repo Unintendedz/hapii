@@ -31,7 +31,7 @@ describe('appServerConfig', () => {
         });
 
         expect(params.sandbox).toBe('danger-full-access');
-        expect(params.approvalPolicy).toBe('on-failure');
+        expect(params.approvalPolicy).toBe('never');
     });
 
     it('builds turn params with mode defaults', () => {

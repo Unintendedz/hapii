@@ -7,8 +7,10 @@
 
 import { logger } from "@/ui/logger";
 import { ApiSessionClient } from "@/api/apiSession";
+import type { PermissionMode } from '@hapi/protocol/types';
 import {
     BasePermissionHandler,
+    type AutoApprovalDecision,
     type PendingPermissionRequest,
     type PermissionCompletion
 } from "@/modules/common/permission/BasePermissionHandler";
@@ -38,7 +40,11 @@ type CodexPermissionHandlerOptions = {
 };
 
 export class CodexPermissionHandler extends BasePermissionHandler<PermissionResponse, PermissionResult> {
-    constructor(session: ApiSessionClient, private readonly options?: CodexPermissionHandlerOptions) {
+    constructor(
+        session: ApiSessionClient,
+        private readonly getPermissionMode: () => PermissionMode | undefined,
+        private readonly options?: CodexPermissionHandlerOptions
+    ) {
         super(session);
     }
 
@@ -58,6 +64,12 @@ export class CodexPermissionHandler extends BasePermissionHandler<PermissionResp
         toolName: string,
         input: unknown
     ): Promise<PermissionResult> {
+        const mode = this.getPermissionMode() ?? 'default';
+        const autoDecision = this.resolveAutoApprovalDecision(mode, toolName, toolCallId);
+        if (autoDecision) {
+            return this.autoApprove(toolCallId, toolName, input, autoDecision);
+        }
+
         return new Promise<PermissionResult>((resolve, reject) => {
             // Store the pending request
             this.addPendingRequest(toolCallId, toolName, input, { resolve, reject });
@@ -76,6 +88,46 @@ export class CodexPermissionHandler extends BasePermissionHandler<PermissionResp
 
             logger.debug(`[Codex] Permission request sent for tool: ${toolName} (${toolCallId})`);
         });
+    }
+
+    private autoApprove(
+        toolCallId: string,
+        toolName: string,
+        input: unknown,
+        decision: AutoApprovalDecision
+    ): PermissionResult {
+        const now = Date.now();
+
+        this.options?.onRequest?.({ id: toolCallId, toolName, input });
+
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            completedRequests: {
+                ...currentState.completedRequests,
+                [toolCallId]: {
+                    tool: toolName,
+                    arguments: input,
+                    createdAt: now,
+                    completedAt: now,
+                    status: 'approved',
+                    decision
+                }
+            }
+        }));
+
+        const result: PermissionResult = { decision };
+
+        this.options?.onComplete?.({
+            id: toolCallId,
+            toolName,
+            input,
+            approved: true,
+            decision: result.decision,
+            reason: result.reason
+        });
+
+        logger.debug(`[Codex] Auto-approved ${toolName} (${toolCallId}) decision=${decision}`);
+        return result;
     }
 
     /**

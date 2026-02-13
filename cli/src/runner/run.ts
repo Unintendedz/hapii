@@ -297,6 +297,21 @@ export async function startRunner(): Promise<void> {
             // Create a temporary directory for Codex
             const codexHomeDir = await fs.mkdtemp(join(os.tmpdir(), 'hapi-codex-'));
 
+            // Seed Codex config so runner-spawned sessions respect the user's global settings (e.g. YOLO).
+            const userCodexHomeDir = process.env.CODEX_HOME?.trim() || join(os.homedir(), '.codex');
+            const userCodexConfigPath = join(userCodexHomeDir, 'config.toml');
+            try {
+              await fs.copyFile(userCodexConfigPath, join(codexHomeDir, 'config.toml'));
+              logger.debug(`[RUNNER RUN] Seeded temp CODEX_HOME config from ${userCodexConfigPath}`);
+            } catch (error) {
+              const code = error && typeof error === 'object'
+                ? (error as NodeJS.ErrnoException).code
+                : undefined;
+              if (code !== 'ENOENT') {
+                logger.debug('[RUNNER RUN] Failed to seed temp CODEX_HOME config', error);
+              }
+            }
+
             // Write the token to the temporary directory
             await fs.writeFile(join(codexHomeDir, 'auth.json'), options.token);
 
