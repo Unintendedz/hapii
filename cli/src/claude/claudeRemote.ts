@@ -122,7 +122,6 @@ export async function claudeRemote(opts: {
         disallowedTools: initial.mode.disallowedTools,
         canCallTool: (toolName: string, input: unknown, options: { signal: AbortSignal }) => opts.canCallTool(toolName, input, mode, options),
         abort: opts.signal,
-        pathToClaudeCodeExecutable: 'claude',
         settingsPath: opts.hookSettingsPath,
         additionalDirectories: [getHapiBlobsDir()],
     }
