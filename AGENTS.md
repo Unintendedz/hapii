@@ -75,6 +75,39 @@ bun run dev             # hub + web concurrently
 bun run build:single-exe # All-in-one binary
 ```
 
+## Required workflow (local dev)
+
+Goal: small diffs; predictable rollout; no “it works on my machine”.
+
+Order (every change):
+
+1. Stage by feature; commit immediately (no big mixed commits).
+
+```bash
+git status -sb
+git add -p
+git commit -m "fix(web): ..."
+```
+
+2. Run checks (fail fast).
+
+```bash
+bun typecheck
+bun run test
+```
+
+3. Build + replace the currently-running instance.
+
+- Source dev (`bun run dev`): restart dev processes; force-refresh PWA once.
+- Single-exe (`hapi hub`): rebuild + restart hub (and runner if needed).
+
+4. Smoke checks; then push.
+
+```bash
+curl -fsS http://127.0.0.1:3006/api/sessions?archived=false >/dev/null
+git push
+```
+
 ## Local replacement SOP
 
 Goal: replace currently-running local instance; keep remote control stable.
