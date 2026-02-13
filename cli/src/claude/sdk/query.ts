@@ -6,6 +6,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { existsSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { Stream } from './stream'
 import {
     type QueryOptions,
@@ -29,6 +30,26 @@ import { stripNewlinesForWindowsShellArg } from '@/utils/shellEscape'
 import type { Writable } from 'node:stream'
 import { logger } from '@/ui/logger'
 import { appendMcpConfigArg } from '../utils/mcpConfig'
+
+function buildEnvWithPrependedPath(env: NodeJS.ProcessEnv, binDir: string): NodeJS.ProcessEnv {
+    const resolvedBinDir = binDir.trim()
+    if (!resolvedBinDir) {
+        throw new Error('Invalid binDir for PATH')
+    }
+
+    const delimiter = process.platform === 'win32' ? ';' : ':'
+    const current = env.PATH
+    const parts = (typeof current === 'string' ? current.split(delimiter) : []).filter(Boolean)
+
+    if (!parts.includes(resolvedBinDir)) {
+        parts.unshift(resolvedBinDir)
+    }
+
+    return {
+        ...env,
+        PATH: parts.join(delimiter)
+    }
+}
 
 /**
  * Query class manages Claude Code process interaction
@@ -339,7 +360,11 @@ export function query(config: {
     cleanupMcpConfig = appendMcpConfigArg(spawnArgs, mcpServers)
 
     // Spawn Claude Code process
-    const spawnEnv = withBunRuntimeEnv(process.env, { allowBunBeBun: false })
+    let spawnEnv = withBunRuntimeEnv(process.env, { allowBunBeBun: false })
+    if (!isCommandOnly) {
+        const binDir = dirname(pathToClaudeCodeExecutable)
+        spawnEnv = buildEnvWithPrependedPath(spawnEnv, binDir)
+    }
     logDebug(`Spawning Claude Code process: ${spawnCommand} ${spawnArgs.join(' ')}`)
 
     const child = spawn(spawnCommand, spawnArgs, {
