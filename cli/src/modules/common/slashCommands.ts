@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { dirname, join, resolve } from 'path';
 import { homedir } from 'os';
 import { parse as parseYaml } from 'yaml';
+import { getAgentCapabilities, normalizeAgentFlavor } from '@hapi/protocol';
 
 export interface SlashCommand {
     name: string;
@@ -22,25 +23,13 @@ export interface ListSlashCommandsResponse {
     error?: string;
 }
 
-/**
- * Built-in slash commands for each agent type.
- */
-const BUILTIN_COMMANDS: Record<string, SlashCommand[]> = {
-    claude: [
-        { name: 'clear', description: 'Clear conversation history', source: 'builtin' },
-        { name: 'compact', description: 'Compact conversation context', source: 'builtin' },
-        { name: 'context', description: 'Show context information', source: 'builtin' },
-        { name: 'cost', description: 'Show session cost', source: 'builtin' },
-        { name: 'plan', description: 'Toggle plan mode', source: 'builtin' },
-    ],
-    codex: [],
-    gemini: [
-        { name: 'about', description: 'About Gemini', source: 'builtin' },
-        { name: 'clear', description: 'Clear conversation', source: 'builtin' },
-        { name: 'compress', description: 'Compress context', source: 'builtin' },
-    ],
-    opencode: [],
-};
+function getBuiltinCommands(agent: string): SlashCommand[] {
+    return getAgentCapabilities(normalizeAgentFlavor(agent)).builtinSlashCommands.map((cmd) => ({
+        name: cmd.name,
+        description: cmd.description,
+        source: 'builtin'
+    }));
+}
 
 /**
  * Interface for installed_plugins.json structure
@@ -257,8 +246,7 @@ async function scanProjectCommands(agent: string, workingDirectory: string): Pro
  * then scans each plugin's commands directory.
  */
 async function scanPluginCommands(agent: string): Promise<SlashCommand[]> {
-    // Only Claude supports plugins for now
-    if (agent !== 'claude') {
+    if (!getAgentCapabilities(normalizeAgentFlavor(agent)).supportsPlugins) {
         return [];
     }
 
@@ -309,7 +297,7 @@ async function scanPluginCommands(agent: string): Promise<SlashCommand[]> {
  * Returns built-in commands, user-defined commands, and plugin commands.
  */
 export async function listSlashCommands(agent: string, workingDirectory?: string): Promise<SlashCommand[]> {
-    const builtin = BUILTIN_COMMANDS[agent] ?? [];
+    const builtin = getBuiltinCommands(agent);
 
     // Scan user commands, project commands, and plugin commands in parallel
     const [user, project, plugin] = await Promise.all([

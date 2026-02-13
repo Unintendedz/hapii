@@ -162,6 +162,7 @@ describe('slash commands RPC handler', () => {
         expect(parsed.success).toBe(true)
 
         const names = (parsed.commands ?? []).map((cmd) => cmd.name)
+        expect(names).toContain('clear')
         expect(names).toContain('project-cmd')
         expect(names).toContain('frontmatter-name')
         expect(names).not.toContain('weird-file-name')
@@ -186,6 +187,7 @@ describe('slash commands RPC handler', () => {
         expect(parsed.success).toBe(true)
 
         const names = (parsed.commands ?? []).map((cmd) => cmd.name)
+        expect(names).toContain('new')
         expect(names).toContain('codex-project')
         expect(names).toContain('codex-user')
     })
