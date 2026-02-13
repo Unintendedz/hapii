@@ -137,6 +137,7 @@ bun run build:single-exe
 4. Process manager commands:
 - pm2: `pm2 restart hapi-hub` and (if needed) `pm2 restart hapi-runner`.
 - systemd user service: `systemctl --user restart hapi-hub` and (if needed) `systemctl --user restart hapi-runner`.
+- launchd (macOS): `launchctl kickstart -k gui/$(id -u)/org.hapii.hub` (runner restart only if needed).
 
 5. Post-replace checks (fail fast):
 
