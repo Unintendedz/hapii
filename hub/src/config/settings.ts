@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile, open, unlink, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 export interface Settings {
@@ -7,6 +7,7 @@ export interface Settings {
     machineIdConfirmedByServer?: boolean
     runnerAutoStartWhenRunningHappy?: boolean
     cliApiToken?: string
+    includeCoAuthoredBy?: boolean
     vapidKeys?: {
         publicKey: string
         privateKey: string
@@ -68,4 +69,66 @@ export async function writeSettings(settingsFile: string, settings: Settings): P
     const tmpFile = settingsFile + '.tmp'
     await writeFile(tmpFile, JSON.stringify(settings, null, 2))
     await rename(tmpFile, settingsFile)
+}
+
+/**
+ * Atomically update settings with multi-process safety via file locking.
+ * Compatible with the CLI lock mechanism (settings.json.lock).
+ */
+export async function updateSettings(
+    settingsFile: string,
+    updater: (current: Settings) => Settings | Promise<Settings>
+): Promise<Settings> {
+    const LOCK_RETRY_INTERVAL_MS = 100
+    const MAX_LOCK_ATTEMPTS = 50 // 5 seconds
+    const STALE_LOCK_TIMEOUT_MS = 10_000
+
+    const dir = dirname(settingsFile)
+    if (!existsSync(dir)) {
+        await mkdir(dir, { recursive: true, mode: 0o700 })
+    }
+
+    const lockFile = settingsFile + '.lock'
+    const tmpFile = settingsFile + '.tmp'
+
+    let fileHandle: Awaited<ReturnType<typeof open>> | null = null
+    let attempts = 0
+
+    while (attempts < MAX_LOCK_ATTEMPTS) {
+        try {
+            fileHandle = await open(lockFile, 'wx')
+            break
+        } catch (error: any) {
+            if (error?.code !== 'EEXIST') {
+                throw error
+            }
+
+            attempts++
+            await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_INTERVAL_MS))
+
+            try {
+                const stats = await stat(lockFile)
+                if (Date.now() - stats.mtimeMs > STALE_LOCK_TIMEOUT_MS) {
+                    await unlink(lockFile).catch(() => { })
+                }
+            } catch {
+                // Ignore - lock file may disappear between checks
+            }
+        }
+    }
+
+    if (!fileHandle) {
+        throw new Error(`Failed to acquire settings lock after ${MAX_LOCK_ATTEMPTS * LOCK_RETRY_INTERVAL_MS / 1000} seconds`)
+    }
+
+    try {
+        const current = await readSettingsOrThrow(settingsFile)
+        const updated = await updater(current)
+        await writeFile(tmpFile, JSON.stringify(updated, null, 2))
+        await rename(tmpFile, settingsFile)
+        return updated
+    } finally {
+        await fileHandle.close()
+        await unlink(lockFile).catch(() => { })
+    }
 }
