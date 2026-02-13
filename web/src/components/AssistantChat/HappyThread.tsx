@@ -62,7 +62,7 @@ export function HappyThread(props: {
     disabled: boolean
     onRefresh: () => void
     onRetryMessage?: (localId: string) => void
-    onFlushPending: () => void
+    onFlushPending: () => void | Promise<void>
     onAtBottomChange: (atBottom: boolean) => void
     isLoadingMessages: boolean
     messagesWarning: string | null
@@ -76,6 +76,7 @@ export function HappyThread(props: {
     forceScrollToken: number
 }) {
     const { t } = useTranslation()
+    const NEAR_BOTTOM_THRESHOLD_PX = 120
     const viewportRef = useRef<HTMLDivElement | null>(null)
     const topSentinelRef = useRef<HTMLDivElement | null>(null)
     const loadLockRef = useRef(false)
@@ -121,11 +122,9 @@ export function HappyThread(props: {
         const viewport = viewportRef.current
         if (!viewport) return
 
-        const THRESHOLD_PX = 120
-
         const handleScroll = () => {
             const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
-            const isNearBottom = distanceFromBottom < THRESHOLD_PX
+            const isNearBottom = distanceFromBottom < NEAR_BOTTOM_THRESHOLD_PX
 
             if (isNearBottom) {
                 if (!autoScrollEnabledRef.current) setAutoScrollEnabled(true)
@@ -148,16 +147,36 @@ export function HappyThread(props: {
 
     // Scroll to bottom handler for the indicator button
     const scrollToBottom = useCallback(() => {
-        const viewport = viewportRef.current
-        if (viewport) {
-            viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
-        }
         setAutoScrollEnabled(true)
+
+        // Mark atBottom first so pending flush/refresh treats the user as "returning to bottom".
+        // This ensures overflow refresh merges into visible messages instead of remaining pending.
         if (!atBottomRef.current) {
             atBottomRef.current = true
             onAtBottomChangeRef.current(true)
         }
-        onFlushPendingRef.current()
+
+        // Flush pending first so the scroll target includes newly materialized messages.
+        const flushResult = onFlushPendingRef.current()
+
+        const doScroll = (behavior: ScrollBehavior) => {
+            const viewport = viewportRef.current
+            if (!viewport) return
+            viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+        }
+
+        // Wait for React to render flushed messages before scrolling.
+        requestAnimationFrame(() => {
+            doScroll('smooth')
+            // Snap again in case layout (markdown, code blocks, images) shifts height after the smooth scroll starts.
+            requestAnimationFrame(() => doScroll('auto'))
+            setTimeout(() => doScroll('auto'), 250)
+        })
+
+        // If flush triggers an async refresh, snap again once it finishes.
+        void Promise.resolve(flushResult).finally(() => {
+            requestAnimationFrame(() => doScroll('auto'))
+        })
     }, [])
 
     // Reset state when session changes

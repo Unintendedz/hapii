@@ -34,7 +34,7 @@ export function SessionChat(props: {
     onRefresh: () => void
     onLoadMore: () => Promise<unknown>
     onSend: (text: string, attachments?: AttachmentMetadata[]) => void
-    onFlushPending: () => void
+    onFlushPending: () => void | Promise<void>
     onAtBottomChange: (atBottom: boolean) => void
     onRetryMessage?: (localId: string) => void
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
