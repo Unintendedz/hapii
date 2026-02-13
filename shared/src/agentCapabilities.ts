@@ -9,6 +9,11 @@ export type ResumeTokenField =
     | 'geminiSessionId'
     | 'opencodeSessionId'
 
+export type BuiltinSlashCommand = {
+    name: string
+    description: string
+}
+
 export type AgentCapabilities = {
     flavor: AgentFlavor
     codexFamily: boolean
@@ -16,6 +21,7 @@ export type AgentCapabilities = {
     supportsPlugins: boolean
     supportsProjectSlashCommands: boolean
     resumeTokenField: ResumeTokenField
+    builtinSlashCommands: BuiltinSlashCommand[]
 }
 
 export function isAgentFlavor(value: unknown): value is AgentFlavor {
@@ -72,7 +78,17 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         supportsModelMode: true,
         supportsPlugins: true,
         supportsProjectSlashCommands: true,
-        resumeTokenField: 'claudeSessionId'
+        resumeTokenField: 'claudeSessionId',
+        builtinSlashCommands: [
+            { name: 'clear', description: 'Clear conversation history and free up context' },
+            { name: 'compact', description: 'Clear conversation history but keep a summary in context' },
+            { name: 'context', description: 'Visualize current context usage as a colored grid' },
+            { name: 'cost', description: 'Show the total cost and duration of the current session' },
+            { name: 'doctor', description: 'Diagnose and verify your Claude Code installation and settings' },
+            { name: 'plan', description: 'View or open the current session plan' },
+            { name: 'stats', description: 'Show your Claude Code usage statistics and activity' },
+            { name: 'status', description: 'Show Claude Code status including version, model, account, and API connectivity' }
+        ]
     },
     codex: {
         flavor: 'codex',
@@ -80,7 +96,15 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         supportsModelMode: false,
         supportsPlugins: false,
         supportsProjectSlashCommands: true,
-        resumeTokenField: 'codexSessionId'
+        resumeTokenField: 'codexSessionId',
+        builtinSlashCommands: [
+            { name: 'review', description: 'Review current changes and find issues' },
+            { name: 'new', description: 'Start a new chat during a conversation' },
+            { name: 'compat', description: 'Summarize conversation to prevent hitting the context limit' },
+            { name: 'undo', description: 'Ask Codex to undo a turn' },
+            { name: 'diff', description: 'Show git diff including untracked files' },
+            { name: 'status', description: 'Show current session configuration and token usage' }
+        ]
     },
     gemini: {
         flavor: 'gemini',
@@ -88,7 +112,13 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         supportsModelMode: false,
         supportsPlugins: false,
         supportsProjectSlashCommands: false,
-        resumeTokenField: 'geminiSessionId'
+        resumeTokenField: 'geminiSessionId',
+        builtinSlashCommands: [
+            { name: 'about', description: 'Show version info' },
+            { name: 'clear', description: 'Clear the screen and conversation history' },
+            { name: 'compress', description: 'Compress the context by replacing it with a summary' },
+            { name: 'stats', description: 'Check session stats' }
+        ]
     },
     opencode: {
         flavor: 'opencode',
@@ -96,7 +126,7 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         supportsModelMode: false,
         supportsPlugins: false,
         supportsProjectSlashCommands: false,
-        resumeTokenField: 'opencodeSessionId'
+        resumeTokenField: 'opencodeSessionId',
+        builtinSlashCommands: []
     }
 }
-
