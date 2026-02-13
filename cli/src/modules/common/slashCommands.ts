@@ -1,5 +1,5 @@
-import { readdir, readFile } from 'fs/promises';
-import { join } from 'path';
+import { readdir, readFile, stat } from 'fs/promises';
+import { dirname, join, resolve } from 'path';
 import { homedir } from 'os';
 import { parse as parseYaml } from 'yaml';
 
@@ -13,6 +13,7 @@ export interface SlashCommand {
 
 export interface ListSlashCommandsRequest {
     agent: string;
+    workingDirectory?: string;
 }
 
 export interface ListSlashCommandsResponse {
@@ -58,9 +59,9 @@ interface InstalledPluginsFile {
 
 /**
  * Parse frontmatter from a markdown file content.
- * Returns the description (from frontmatter) and the body content.
+ * Returns the name/description (from frontmatter) and the body content.
  */
-function parseFrontmatter(fileContent: string): { description?: string; content: string } {
+function parseFrontmatter(fileContent: string): { name?: string; description?: string; content: string } {
     // Match frontmatter: starts with ---, ends with ---
     const match = fileContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
     if (match) {
@@ -68,8 +69,9 @@ function parseFrontmatter(fileContent: string): { description?: string; content:
         const body = match[2].trim();
         try {
             const parsed = parseYaml(yamlContent) as Record<string, unknown> | null;
+            const name = typeof parsed?.name === 'string' ? parsed.name.trim() : undefined;
             const description = typeof parsed?.description === 'string' ? parsed.description : undefined;
-            return { description, content: body };
+            return { name: name && name.length > 0 ? name : undefined, description, content: body };
         } catch {
             // Invalid YAML - the --- block is not valid frontmatter, return entire file
             return { content: fileContent.trim() };
@@ -99,6 +101,41 @@ function getUserCommandsDir(agent: string): string | null {
     }
 }
 
+async function isDirectory(path: string): Promise<boolean> {
+    try {
+        return (await stat(path)).isDirectory()
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Find the nearest project command directory by walking up from the working directory.
+ * Mirrors how most tools treat project-local config as inheritable from parent dirs.
+ */
+async function findProjectCommandsDir(agent: string, workingDirectory: string): Promise<string | null> {
+    const start = resolve(workingDirectory)
+    let current = start
+
+    while (true) {
+        const candidate = agent === 'claude'
+            ? join(current, '.claude', 'commands')
+            : agent === 'codex'
+                ? join(current, '.codex', 'prompts')
+                : null
+
+        if (candidate && await isDirectory(candidate)) {
+            return candidate
+        }
+
+        const parent = dirname(current)
+        if (parent === current) {
+            return null
+        }
+        current = parent
+    }
+}
+
 /**
  * Scan a directory for commands (*.md files).
  * Returns commands with parsed frontmatter.
@@ -109,35 +146,65 @@ async function scanCommandsDir(
     pluginName?: string
 ): Promise<SlashCommand[]> {
     try {
-        const entries = await readdir(dir, { withFileTypes: true });
-        const mdFiles = entries.filter(e => e.isFile() && e.name.endsWith('.md'));
+        const collectMarkdownFiles = async (currentDir: string, relDir: string): Promise<Array<{
+            dir: string
+            fileName: string
+            relDir: string
+        }>> => {
+            const entries = await readdir(currentDir, { withFileTypes: true })
+            const result: Array<{ dir: string; fileName: string; relDir: string }> = []
+
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const nextRelDir = relDir ? join(relDir, entry.name) : entry.name
+                    const nested = await collectMarkdownFiles(join(currentDir, entry.name), nextRelDir)
+                    result.push(...nested)
+                    continue
+                }
+
+                if (entry.isFile() && entry.name.endsWith('.md')) {
+                    result.push({ dir: currentDir, fileName: entry.name, relDir })
+                }
+            }
+
+            return result
+        }
+
+        const mdFiles = await collectMarkdownFiles(dir, '')
 
         // Read all files in parallel
         const commands = await Promise.all(
             mdFiles.map(async (entry): Promise<SlashCommand | null> => {
-                const baseName = entry.name.slice(0, -3);
+                const baseName = entry.fileName.slice(0, -3);
                 if (!baseName) return null;
 
-                // For plugin commands, prefix with plugin name (e.g., "superpowers:brainstorm")
-                const name = pluginName ? `${pluginName}:${baseName}` : baseName;
-
                 try {
-                    const filePath = join(dir, entry.name);
+                    const filePath = join(entry.dir, entry.fileName);
                     const fileContent = await readFile(filePath, 'utf-8');
                     const parsed = parseFrontmatter(fileContent);
+                    const resolvedName = parsed.name ?? baseName;
+                    if (!resolvedName) return null;
+
+                    // For plugin commands, prefix with plugin name (e.g., "superpowers:brainstorm")
+                    const name = pluginName ? `${pluginName}:${resolvedName}` : resolvedName;
+                    const locationHint = entry.relDir ? ` (${entry.relDir})` : '';
+                    const baseDescription = parsed.description
+                        ?? (source === 'plugin' ? `${pluginName} command` : 'Custom command')
 
                     return {
                         name,
-                        description: parsed.description ?? (source === 'plugin' ? `${pluginName} command` : 'Custom command'),
+                        description: `${baseDescription}${locationHint}`,
                         source,
                         content: parsed.content,
                         pluginName,
                     };
                 } catch {
+                    const locationHint = entry.relDir ? ` (${entry.relDir})` : '';
+                    const name = pluginName ? `${pluginName}:${baseName}` : baseName;
                     // Failed to read file, return basic command
                     return {
                         name,
-                        description: source === 'plugin' ? `${pluginName} command` : 'Custom command',
+                        description: `${source === 'plugin' ? `${pluginName} command` : 'Custom command'}${locationHint}`,
                         source,
                         pluginName,
                     };
@@ -164,6 +231,24 @@ async function scanUserCommands(agent: string): Promise<SlashCommand[]> {
         return [];
     }
     return scanCommandsDir(dir, 'user');
+}
+
+/**
+ * Scan project-local commands from .claude/commands (Claude) or .codex/prompts (Codex).
+ */
+async function scanProjectCommands(agent: string, workingDirectory: string): Promise<SlashCommand[]> {
+    if (!workingDirectory || workingDirectory.trim().length === 0) {
+        return []
+    }
+
+    const dir = await findProjectCommandsDir(agent, workingDirectory)
+    if (!dir) {
+        return []
+    }
+
+    // Treat project-local commands as "user" for now so the web UI behaves the same.
+    // (The UI currently expands Codex "user" prompts, and does not distinguish scope.)
+    return scanCommandsDir(dir, 'user')
 }
 
 /**
@@ -223,15 +308,24 @@ async function scanPluginCommands(agent: string): Promise<SlashCommand[]> {
  * List all available slash commands for an agent type.
  * Returns built-in commands, user-defined commands, and plugin commands.
  */
-export async function listSlashCommands(agent: string): Promise<SlashCommand[]> {
+export async function listSlashCommands(agent: string, workingDirectory?: string): Promise<SlashCommand[]> {
     const builtin = BUILTIN_COMMANDS[agent] ?? [];
 
-    // Scan user commands and plugin commands in parallel
-    const [user, plugin] = await Promise.all([
+    // Scan user commands, project commands, and plugin commands in parallel
+    const [user, project, plugin] = await Promise.all([
         scanUserCommands(agent),
+        scanProjectCommands(agent, workingDirectory ?? ''),
         scanPluginCommands(agent),
     ]);
 
-    // Combine: built-in first, then user commands, then plugin commands
-    return [...builtin, ...user, ...plugin];
+    // Combine: built-in first, then project commands, then user commands, then plugin commands.
+    // Dedupe by name with first-write-wins (preserves precedence order).
+    const combined = [...builtin, ...project, ...user, ...plugin]
+    const byName = new Map<string, SlashCommand>()
+    for (const cmd of combined) {
+        if (!byName.has(cmd.name)) {
+            byName.set(cmd.name, cmd)
+        }
+    }
+    return Array.from(byName.values())
 }
