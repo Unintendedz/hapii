@@ -19,6 +19,8 @@ interface Settings {
   cliApiToken?: string
   // API URL for server connections (priority: env HAPI_API_URL > this > default)
   apiUrl?: string
+  // Commit message credits ("via HAPI" + "Co-Authored-By: HAPI ...")
+  includeCoAuthoredBy?: boolean
   // Legacy field name (for migration, read-only)
   serverUrl?: string
 }

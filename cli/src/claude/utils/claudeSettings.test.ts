@@ -5,23 +5,31 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, writeFileSync, unlinkSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { readClaudeSettings, shouldIncludeCoAuthoredBy } from './claudeSettings';
+import { readClaudeSettings, readHapiSettings, shouldIncludeCoAuthoredBy } from './claudeSettings';
 
 describe('Claude Settings', () => {
   let testClaudeDir: string;
+  let testHapiDir: string;
   let originalClaudeConfigDir: string | undefined;
+  let originalHapiHome: string | undefined;
 
   beforeEach(() => {
     // Create a temporary directory for testing
     testClaudeDir = join(tmpdir(), `test-claude-${Date.now()}`);
     mkdirSync(testClaudeDir, { recursive: true });
+
+    testHapiDir = join(tmpdir(), `test-hapi-${Date.now()}`);
+    mkdirSync(testHapiDir, { recursive: true });
     
     // Set environment variable to point to test directory
     originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
     process.env.CLAUDE_CONFIG_DIR = testClaudeDir;
+
+    originalHapiHome = process.env.HAPI_HOME;
+    process.env.HAPI_HOME = testHapiDir;
   });
 
   afterEach(() => {
@@ -31,10 +39,19 @@ describe('Claude Settings', () => {
     } else {
       delete process.env.CLAUDE_CONFIG_DIR;
     }
+
+    if (originalHapiHome !== undefined) {
+      process.env.HAPI_HOME = originalHapiHome;
+    } else {
+      delete process.env.HAPI_HOME;
+    }
     
     // Clean up test directory
     if (existsSync(testClaudeDir)) {
       rmSync(testClaudeDir, { recursive: true, force: true });
+    }
+    if (existsSync(testHapiDir)) {
+      rmSync(testHapiDir, { recursive: true, force: true });
     }
   });
 
@@ -58,6 +75,30 @@ describe('Claude Settings', () => {
       writeFileSync(settingsPath, 'invalid json');
 
       const settings = readClaudeSettings();
+      expect(settings).toBe(null);
+    });
+  });
+
+  describe('readHapiSettings', () => {
+    it('returns null when settings file does not exist', () => {
+      const settings = readHapiSettings();
+      expect(settings).toBe(null);
+    });
+
+    it('reads settings when file exists', () => {
+      const settingsPath = join(testHapiDir, 'settings.json');
+      const testSettings = { includeCoAuthoredBy: false, otherSetting: 'value' };
+      writeFileSync(settingsPath, JSON.stringify(testSettings));
+
+      const settings = readHapiSettings();
+      expect(settings).toEqual(testSettings);
+    });
+
+    it('returns null when settings file is invalid JSON', () => {
+      const settingsPath = join(testHapiDir, 'settings.json');
+      writeFileSync(settingsPath, 'invalid json');
+
+      const settings = readHapiSettings();
       expect(settings).toBe(null);
     });
   });
@@ -90,6 +131,30 @@ describe('Claude Settings', () => {
 
       const result = shouldIncludeCoAuthoredBy();
       expect(result).toBe(true);
+    });
+
+    it('prefers HAPI settings over Claude settings (HAPI=false, Claude=true)', () => {
+      writeFileSync(join(testHapiDir, 'settings.json'), JSON.stringify({ includeCoAuthoredBy: false }));
+      writeFileSync(join(testClaudeDir, 'settings.json'), JSON.stringify({ includeCoAuthoredBy: true }));
+
+      const result = shouldIncludeCoAuthoredBy();
+      expect(result).toBe(false);
+    });
+
+    it('prefers HAPI settings over Claude settings (HAPI=true, Claude=false)', () => {
+      writeFileSync(join(testHapiDir, 'settings.json'), JSON.stringify({ includeCoAuthoredBy: true }));
+      writeFileSync(join(testClaudeDir, 'settings.json'), JSON.stringify({ includeCoAuthoredBy: false }));
+
+      const result = shouldIncludeCoAuthoredBy();
+      expect(result).toBe(true);
+    });
+
+    it('falls back to Claude settings when HAPI includeCoAuthoredBy is unset', () => {
+      writeFileSync(join(testHapiDir, 'settings.json'), JSON.stringify({ otherSetting: 'value' }));
+      writeFileSync(join(testClaudeDir, 'settings.json'), JSON.stringify({ includeCoAuthoredBy: false }));
+
+      const result = shouldIncludeCoAuthoredBy();
+      expect(result).toBe(false);
     });
   });
 });

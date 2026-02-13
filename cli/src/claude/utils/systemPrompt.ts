@@ -22,7 +22,10 @@ const CO_AUTHORED_CREDITS = (() => trimIdent(`
 `))();
 
 /**
- * System prompt with conditional Co-Authored-By lines based on Claude's settings.json configuration.
+ * System prompt with conditional commit-credit instructions.
+ * Controlled by HAPI global settings (~/.hapi/settings.json) includeCoAuthoredBy
+ * and (legacy) Claude settings (~/.claude/settings.json) includeCoAuthoredBy.
+ *
  * Settings are read once on startup for performance.
  */
 export const systemPrompt = (() => {
