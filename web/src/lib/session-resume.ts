@@ -1,32 +1,12 @@
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
+import { getResumeTokenFromMetadata } from '@hapi/protocol'
 
 const DEFAULT_STARTING_SESSION_WINDOW_MS = 120_000
 const DEFAULT_STARTING_NEVER_ALIVE_THRESHOLD_MS = 1_000
 const DEFAULT_INACTIVE_GRACE_TIMEOUT_MS = 2_000
 const DEFAULT_WARMUP_TIMEOUT_MS = 90_000
 const DEFAULT_WARMUP_POLL_MS = 250
-
-function getResumeToken(session: Session | null | undefined): string | null {
-    const metadata = session?.metadata
-    if (!metadata) {
-        return null
-    }
-
-    const flavor = metadata.flavor === 'codex' || metadata.flavor === 'gemini' || metadata.flavor === 'opencode'
-        ? metadata.flavor
-        : 'claude'
-
-    const token = flavor === 'codex'
-        ? metadata.codexSessionId
-        : flavor === 'gemini'
-            ? metadata.geminiSessionId
-            : flavor === 'opencode'
-                ? metadata.opencodeSessionId
-                : metadata.claudeSessionId
-
-    return token && token.trim().length > 0 ? token : null
-}
 
 export function isStartingInactiveSession(
     session: Session | null | undefined,
@@ -166,7 +146,7 @@ export async function resolveSessionIdForSend(options: {
         throw new Error('Session is still starting. Please wait a moment and retry.')
     }
 
-    const resumeToken = getResumeToken(latestSession)
+    const resumeToken = getResumeTokenFromMetadata(latestSession?.metadata ?? null)
     if (!resumeToken) {
         throw new Error('Resume session ID unavailable')
     }

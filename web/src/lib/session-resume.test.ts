@@ -177,6 +177,45 @@ describe('resolveSessionIdForSend', () => {
         expect(api.resumeSession).toHaveBeenCalledWith('session-1')
     })
 
+    it('resumes an inactive Claude session when claudeSessionId is available', async () => {
+        let nowMs = 1_000_000
+        const createdAt = nowMs - 10_000
+
+        const inactive = makeSession(nowMs, {
+            createdAt,
+            updatedAt: createdAt,
+            active: false,
+            activeAt: createdAt + 5_000,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'claude',
+                claudeSessionId: 'claude-resume-token',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: inactive })),
+            resumeSession: vi.fn(async () => 'session-2'),
+        }
+
+        const resolved = await resolveSessionIdForSend({
+            api: api as never,
+            sessionId: 'session-1',
+            session: inactive,
+            now: () => nowMs,
+            sleep: async (ms: number) => {
+                nowMs += ms
+            },
+            inactiveGraceTimeoutMs: 0,
+            warmupTimeoutMs: 1_000,
+            warmupPollMs: 100,
+        })
+
+        expect(resolved).toBe('session-2')
+        expect(api.resumeSession).toHaveBeenCalledWith('session-1')
+    })
+
     it('fails fast when resume token is unavailable for a non-starting inactive session', async () => {
         let nowMs = 1_000_000
         const createdAt = nowMs - 10_000

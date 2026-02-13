@@ -1,4 +1,4 @@
-import { getPermissionModeOptionsForFlavor, MODEL_MODE_LABELS, MODEL_MODES } from '@hapi/protocol'
+import { getAgentCapabilities, getPermissionModeOptionsForFlavor, MODEL_MODE_LABELS, MODEL_MODES } from '@hapi/protocol'
 import { ComposerPrimitive, useAssistantApi, useAssistantState } from '@assistant-ui/react'
 import {
     type ChangeEvent as ReactChangeEvent,
@@ -20,7 +20,6 @@ import { useActiveSuggestions } from '@/hooks/useActiveSuggestions'
 import { applySuggestion } from '@/utils/applySuggestion'
 import { usePlatform } from '@/hooks/usePlatform'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
-import { isCodexFamilyFlavor } from '@/lib/agentFlavorUtils'
 import { markSkillUsed } from '@/lib/recent-skills'
 import { FloatingOverlay } from '@/components/ChatInput/FloatingOverlay'
 import { Autocomplete } from '@/components/ChatInput/Autocomplete'
@@ -250,6 +249,11 @@ export function HappyComposer(props: {
         [permissionModeOptions]
     )
 
+    const supportsModelMode = useMemo(
+        () => getAgentCapabilities(agentFlavor).supportsModelMode,
+        [agentFlavor]
+    )
+
     const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
         const key = e.key
 
@@ -313,7 +317,7 @@ export function HappyComposer(props: {
 
     useEffect(() => {
         const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
-            if (e.key === 'm' && (e.metaKey || e.ctrlKey) && onModelModeChange && !isCodexFamilyFlavor(agentFlavor)) {
+            if (e.key === 'm' && (e.metaKey || e.ctrlKey) && onModelModeChange && supportsModelMode) {
                 e.preventDefault()
                 const currentIndex = MODEL_MODES.indexOf(modelMode as typeof MODEL_MODES[number])
                 const nextIndex = (currentIndex + 1) % MODEL_MODES.length
@@ -324,7 +328,7 @@ export function HappyComposer(props: {
 
         window.addEventListener('keydown', handleGlobalKeyDown)
         return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-    }, [modelMode, onModelModeChange, haptic, agentFlavor])
+    }, [modelMode, onModelModeChange, haptic, supportsModelMode])
 
     const handleChange = useCallback((e: ReactChangeEvent<HTMLTextAreaElement>) => {
         const selection = {
@@ -387,7 +391,7 @@ export function HappyComposer(props: {
     }, [onModelModeChange, controlsDisabled, haptic])
 
     const showPermissionSettings = Boolean(onPermissionModeChange && permissionModeOptions.length > 0)
-    const showModelSettings = Boolean(onModelModeChange && !isCodexFamilyFlavor(agentFlavor))
+    const showModelSettings = Boolean(onModelModeChange && supportsModelMode)
     const showSettingsButton = Boolean(showPermissionSettings || showModelSettings)
     const showAbortButton = true
     const voiceEnabled = Boolean(onVoiceToggle)
