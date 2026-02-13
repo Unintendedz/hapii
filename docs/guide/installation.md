@@ -198,9 +198,12 @@ When ENV values are set and not present in settings.json, they are automatically
   "$schema": "https://hapi.run/docs/schemas/settings.schema.json",
   "listenHost": "0.0.0.0",
   "listenPort": 3006,
-  "publicUrl": "https://your-domain.com"
+  "publicUrl": "https://your-domain.com",
+  "includeCoAuthoredBy": true
 }
 ```
+
+`includeCoAuthoredBy` controls whether HAPI adds commit credits instructions (via HAPI + `Co-Authored-By`) to AI-generated commit messages. Set it to `false` to disable.
 
 JSON Schema: [settings.schema.json](https://hapi.run/schemas/settings.schema.json)
 </details>
