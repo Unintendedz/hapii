@@ -59,6 +59,10 @@ export type AuthResponse = {
     }
 }
 
+export type AppSettingsResponse = {
+    includeCoAuthoredBy: boolean
+}
+
 export type SessionsPage = {
     limit: number
     offset: number

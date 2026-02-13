@@ -1,5 +1,6 @@
 import type {
     AttachmentMetadata,
+    AppSettingsResponse,
     AuthResponse,
     DeleteUploadResponse,
     ListDirectoryResponse,
@@ -137,6 +138,17 @@ export class ApiClient {
         }
 
         return await res.json() as AuthResponse
+    }
+
+    async getAppSettings(): Promise<AppSettingsResponse> {
+        return await this.request<AppSettingsResponse>('/api/settings')
+    }
+
+    async updateAppSettings(payload: { includeCoAuthoredBy: boolean }): Promise<AppSettingsResponse> {
+        return await this.request<AppSettingsResponse>('/api/settings', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        })
     }
 
     async bind(auth: { initData: string; accessToken: string }): Promise<AuthResponse> {

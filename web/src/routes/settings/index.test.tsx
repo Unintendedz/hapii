@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { I18nContext, I18nProvider } from '@/lib/i18n-context'
+import { AppContextProvider } from '@/lib/app-context'
 import { en } from '@/lib/locales'
 import { PROTOCOL_VERSION } from '@hapi/protocol'
 import SettingsPage from './index'
@@ -32,19 +34,51 @@ vi.mock('@/lib/languages', () => ({
 }))
 
 function renderWithProviders(ui: React.ReactElement) {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        }
+    })
+
+    const api = {
+        getAppSettings: vi.fn(async () => ({ includeCoAuthoredBy: true })),
+        updateAppSettings: vi.fn(async (payload: { includeCoAuthoredBy: boolean }) => ({ includeCoAuthoredBy: payload.includeCoAuthoredBy })),
+    } as any
+
     return render(
         <I18nProvider>
-            {ui}
+            <QueryClientProvider client={queryClient}>
+                <AppContextProvider value={{ api, token: 'test', baseUrl: 'http://localhost:3006' }}>
+                    {ui}
+                </AppContextProvider>
+            </QueryClientProvider>
         </I18nProvider>
     )
 }
 
 function renderWithSpyT(ui: React.ReactElement) {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        }
+    })
+
+    const api = {
+        getAppSettings: vi.fn(async () => ({ includeCoAuthoredBy: true })),
+        updateAppSettings: vi.fn(async (payload: { includeCoAuthoredBy: boolean }) => ({ includeCoAuthoredBy: payload.includeCoAuthoredBy })),
+    } as any
+
     const translations = en as Record<string, string>
     const spyT = vi.fn((key: string) => translations[key] ?? key)
     render(
         <I18nContext.Provider value={{ t: spyT, locale: 'en', setLocale: vi.fn() }}>
-            {ui}
+            <QueryClientProvider client={queryClient}>
+                <AppContextProvider value={{ api, token: 'test', baseUrl: 'http://localhost:3006' }}>
+                    {ui}
+                </AppContextProvider>
+            </QueryClientProvider>
         </I18nContext.Provider>
     )
     return spyT

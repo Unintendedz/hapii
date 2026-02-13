@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation, type Locale } from '@/lib/use-translation'
 import { useAppGoBack } from '@/hooks/useAppGoBack'
 import { getElevenLabsSupportedLanguages, getLanguageDisplayName, type Language } from '@/lib/languages'
 import { getFontScaleOptions, useFontScale, type FontScale } from '@/hooks/useFontScale'
 import { PROTOCOL_VERSION } from '@hapi/protocol'
+import { useAppContext } from '@/lib/app-context'
+import { queryKeys } from '@/lib/query-keys'
 
 const locales: { value: Locale; nativeLabel: string }[] = [
     { value: 'en', nativeLabel: 'English' },
@@ -72,6 +75,8 @@ function ChevronDownIcon(props: { className?: string }) {
 export default function SettingsPage() {
     const { t, locale, setLocale } = useTranslation()
     const goBack = useAppGoBack()
+    const { api } = useAppContext()
+    const queryClient = useQueryClient()
     const [isOpen, setIsOpen] = useState(false)
     const [isFontOpen, setIsFontOpen] = useState(false)
     const [isVoiceOpen, setIsVoiceOpen] = useState(false)
@@ -79,6 +84,35 @@ export default function SettingsPage() {
     const fontContainerRef = useRef<HTMLDivElement>(null)
     const voiceContainerRef = useRef<HTMLDivElement>(null)
     const { fontScale, setFontScale } = useFontScale()
+
+    const appSettingsQuery = useQuery({
+        queryKey: queryKeys.appSettings,
+        queryFn: async () => await api.getAppSettings(),
+    })
+
+    const includeCoAuthoredByFromServer = appSettingsQuery.data?.includeCoAuthoredBy
+    const [includeCoAuthoredBy, setIncludeCoAuthoredBy] = useState(true)
+
+    useEffect(() => {
+        if (typeof includeCoAuthoredByFromServer === 'boolean') {
+            setIncludeCoAuthoredBy(includeCoAuthoredByFromServer)
+        }
+    }, [includeCoAuthoredByFromServer])
+
+    const updateSettingsMutation = useMutation({
+        mutationFn: async (value: boolean) => {
+            return await api.updateAppSettings({ includeCoAuthoredBy: value })
+        },
+        onSuccess: (data) => {
+            queryClient.setQueryData(queryKeys.appSettings, data)
+        },
+    })
+
+    const settingsError = appSettingsQuery.error instanceof Error
+        ? appSettingsQuery.error.message
+        : updateSettingsMutation.error instanceof Error
+            ? updateSettingsMutation.error.message
+            : null
 
     // Voice language state - read from localStorage
     const [voiceLanguage, setVoiceLanguage] = useState<string | null>(() => {
@@ -108,6 +142,17 @@ export default function SettingsPage() {
             localStorage.setItem('hapi-voice-lang', language.code)
         }
         setIsVoiceOpen(false)
+    }
+
+    const handleIncludeCoAuthoredByChange = async (value: boolean) => {
+        const previous = includeCoAuthoredBy
+        setIncludeCoAuthoredBy(value)
+
+        try {
+            await updateSettingsMutation.mutateAsync(value)
+        } catch {
+            setIncludeCoAuthoredBy(previous)
+        }
     }
 
     // Close dropdown when clicking outside
@@ -271,6 +316,39 @@ export default function SettingsPage() {
                                 </div>
                             )}
                         </div>
+                    </div>
+
+                    {/* Commits section */}
+                    <div className="border-b border-[var(--app-divider)]">
+                        <div className="px-3 py-2 text-xs font-semibold text-[var(--app-hint)] uppercase tracking-wide">
+                            {t('settings.commits.title')}
+                        </div>
+                        <div className="flex w-full items-center justify-between gap-3 px-3 py-3">
+                            <div className="flex flex-col">
+                                <span className="text-sm text-[var(--app-fg)]">
+                                    {t('settings.commits.includeCoAuthoredBy.title')}
+                                </span>
+                                <span className="text-xs text-[var(--app-hint)]">
+                                    {t('settings.commits.includeCoAuthoredBy.desc')}
+                                </span>
+                            </div>
+                            <label className="relative inline-flex h-5 w-9 items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={includeCoAuthoredBy}
+                                    onChange={(e) => void handleIncludeCoAuthoredByChange(e.target.checked)}
+                                    disabled={appSettingsQuery.isLoading || updateSettingsMutation.isPending}
+                                    className="peer sr-only"
+                                />
+                                <span className="absolute inset-0 rounded-full bg-[var(--app-border)] transition-colors peer-checked:bg-[var(--app-link)] peer-disabled:opacity-50" />
+                                <span className="absolute left-0.5 h-4 w-4 rounded-full bg-[var(--app-bg)] transition-transform peer-checked:translate-x-4 peer-disabled:opacity-50" />
+                            </label>
+                        </div>
+                        {settingsError ? (
+                            <div className="px-3 pb-3 text-xs text-red-600">
+                                {settingsError}
+                            </div>
+                        ) : null}
                     </div>
 
                     {/* Voice Assistant section */}
