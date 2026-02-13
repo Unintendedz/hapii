@@ -18,6 +18,7 @@ import { buildCodexStartConfig } from './utils/codexStartConfig';
 import { AppServerEventConverter } from './utils/appServerEventConverter';
 import { registerAppServerPermissionHandlers } from './utils/appServerPermissionAdapter';
 import { buildThreadStartParams, buildTurnStartParams } from './utils/appServerConfig';
+import { parseCodexNewCommand } from './utils/codexSlashCommands';
 import {
     RemoteLauncherBase,
     type RemoteLauncherDisplayContext,
@@ -533,6 +534,50 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
 
             messageBuffer.addMessage(message.message, 'user');
             currentModeHash = message.hash;
+
+            const newCommand = parseCodexNewCommand(message.message);
+            if (newCommand.isNew) {
+                logger.debug('[Codex] /new command detected - clearing thread context');
+                messageBuffer.addMessage('Starting new chat (clearing context)...', 'status');
+                session.sendSessionEvent({ type: 'message', message: 'Started a new chat (context cleared).' });
+
+                if (useAppServer && appServerClient) {
+                    if (this.currentThreadId && this.currentTurnId) {
+                        try {
+                            await appServerClient.interruptTurn({
+                                threadId: this.currentThreadId,
+                                turnId: this.currentTurnId
+                            });
+                        } catch (error) {
+                            logger.debug('[Codex] Error interrupting turn for /new:', error);
+                        }
+                    }
+                    this.currentTurnId = null;
+                    this.currentThreadId = null;
+                } else {
+                    mcpClient?.clearSession();
+                }
+
+                // Prevent app-server resume logic from reusing the previous thread.
+                session.sessionId = null;
+
+                wasCreated = false;
+                first = true;
+                turnInFlight = false;
+                currentModeHash = null;
+                permissionHandler.reset();
+                reasoningProcessor.abort();
+                diffProcessor.reset();
+                appServerEventConverter?.reset();
+                session.onThinkingChange(false);
+                sendReady();
+
+                if (newCommand.remainder.length > 0) {
+                    pending = { ...message, message: newCommand.remainder };
+                }
+
+                continue;
+            }
 
             try {
                 if (!wasCreated) {
