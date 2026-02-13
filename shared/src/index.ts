@@ -1,4 +1,5 @@
 export * from './messages'
+export * from './agentCapabilities'
 export * from './modes'
 export * from './socket'
 export * from './sessionSummary'
