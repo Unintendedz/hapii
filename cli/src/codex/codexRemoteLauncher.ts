@@ -579,6 +579,13 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                 continue;
             }
 
+            // Ensure the session list reflects that Codex is running.
+            // Codex app-server/MCP implementations may not reliably emit "task_started" events,
+            // so we mark thinking as soon as we begin processing a prompt.
+            if (!session.thinking) {
+                session.onThinkingChange(true);
+            }
+
             try {
                 if (!wasCreated) {
                     if (useAppServer && appServerClient) {
@@ -711,11 +718,14 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     }
                 }
             } finally {
-                permissionHandler.reset();
-                reasoningProcessor.abort();
-                diffProcessor.reset();
-                appServerEventConverter?.reset();
-                session.onThinkingChange(false);
+                if (!useAppServer || !turnInFlight) {
+                    permissionHandler.reset();
+                    reasoningProcessor.abort();
+                    diffProcessor.reset();
+                    appServerEventConverter?.reset();
+                    session.onThinkingChange(false);
+                }
+
                 if (!useAppServer || !turnInFlight) {
                     emitReadyIfIdle({
                         pending,
