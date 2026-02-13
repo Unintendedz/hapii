@@ -121,6 +121,35 @@ export function HappyComposer(props: {
     const prevControlledByUser = useRef(controlledByUser)
 
     useEffect(() => {
+        if (!showSettings) {
+            return
+        }
+
+        const handlePointerDown = (e: PointerEvent) => {
+            const target = e.target
+            if (!(target instanceof Element)) {
+                return
+            }
+
+            if (target.closest('[data-hapi-composer-settings-overlay]')) {
+                return
+            }
+
+            if (target.closest('.settings-button')) {
+                return
+            }
+
+            setShowSettings(false)
+        }
+
+        // Capture phase so we can close even if inner components stop propagation.
+        document.addEventListener('pointerdown', handlePointerDown, true)
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown, true)
+        }
+    }, [showSettings])
+
+    useEffect(() => {
         setInputState((prev) => {
             if (prev.text === composerText) return prev
             // When syncing from composerText, update selection to end of text
@@ -403,7 +432,7 @@ export function HappyComposer(props: {
     const overlays = useMemo(() => {
         if (showSettings && (showPermissionSettings || showModelSettings)) {
             return (
-                <div className="absolute bottom-[100%] mb-2 w-full">
+                <div className="absolute bottom-[100%] mb-2 w-full" data-hapi-composer-settings-overlay>
                     <FloatingOverlay maxHeight={320}>
                         {showPermissionSettings ? (
                             <div className="py-2">
