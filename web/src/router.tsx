@@ -164,7 +164,7 @@ function SessionsPage() {
     return (
         <div className="flex h-full min-h-0">
             <div
-                className={`${isSessionsIndex ? 'flex' : 'hidden lg:flex'} w-full lg:w-[420px] xl:w-[480px] shrink-0 flex-col bg-[var(--app-bg)] lg:border-r lg:border-[var(--app-divider)]`}
+                className={`${isSessionsIndex ? 'flex' : 'hidden lg:flex'} w-full lg:w-[420px] xl:w-[480px] shrink-0 min-h-0 flex-col bg-[var(--app-bg)] lg:border-r lg:border-[var(--app-divider)]`}
             >
                 <div className="bg-[var(--app-bg)] pt-[env(safe-area-inset-top)]">
                     <div className="mx-auto w-full max-w-content flex items-center justify-between px-3 py-2">
@@ -217,7 +217,7 @@ function SessionsPage() {
                 </div>
             </div>
 
-            <div className={`${isSessionsIndex ? 'hidden lg:flex' : 'flex'} min-w-0 flex-1 flex-col bg-[var(--app-bg)]`}>
+            <div className={`${isSessionsIndex ? 'hidden lg:flex' : 'flex'} min-w-0 min-h-0 flex-1 flex-col bg-[var(--app-bg)]`}>
                 <div className="flex-1 min-h-0">
                     <Outlet />
                 </div>
@@ -437,41 +437,45 @@ function NewSessionPage() {
     }, [navigate, queryClient])
 
     return (
-        <div className="flex-1 overflow-y-auto">
-            <div className="flex items-center gap-2 border-b border-[var(--app-border)] bg-[var(--app-bg)] p-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
-                {!isTelegramApp() && (
-                    <button
-                        type="button"
-                        onClick={goBack}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-hint)] transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-fg)]"
-                    >
-                        <BackIcon />
-                    </button>
-                )}
-                <div className="flex-1 font-semibold">Create Session</div>
+        <div className="flex h-full flex-col">
+            <div className="bg-[var(--app-bg)] pt-[env(safe-area-inset-top)]">
+                <div className="flex items-center gap-2 border-b border-[var(--app-border)] bg-[var(--app-bg)] p-3">
+                    {!isTelegramApp() && (
+                        <button
+                            type="button"
+                            onClick={goBack}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-hint)] transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-fg)]"
+                        >
+                            <BackIcon />
+                        </button>
+                    )}
+                    <div className="flex-1 font-semibold">Create Session</div>
+                </div>
             </div>
 
-            {machinesError ? (
-                <div className="p-3 text-sm text-red-600">
-                    {machinesError}
-                </div>
-            ) : null}
+            <div className="flex-1 min-h-0 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+                {machinesError ? (
+                    <div className="p-3 text-sm text-red-600">
+                        {machinesError}
+                    </div>
+                ) : null}
 
-            <NewSession
-                api={api}
-                machines={machines}
-                isLoading={machinesLoading}
-                initialPreset={{
-                    directory: search.directory,
-                    machineId: search.machineId,
-                    agent: search.agent,
-                    model: search.model,
-                    yoloMode: search.yolo,
-                    sessionType: search.sessionType,
-                }}
-                onCancel={handleCancel}
-                onSuccess={handleSuccess}
-            />
+                <NewSession
+                    api={api}
+                    machines={machines}
+                    isLoading={machinesLoading}
+                    initialPreset={{
+                        directory: search.directory,
+                        machineId: search.machineId,
+                        agent: search.agent,
+                        model: search.model,
+                        yoloMode: search.yolo,
+                        sessionType: search.sessionType,
+                    }}
+                    onCancel={handleCancel}
+                    onSuccess={handleSuccess}
+                />
+            </div>
         </div>
     )
 }
