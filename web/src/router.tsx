@@ -350,12 +350,13 @@ function SessionPage() {
     })
     // Get agent type from session metadata for slash commands
     const agentType = session?.metadata?.flavor ?? 'claude'
+    const remoteMetadataReady = Boolean(session?.metadata?.machineId || session?.active)
     const {
         getSuggestions: getSlashSuggestions,
-    } = useSlashCommands(api, sessionId, agentType)
+    } = useSlashCommands(api, sessionId, agentType, remoteMetadataReady)
     const {
         getSuggestions: getSkillSuggestions,
-    } = useSkills(api, sessionId)
+    } = useSkills(api, sessionId, remoteMetadataReady)
 
     const getAutocompleteSuggestions = useCallback(async (query: string) => {
         if (query.startsWith('$')) {

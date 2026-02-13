@@ -56,7 +56,8 @@ const BUILTIN_COMMANDS: Record<string, SlashCommand[]> = {
 export function useSlashCommands(
     api: ApiClient | null,
     sessionId: string | null,
-    agentType: string = 'claude'
+    agentType: string = 'claude',
+    enabled: boolean = true
 ): {
     commands: SlashCommand[]
     isLoading: boolean
@@ -74,7 +75,7 @@ export function useSlashCommands(
             }
             return await api.getSlashCommands(sessionId)
         },
-        enabled: Boolean(api && sessionId),
+        enabled: Boolean(api && sessionId && enabled),
         staleTime: Infinity,
         gcTime: 30 * 60 * 1000,
         retry: false, // Don't retry RPC failures

@@ -24,7 +24,8 @@ function levenshteinDistance(a: string, b: string): number {
 
 export function useSkills(
     api: ApiClient | null,
-    sessionId: string | null
+    sessionId: string | null,
+    enabled: boolean = true
 ): {
     skills: SkillSummary[]
     isLoading: boolean
@@ -41,7 +42,7 @@ export function useSkills(
             }
             return await api.getSkills(sessionId)
         },
-        enabled: Boolean(api && sessionId),
+        enabled: Boolean(api && sessionId && enabled),
         staleTime: Infinity,
         gcTime: 30 * 60 * 1000,
         retry: false,
