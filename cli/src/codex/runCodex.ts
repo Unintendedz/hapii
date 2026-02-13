@@ -11,8 +11,24 @@ import { createModeChangeHandler, createRunnerLifecycle, setControlledByUser } f
 import { isPermissionModeAllowedForFlavor } from '@hapi/protocol';
 import { PermissionModeSchema } from '@hapi/protocol/schemas';
 import { formatMessageWithAttachments } from '@/utils/attachmentFormatter';
+import { parseCodexNewCommand } from './utils/codexSlashCommands';
 
 export { emitReadyIfIdle } from './utils/emitReadyIfIdle';
+
+export function enqueueCodexUserMessage(opts: {
+    messageQueue: MessageQueue2<EnhancedMode>;
+    rawText: string;
+    formattedText: string;
+    enhancedMode: EnhancedMode;
+}): void {
+    const newCommand = parseCodexNewCommand(opts.rawText);
+    if (newCommand.isNew) {
+        opts.messageQueue.pushIsolateAndClear(opts.rawText, opts.enhancedMode);
+        return;
+    }
+
+    opts.messageQueue.push(opts.formattedText, opts.enhancedMode);
+}
 
 export async function runCodex(opts: {
     startedBy?: 'runner' | 'terminal';
@@ -85,8 +101,15 @@ export async function runCodex(opts: {
             model: currentModel,
             collaborationMode: currentCollaborationMode
         };
-        const formattedText = formatMessageWithAttachments(message.content.text, message.content.attachments);
-        messageQueue.push(formattedText, enhancedMode);
+        const rawText = message.content.text;
+        const formattedText = formatMessageWithAttachments(rawText, message.content.attachments);
+
+        enqueueCodexUserMessage({
+            messageQueue,
+            rawText,
+            formattedText,
+            enhancedMode
+        });
     });
 
     const formatFailureReason = (message: string): string => {
