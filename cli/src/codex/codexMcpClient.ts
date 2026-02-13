@@ -13,6 +13,7 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { CodexPermissionHandler } from './utils/permissionHandler';
 import { execSync } from 'child_process';
 import { randomUUID } from 'node:crypto';
+import { buildEnvForCodexSpawn, describeCodexCommand, resolveCodexExecutable } from './utils/resolveCodexExecutable';
 
 type ElicitResponseValue = string | number | boolean | string[];
 type ElicitRequestedSchema = {
@@ -211,17 +212,22 @@ export class CodexMcpClient {
     async connect(): Promise<void> {
         if (this.connected) return;
 
+        const resolved = resolveCodexExecutable();
+        if (!resolved) {
+            throw new Error(
+                'Codex CLI not found. Install it (ensure `codex` is on PATH) or set HAPI_CODEX_BIN to its absolute path.'
+            );
+        }
+
+        const env = buildEnvForCodexSpawn(process.env, resolved);
+
         const mcpCommand = getCodexMcpCommand();
-        logger.debug(`[CodexMCP] Connecting to Codex MCP server using command: codex ${mcpCommand}`);
+        logger.debug(`[CodexMCP] Connecting to Codex MCP server using command: ${describeCodexCommand(resolved.command)} ${mcpCommand}`);
 
         this.transport = new StdioClientTransport({
-            command: 'codex',
+            command: resolved.command,
             args: [mcpCommand],
-            env: Object.keys(process.env).reduce((acc, key) => {
-                const value = process.env[key];
-                if (typeof value === 'string') acc[key] = value;
-                return acc;
-            }, {} as Record<string, string>)
+            env
         });
 
         // Register request handlers for Codex permission methods

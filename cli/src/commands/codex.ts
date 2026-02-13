@@ -14,6 +14,7 @@ export const codexCommand: CommandDefinition = {
 
             const options: {
                 startedBy?: 'runner' | 'terminal'
+                startingMode?: 'local' | 'remote'
                 codexArgs?: string[]
                 permissionMode?: CodexPermissionMode
                 resumeSessionId?: string
@@ -34,6 +35,13 @@ export const codexCommand: CommandDefinition = {
                 }
                 if (arg === '--started-by') {
                     options.startedBy = commandArgs[++i] as 'runner' | 'terminal'
+                } else if (arg === '--hapi-starting-mode') {
+                    const value = commandArgs[++i]
+                    if (value === 'local' || value === 'remote') {
+                        options.startingMode = value
+                    } else {
+                        throw new Error('Invalid --hapi-starting-mode (expected local or remote)')
+                    }
                 } else if (arg === '--yolo' || arg === '--dangerously-bypass-approvals-and-sandbox') {
                     options.permissionMode = 'yolo'
                     unknownArgs.push(arg)

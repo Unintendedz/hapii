@@ -12,8 +12,8 @@ vi.mock('node:child_process', async () => {
 vi.mock('./utils/resolveCodexExecutable', async () => {
     return {
         resolveCodexExecutable: () => ({ command: '/tmp/codex', binDir: '/tmp' }),
-        buildEnvWithPrependedPath: (_env: NodeJS.ProcessEnv, binDir: string) => ({
-            PATH: `${binDir}:/usr/bin:/bin`
+        buildEnvForCodexSpawn: (_env: NodeJS.ProcessEnv, resolved: { binDir: string }) => ({
+            PATH: `${resolved.binDir}:/usr/bin:/bin`
         }),
         describeCodexCommand: (command: string) => command
     }
@@ -52,4 +52,3 @@ describe('CodexAppServerClient', () => {
         )
     })
 })
-

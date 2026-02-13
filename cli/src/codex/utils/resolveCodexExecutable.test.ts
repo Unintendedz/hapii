@@ -55,6 +55,22 @@ describe('resolveCodexExecutable', () => {
 
         expect(resolved).toEqual({ command: join(v22Bin, 'codex'), binDir: v22Bin })
     })
+
+    it('resolves from pnpm global bin (macOS ~/Library/pnpm)', () => {
+        const homeDir = mkdtempSync(join(tmpdir(), 'hapi-home-'))
+        const pnpmBin = join(homeDir, 'Library', 'pnpm')
+        mkdirSync(pnpmBin, { recursive: true })
+
+        const codexPath = join(pnpmBin, 'codex')
+        writeExecutable(codexPath)
+
+        const resolved = resolveCodexExecutable({
+            env: { PATH: '/usr/bin:/bin' },
+            homeDir
+        })
+
+        expect(resolved).toEqual({ command: codexPath, binDir: pnpmBin })
+    })
 })
 
 describe('buildEnvWithPrependedPath', () => {
@@ -69,4 +85,3 @@ describe('buildEnvWithPrependedPath', () => {
         expect(env.PATH.split(':').filter((part) => part === '/tmp/bin')).toHaveLength(1)
     })
 })
-

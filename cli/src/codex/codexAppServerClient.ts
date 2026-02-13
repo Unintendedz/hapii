@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { logger } from '@/ui/logger';
 import { killProcessByChildProcess } from '@/utils/process';
-import { buildEnvWithPrependedPath, describeCodexCommand, resolveCodexExecutable } from './utils/resolveCodexExecutable';
+import { buildEnvForCodexSpawn, describeCodexCommand, resolveCodexExecutable } from './utils/resolveCodexExecutable';
 import type {
     InitializeParams,
     InitializeResponse,
@@ -81,7 +81,7 @@ export class CodexAppServerClient {
             );
         }
 
-        const env = buildEnvWithPrependedPath(process.env, resolved.binDir);
+        const env = buildEnvForCodexSpawn(process.env, resolved);
 
         logger.debug(`[CodexAppServer] Spawning ${describeCodexCommand(resolved.command)} app-server`);
 

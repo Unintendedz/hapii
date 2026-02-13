@@ -3,6 +3,7 @@ import { restoreTerminalState } from '@/ui/terminalState';
 import { spawnWithAbort } from '@/utils/spawnWithAbort';
 import { buildMcpServerConfigArgs, buildDeveloperInstructionsArg } from './utils/codexMcpConfig';
 import { codexSystemPrompt } from './utils/systemPrompt';
+import { buildEnvForCodexSpawn, describeCodexCommand, resolveCodexExecutable } from './utils/resolveCodexExecutable';
 
 /**
  * Filter out 'resume' subcommand which is managed internally by hapi.
@@ -68,13 +69,23 @@ export async function codexLocal(opts: {
         return;
     }
 
+    const resolved = resolveCodexExecutable();
+    if (!resolved) {
+        throw new Error(
+            'Codex CLI not found. Install it (ensure `codex` is on PATH) or set HAPI_CODEX_BIN to its absolute path.'
+        );
+    }
+
+    const env = buildEnvForCodexSpawn(process.env, resolved);
+    logger.debug(`[CodexLocal] Resolved Codex command: ${describeCodexCommand(resolved.command)}`);
+
     process.stdin.pause();
     try {
         await spawnWithAbort({
-            command: 'codex',
+            command: resolved.command,
             args,
             cwd: opts.path,
-            env: process.env,
+            env,
             signal: opts.abort,
             logLabel: 'CodexLocal',
             spawnName: 'codex',

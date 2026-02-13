@@ -103,7 +103,10 @@ function resolveFromCommonUserBins(homeDir: string): ResolvedCodexExecutable | n
         join(homeDir, '.asdf', 'shims', 'codex'),
         join(homeDir, '.bun', 'bin', 'codex'),
         join(homeDir, '.local', 'bin', 'codex'),
+        join(homeDir, 'Library', 'pnpm', 'codex'),
+        join(homeDir, '.local', 'share', 'pnpm', 'codex'),
         join(homeDir, '.npm-global', 'bin', 'codex'),
+        join(homeDir, '.yarn', 'bin', 'codex'),
         '/opt/homebrew/bin/codex',
         '/usr/local/bin/codex'
     ]
@@ -168,6 +171,111 @@ export function buildEnvWithPrependedPath(env: NodeJS.ProcessEnv, binDir: string
     return nextEnv
 }
 
+function findExecutableOnPath(pathValue: string | undefined, executableName: string): string | null {
+    if (!pathValue) return null
+
+    const delimiter = process.platform === 'win32' ? ';' : ':'
+    const parts = pathValue.split(delimiter).filter(Boolean)
+
+    for (const part of parts) {
+        const candidate = join(part, executableName)
+        if (existsSync(candidate) && isExecutable(candidate)) {
+            return candidate
+        }
+    }
+
+    return null
+}
+
+function resolveNodeBinDirFromNvm(options: {
+    env: NodeJS.ProcessEnv
+    homeDir: string
+}): string | null {
+    const nvmDir = options.env.NVM_DIR?.trim() || join(options.homeDir, '.nvm')
+    if (!nvmDir) return null
+
+    const nodeName = process.platform === 'win32' ? 'node.exe' : 'node'
+
+    const nvmBin = options.env.NVM_BIN?.trim()
+    if (nvmBin) {
+        const candidate = join(nvmBin, nodeName)
+        if (existsSync(candidate) && isExecutable(candidate)) {
+            return nvmBin
+        }
+    }
+
+    const versionsDir = join(nvmDir, 'versions', 'node')
+    if (!existsSync(versionsDir)) return null
+
+    let entries: { name: string; version: VersionTuple }[] = []
+    try {
+        entries = readdirSync(versionsDir, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => {
+                const version = parseVersion(entry.name)
+                return version ? { name: entry.name, version } : null
+            })
+            .filter((entry): entry is { name: string; version: VersionTuple } => Boolean(entry))
+    } catch {
+        return null
+    }
+
+    entries.sort((a, b) => compareVersions(b.version, a.version))
+
+    for (const entry of entries) {
+        const binDir = join(versionsDir, entry.name, 'bin')
+        const candidate = join(binDir, nodeName)
+        if (existsSync(candidate) && isExecutable(candidate)) {
+            return binDir
+        }
+    }
+
+    return null
+}
+
+export function buildEnvForCodexSpawn(
+    env: NodeJS.ProcessEnv,
+    resolved: ResolvedCodexExecutable,
+    options?: { homeDir?: string }
+): Record<string, string> {
+    const nextEnv = buildEnvWithPrependedPath(env, resolved.binDir)
+
+    const nodeName = process.platform === 'win32' ? 'node.exe' : 'node'
+    if (findExecutableOnPath(nextEnv.PATH, nodeName)) {
+        return nextEnv
+    }
+
+    const homeDir = options?.homeDir ?? os.homedir()
+    const nodeBinDirFromNvm = resolveNodeBinDirFromNvm({ env, homeDir })
+
+    // Append (not prepend) to minimize side effects; only add dirs that actually contain `node`.
+    const delimiter = process.platform === 'win32' ? ';' : ':'
+    const parts = (nextEnv.PATH ? nextEnv.PATH.split(delimiter) : []).filter(Boolean)
+
+    const candidates = [
+        nodeBinDirFromNvm,
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        join(homeDir, '.volta', 'bin'),
+        join(homeDir, '.asdf', 'shims')
+    ].filter((value): value is string => Boolean(value))
+
+    for (const candidateDir of candidates) {
+        if (parts.includes(candidateDir)) {
+            continue
+        }
+        const candidateNode = join(candidateDir, nodeName)
+        if (existsSync(candidateNode) && isExecutable(candidateNode)) {
+            parts.push(candidateDir)
+            nextEnv.PATH = parts.join(delimiter)
+            return nextEnv
+        }
+    }
+
+    nextEnv.PATH = parts.join(delimiter)
+    return nextEnv
+}
+
 export function describeCodexCommand(command: string): string {
     const name = basename(command)
     if (name === 'codex') {
@@ -175,4 +283,3 @@ export function describeCodexCommand(command: string): string {
     }
     return `codex (${command})`
 }
-

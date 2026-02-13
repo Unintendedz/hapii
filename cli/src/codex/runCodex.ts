@@ -32,6 +32,7 @@ export function enqueueCodexUserMessage(opts: {
 
 export async function runCodex(opts: {
     startedBy?: 'runner' | 'terminal';
+    startingMode?: 'local' | 'remote';
     codexArgs?: string[];
     permissionMode?: PermissionMode;
     resumeSessionId?: string;
@@ -40,7 +41,7 @@ export async function runCodex(opts: {
     const workingDirectory = process.cwd();
     const startedBy = opts.startedBy ?? 'terminal';
 
-    logger.debug(`[codex] Starting with options: startedBy=${startedBy}`);
+    logger.debug(`[codex] Starting with options: startedBy=${startedBy}, startingMode=${opts.startingMode}`);
 
     let state: AgentState = {
         controlledByUser: false
@@ -52,7 +53,12 @@ export async function runCodex(opts: {
         agentState: state
     });
 
-    const startingMode: 'local' | 'remote' = startedBy === 'runner' ? 'remote' : 'local';
+    if (startedBy === 'runner' && opts.startingMode === 'local') {
+        logger.debug('[codex] Runner spawn requested with local mode - forcing remote mode');
+        opts.startingMode = 'remote';
+    }
+
+    const startingMode: 'local' | 'remote' = opts.startingMode ?? (startedBy === 'runner' ? 'remote' : 'local');
 
     setControlledByUser(session, startingMode);
 
