@@ -3,13 +3,35 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'node:path'
 import { createRequire } from 'node:module'
+import { execSync } from 'node:child_process'
 
 const require = createRequire(import.meta.url)
 const base = process.env.VITE_BASE_URL || '/'
+const repoRoot = resolve(__dirname, '..')
+
+function resolveBuildId(): string {
+    const fromEnv = process.env.HAPI_BUILD_ID?.trim()
+    if (fromEnv) {
+        return fromEnv
+    }
+
+    try {
+        const sha = execSync(`git -C "${repoRoot}" rev-parse --short HEAD`, { encoding: 'utf8' }).trim()
+        if (!sha) {
+            throw new Error('empty git sha')
+        }
+        return sha
+    } catch (error) {
+        throw new Error(
+            `Failed to resolve build id (set HAPI_BUILD_ID to override). Original error: ${String(error)}`
+        )
+    }
+}
 
 export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(require('../cli/package.json').version),
+        __APP_BUILD__: JSON.stringify(resolveBuildId()),
     },
     server: {
         host: true,

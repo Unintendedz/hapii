@@ -107,6 +107,12 @@ describe('SettingsPage', () => {
         expect(screen.getAllByText(__APP_VERSION__).length).toBeGreaterThanOrEqual(1)
     })
 
+    it('displays the Build Version with correct value', () => {
+        renderWithProviders(<SettingsPage />)
+        expect(screen.getAllByText('Build').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText(__APP_BUILD__).length).toBeGreaterThanOrEqual(1)
+    })
+
     it('displays the Protocol Version with correct value', () => {
         renderWithProviders(<SettingsPage />)
         expect(screen.getAllByText('Protocol Version').length).toBeGreaterThanOrEqual(1)
@@ -130,6 +136,7 @@ describe('SettingsPage', () => {
         expect(calledKeys).toContain('settings.about.title')
         expect(calledKeys).toContain('settings.about.website')
         expect(calledKeys).toContain('settings.about.appVersion')
+        expect(calledKeys).toContain('settings.about.buildVersion')
         expect(calledKeys).toContain('settings.about.protocolVersion')
     })
 })

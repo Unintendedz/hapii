@@ -263,6 +263,7 @@ export default {
   'settings.about.title': '关于',
   'settings.about.website': '官方网站',
   'settings.about.appVersion': '应用版本',
+  'settings.about.buildVersion': '构建版本',
   'settings.about.protocolVersion': '协议版本',
 
   // Misc

@@ -4,6 +4,19 @@ Work style: telegraph; noun-phrases ok; drop grammar;
 
 Short guide for AI agents in this repo. Prefer progressive loading: start with the root README, then package READMEs as needed.
 
+## Version / Build ID (web)
+
+Goal: verify deployed frontend actually updated (PWA/SW caching common).
+
+- UI: Settings → About
+  - **App Version**: `__APP_VERSION__` (from `cli/package.json` version)
+  - **Build**: `__APP_BUILD__`
+    - default: git short SHA at build time (`git rev-parse --short HEAD`)
+    - override: set `HAPI_BUILD_ID` env var when running `bun run build:web` / `bun run build:single-exe`
+
+Agent workflow (after rebuild + restart hub):
+- Open Settings → About; confirm **Build** matches expected SHA/build id.
+
 ## What is HAPI?
 
 Local-first platform for running AI coding agents (Claude Code, Codex, Gemini) with remote control via web/phone. CLI wraps agents and connects to hub; hub serves web app and handles real-time sync.

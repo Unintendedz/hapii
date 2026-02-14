@@ -436,6 +436,10 @@ export default function SettingsPage() {
                             <span className="text-[var(--app-hint)]">{__APP_VERSION__}</span>
                         </div>
                         <div className="flex w-full items-center justify-between px-3 py-3">
+                            <span className="text-[var(--app-fg)]">{t('settings.about.buildVersion')}</span>
+                            <span className="text-[var(--app-hint)] font-mono">{__APP_BUILD__}</span>
+                        </div>
+                        <div className="flex w-full items-center justify-between px-3 py-3">
                             <span className="text-[var(--app-fg)]">{t('settings.about.protocolVersion')}</span>
                             <span className="text-[var(--app-hint)]">{PROTOCOL_VERSION}</span>
                         </div>

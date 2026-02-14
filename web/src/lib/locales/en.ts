@@ -261,6 +261,7 @@ export default {
   'settings.about.title': 'About',
   'settings.about.website': 'Website',
   'settings.about.appVersion': 'App Version',
+  'settings.about.buildVersion': 'Build',
   'settings.about.protocolVersion': 'Protocol Version',
 
   // Misc
