@@ -143,6 +143,9 @@ export default {
   'terminal.stdout': 'Stdout',
   'terminal.stderr': 'Stderr',
 
+  // Message actions
+  'message.action.copy': 'Copy message',
+
   // Code block
   'code.copy': 'Copy',
 

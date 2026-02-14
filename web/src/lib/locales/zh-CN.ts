@@ -145,6 +145,9 @@ export default {
   'terminal.stdout': '标准输出',
   'terminal.stderr': '标准错误',
 
+  // Message actions
+  'message.action.copy': '复制消息',
+
   // Code block
   'code.copy': '复制',
 
