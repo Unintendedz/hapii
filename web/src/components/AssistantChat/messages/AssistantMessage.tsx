@@ -4,6 +4,7 @@ import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { Reasoning, ReasoningGroup } from '@/components/assistant-ui/reasoning'
 import { HappyToolMessage } from '@/components/AssistantChat/messages/ToolMessage'
 import { MessageActionMenu } from '@/components/AssistantChat/messages/MessageActionMenu'
+import { MessageSelectDialog } from '@/components/AssistantChat/messages/MessageSelectDialog'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { useLongPress } from '@/hooks/useLongPress'
 import { usePlatform } from '@/hooks/usePlatform'
@@ -24,6 +25,7 @@ export function HappyAssistantMessage() {
     const { haptic } = usePlatform()
     const [menuOpen, setMenuOpen] = useState(false)
     const [menuAnchorPoint, setMenuAnchorPoint] = useState({ x: 0, y: 0 })
+    const [selectOpen, setSelectOpen] = useState(false)
 
     const isCliOutput = useAssistantState(({ message }) => {
         const custom = message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined
@@ -74,6 +76,12 @@ export function HappyAssistantMessage() {
                     onClose={() => setMenuOpen(false)}
                     anchorPoint={menuAnchorPoint}
                     text={cliText}
+                    onSelectText={() => setSelectOpen(true)}
+                />
+                <MessageSelectDialog
+                    isOpen={selectOpen}
+                    onClose={() => setSelectOpen(false)}
+                    text={cliText}
                 />
             </MessagePrimitive.Root>
         )
@@ -90,6 +98,12 @@ export function HappyAssistantMessage() {
                 isOpen={menuOpen}
                 onClose={() => setMenuOpen(false)}
                 anchorPoint={menuAnchorPoint}
+                text={textContent}
+                onSelectText={() => setSelectOpen(true)}
+            />
+            <MessageSelectDialog
+                isOpen={selectOpen}
+                onClose={() => setSelectOpen(false)}
                 text={textContent}
             />
         </MessagePrimitive.Root>

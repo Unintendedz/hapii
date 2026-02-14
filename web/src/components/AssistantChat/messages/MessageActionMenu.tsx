@@ -14,6 +14,7 @@ type MessageActionMenuProps = {
     onClose: () => void
     anchorPoint: { x: number; y: number }
     text: string
+    onSelectText: () => void
 }
 
 function CopyIcon(props: { className?: string }) {
@@ -55,6 +56,31 @@ function CheckIcon(props: { className?: string }) {
     )
 }
 
+function SelectIcon(props: { className?: string }) {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={props.className}
+        >
+            <path d="M3 5h18" />
+            <path d="M9 3v2" />
+            <path d="M15 3v2" />
+            <path d="M9 19v2" />
+            <path d="M15 19v2" />
+            <path d="M3 19h18" />
+            <path d="M8 9l4 10 4-10" />
+        </svg>
+    )
+}
+
 type MenuPosition = {
     top: number
     left: number
@@ -63,7 +89,7 @@ type MenuPosition = {
 
 export function MessageActionMenu(props: MessageActionMenuProps) {
     const { t } = useTranslation()
-    const { isOpen, onClose, anchorPoint, text } = props
+    const { isOpen, onClose, anchorPoint, text, onSelectText } = props
     const menuRef = useRef<HTMLDivElement | null>(null)
     const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
     const { copied, copy } = useCopyToClipboard()
@@ -71,6 +97,11 @@ export function MessageActionMenu(props: MessageActionMenuProps) {
     const handleCopy = async () => {
         await copy(text)
         onClose()
+    }
+
+    const handleSelectText = () => {
+        onClose()
+        onSelectText()
     }
 
     const updatePosition = useCallback(() => {
@@ -183,6 +214,16 @@ export function MessageActionMenu(props: MessageActionMenuProps) {
                         : <CopyIcon className="text-[var(--app-hint)]" />
                     }
                     {t('message.action.copy')}
+                </button>
+
+                <button
+                    type="button"
+                    role="menuitem"
+                    className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`}
+                    onClick={handleSelectText}
+                >
+                    <SelectIcon className="text-[var(--app-hint)]" />
+                    {t('message.action.selectText')}
                 </button>
             </div>
         </div>

@@ -145,6 +145,7 @@ export default {
 
   // Message actions
   'message.action.copy': 'Copy message',
+  'message.action.selectText': 'Select text',
 
   // Code block
   'code.copy': 'Copy',

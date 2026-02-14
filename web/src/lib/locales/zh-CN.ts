@@ -147,6 +147,7 @@ export default {
 
   // Message actions
   'message.action.copy': '复制消息',
+  'message.action.selectText': '选择文字',
 
   // Code block
   'code.copy': '复制',

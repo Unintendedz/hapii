@@ -6,9 +6,9 @@ import { HappyChatProvider } from '@/components/AssistantChat/context'
 import { HappyAssistantMessage } from '@/components/AssistantChat/messages/AssistantMessage'
 import { HappyUserMessage } from '@/components/AssistantChat/messages/UserMessage'
 import { HappySystemMessage } from '@/components/AssistantChat/messages/SystemMessage'
-import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/Spinner'
 import { useTranslation } from '@/lib/use-translation'
+import { usePlatform } from '@/hooks/usePlatform'
 
 function NewMessagesIndicator(props: { count: number; onClick: () => void }) {
     const { t } = useTranslation()
@@ -76,7 +76,10 @@ export function HappyThread(props: {
     forceScrollToken: number
 }) {
     const { t } = useTranslation()
+    const { isTouch } = usePlatform()
+    const touchCapable = isTouch || (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0)
     const NEAR_BOTTOM_THRESHOLD_PX = 120
+    const NEAR_TOP_THRESHOLD_PX = 120
     const viewportRef = useRef<HTMLDivElement | null>(null)
     const topSentinelRef = useRef<HTMLDivElement | null>(null)
     const loadLockRef = useRef(false)
@@ -125,11 +128,16 @@ export function HappyThread(props: {
         const handleScroll = () => {
             const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
             const isNearBottom = distanceFromBottom < NEAR_BOTTOM_THRESHOLD_PX
+            const isNearTop = viewport.scrollTop < NEAR_TOP_THRESHOLD_PX
 
             if (isNearBottom) {
                 if (!autoScrollEnabledRef.current) setAutoScrollEnabled(true)
             } else if (autoScrollEnabledRef.current) {
                 setAutoScrollEnabled(false)
+            }
+
+            if (isNearTop) {
+                handleLoadMoreRef.current()
             }
 
             if (isNearBottom !== atBottomRef.current) {
@@ -274,6 +282,17 @@ export function HappyThread(props: {
     }, [props.messagesVersion])
 
     useEffect(() => {
+        if (props.isLoadingMessages || props.isLoadingMoreMessages || !props.hasMoreMessages) {
+            return
+        }
+        const viewport = viewportRef.current
+        if (!viewport) return
+        if (viewport.scrollTop < NEAR_TOP_THRESHOLD_PX) {
+            requestAnimationFrame(() => handleLoadMoreRef.current())
+        }
+    }, [props.messagesVersion, props.hasMoreMessages, props.isLoadingMessages, props.isLoadingMoreMessages])
+
+    useEffect(() => {
         isLoadingMoreRef.current = props.isLoadingMoreMessages
         if (props.isLoadingMoreMessages) {
             loadStartedRef.current = true
@@ -298,7 +317,11 @@ export function HappyThread(props: {
         }}>
             <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col relative">
                 <ThreadPrimitive.Viewport asChild autoScroll={autoScrollEnabled}>
-                    <div ref={viewportRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+                    <div
+                        ref={viewportRef}
+                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+                        style={touchCapable ? { WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } : undefined}
+                    >
                         <div className="mx-auto w-full max-w-content min-w-0 p-3">
                             <div ref={topSentinelRef} className="h-px w-full" aria-hidden="true" />
                             {showSkeleton ? (
@@ -311,30 +334,10 @@ export function HappyThread(props: {
                                         </div>
                                     ) : null}
 
-                                    {props.hasMoreMessages && !props.isLoadingMessages ? (
-                                        <div className="py-1 mb-2">
-                                            <div className="mx-auto w-fit">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={handleLoadMore}
-                                                    disabled={props.isLoadingMoreMessages || props.isLoadingMessages}
-                                                    aria-busy={props.isLoadingMoreMessages}
-                                                    className="gap-1.5 text-xs opacity-80 hover:opacity-100"
-                                                >
-                                                    {props.isLoadingMoreMessages ? (
-                                                        <>
-                                                            <Spinner size="sm" label={null} className="text-current" />
-                                                            {t('misc.loading')}
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <span aria-hidden="true">↑</span>
-                                                            {t('misc.loadOlder')}
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </div>
+                                    {props.isLoadingMoreMessages ? (
+                                        <div className="mb-2 flex items-center justify-center gap-2 text-xs text-[var(--app-hint)]">
+                                            <Spinner size="sm" label={null} className="text-current" />
+                                            {t('misc.loading')}
                                         </div>
                                     ) : null}
 
