@@ -64,7 +64,7 @@ export function HappyUserMessage() {
     if (isCliOutput) {
         return (
             <MessagePrimitive.Root className="px-1 min-w-0 max-w-full overflow-x-hidden">
-                <div className="ml-auto w-full max-w-[92%]" {...longPressHandlers}>
+                <div className="ml-auto w-full max-w-[92%]" style={{ WebkitTouchCallout: 'none' }} {...longPressHandlers}>
                     <CliOutputBlock text={cliText} />
                 </div>
                 <MessageActionMenu
@@ -81,7 +81,11 @@ export function HappyUserMessage() {
     const hasAttachments = attachments && attachments.length > 0
 
     return (
-        <MessagePrimitive.Root className={userBubbleClass} {...longPressHandlers}>
+        <MessagePrimitive.Root
+            className={userBubbleClass}
+            style={{ WebkitTouchCallout: 'none' }}
+            {...longPressHandlers}
+        >
             <div className="flex items-end gap-2">
                 <div className="flex-1 min-w-0">
                     {hasText && <LazyRainbowText text={text} />}

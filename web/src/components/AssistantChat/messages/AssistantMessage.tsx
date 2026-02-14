@@ -63,7 +63,11 @@ export function HappyAssistantMessage() {
 
     if (isCliOutput) {
         return (
-            <MessagePrimitive.Root className="px-1 min-w-0 max-w-full overflow-x-hidden" {...longPressHandlers}>
+            <MessagePrimitive.Root
+                className="px-1 min-w-0 max-w-full overflow-x-hidden"
+                style={{ WebkitTouchCallout: 'none' }}
+                {...longPressHandlers}
+            >
                 <CliOutputBlock text={cliText} />
                 <MessageActionMenu
                     isOpen={menuOpen}
@@ -76,7 +80,11 @@ export function HappyAssistantMessage() {
     }
 
     return (
-        <MessagePrimitive.Root className={rootClass} {...longPressHandlers}>
+        <MessagePrimitive.Root
+            className={rootClass}
+            style={{ WebkitTouchCallout: 'none' }}
+            {...longPressHandlers}
+        >
             <MessagePrimitive.Content components={MESSAGE_PART_COMPONENTS} />
             <MessageActionMenu
                 isOpen={menuOpen}
