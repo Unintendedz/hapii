@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractErrorInfo, apiValidationError } from './errorUtils'
+import { extractErrorInfo, apiValidationError, isRetryableConnectionError } from './errorUtils'
 
 describe('extractErrorInfo', () => {
     it('extracts serverProtocolVersion from axios-style response header', () => {
@@ -83,5 +83,22 @@ describe('apiValidationError', () => {
         const info = extractErrorInfo(err)
         expect(info.serverProtocolVersion).toBe(2)
         expect(info.messageLower).toContain('invalid /cli/')
+    })
+})
+
+describe('isRetryableConnectionError', () => {
+    it('treats ECONNREFUSED as retryable', () => {
+        expect(isRetryableConnectionError({ code: 'ECONNREFUSED', message: 'connect ECONNREFUSED 127.0.0.1:3006' })).toBe(true)
+    })
+
+    it('treats Bun ConnectionRefused as retryable', () => {
+        expect(isRetryableConnectionError({ code: 'ConnectionRefused', message: 'Unable to connect. Is the computer able to access the url?' })).toBe(true)
+    })
+
+    it('does not treat 401 as retryable', () => {
+        expect(isRetryableConnectionError({
+            message: 'Request failed with status code 401',
+            response: { status: 401, data: { error: 'Invalid access token' } }
+        })).toBe(false)
     })
 })

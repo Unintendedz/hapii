@@ -96,14 +96,23 @@ export function extractErrorInfo(error: unknown): ErrorInfo {
  * - other 4xx errors
  */
 export function isRetryableConnectionError(error: unknown): boolean {
-    const { axiosCode, httpStatus } = extractErrorInfo(error)
+    const { axiosCode, httpStatus, messageLower } = extractErrorInfo(error)
+
+    const codeLower = axiosCode?.toLowerCase()
 
     // Retryable network errors
-    if (axiosCode === 'ECONNREFUSED' ||
-        axiosCode === 'ETIMEDOUT' ||
-        axiosCode === 'ENOTFOUND' ||
-        axiosCode === 'ENETUNREACH' ||
-        axiosCode === 'ECONNRESET') {
+    if (codeLower === 'econnrefused' ||
+        codeLower === 'connectionrefused' ||
+        codeLower === 'etimedout' ||
+        codeLower === 'connectiontimeout' ||
+        codeLower === 'enotfound' ||
+        codeLower === 'enetunreach' ||
+        codeLower === 'econnreset') {
+        return true
+    }
+
+    // Fallback heuristics for runtimes that don't set stable error codes.
+    if (messageLower.includes('econnrefused') || messageLower.includes('connection refused')) {
         return true
     }
 
