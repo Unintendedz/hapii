@@ -102,6 +102,21 @@ git add -p
 git commit -m "fix(web): ..."
 ```
 
+1b. Update README changelog (user-facing changes only).
+
+For each `feat` or `fix` commit that changes user-visible behavior, append a changelog entry to **both** `README.md` and `README.en.md`.
+
+Format (match existing entries exactly):
+
+```
+`HH:MM:SS` &ensp; [`<short-hash>`](https://github.com/Unintendedz/hapii/commit/<short-hash>) — 说明
+```
+
+- Add under the current date heading; create a new `### YYYY-MM-DD` section at the top if the date changed.
+- Multiple related commits (same feature, seconds apart) may share one entry with multiple hashes.
+- Skip: internal refactors, self-introduced bug fixes, docs-only, chore commits.
+- Tone: neutral, factual. Describe what was done — do not imply the upstream project was broken.
+
 2. Run checks (fail fast).
 
 ```bash
