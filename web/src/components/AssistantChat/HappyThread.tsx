@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ThreadPrimitive } from '@assistant-ui/react'
 import type { ApiClient } from '@/api/client'
 import type { SessionMetadataSummary } from '@/types/api'
@@ -58,8 +58,7 @@ const THREAD_MESSAGE_COMPONENTS = {
 type PrependScrollSnapshot = {
     scrollTop: number
     scrollHeight: number
-    anchorId: string | null
-    anchorOffsetTop: number
+    anchors: Array<{ id: string; offsetTop: number }>
 }
 
 function escapeAttrValue(value: string): string {
@@ -69,42 +68,24 @@ function escapeAttrValue(value: string): string {
     return value.replace(/"/g, '\\"')
 }
 
-function getOffsetTopToRoot(el: HTMLElement): number {
-    let top = 0
-    let node: HTMLElement | null = el
-    while (node) {
-        top += node.offsetTop
-        node = node.offsetParent as HTMLElement | null
-    }
-    return top
-}
-
-function getOffsetTopRelativeToViewport(el: HTMLElement, viewport: HTMLElement): number {
-    return getOffsetTopToRoot(el) - getOffsetTopToRoot(viewport)
-}
-
-function getTopVisibleMessageAnchor(viewport: HTMLElement): { id: string; offsetTop: number } | null {
+function getTopVisibleMessageAnchors(viewport: HTMLElement, max: number): Array<{ id: string; offsetTop: number }> {
+    const viewportRect = viewport.getBoundingClientRect()
     const candidates = viewport.querySelectorAll<HTMLElement>('[data-hapi-message-id]')
-    const scrollTop = viewport.scrollTop
-    const viewportBottom = scrollTop + viewport.clientHeight
+    const anchors: Array<{ id: string; offsetTop: number }> = []
 
-    let best: { id: string; top: number } | null = null
     for (const el of candidates) {
         const id = el.dataset.hapiMessageId
         if (!id) continue
 
-        const top = getOffsetTopRelativeToViewport(el, viewport)
-        const bottom = top + el.offsetHeight
-        if (bottom <= scrollTop + 1) continue
-        if (top >= viewportBottom - 1) continue
+        const rect = el.getBoundingClientRect()
+        if (rect.bottom <= viewportRect.top + 1) continue
+        if (rect.top >= viewportRect.bottom - 1) continue
 
-        if (!best || top < best.top) {
-            best = { id, top }
-        }
+        anchors.push({ id, offsetTop: rect.top - viewportRect.top })
     }
 
-    if (!best) return null
-    return { id: best.id, offsetTop: best.top - scrollTop }
+    anchors.sort((a, b) => a.offsetTop - b.offsetTop)
+    return anchors.slice(0, max)
 }
 
 export function HappyThread(props: {
@@ -347,12 +328,11 @@ export function HappyThread(props: {
         if (!viewport) {
             return
         }
-        const anchor = getTopVisibleMessageAnchor(viewport)
+        const anchors = getTopVisibleMessageAnchors(viewport, 12)
         pendingScrollRef.current = {
             scrollTop: viewport.scrollTop,
             scrollHeight: viewport.scrollHeight,
-            anchorId: anchor?.id ?? null,
-            anchorOffsetTop: anchor?.offsetTop ?? 0
+            anchors
         }
         loadLockRef.current = true
         loadStartedRef.current = false
@@ -428,25 +408,26 @@ export function HappyThread(props: {
         }
 
         const applyAnchorAdjustment = () => {
-            if (!pending.anchorId) {
-                return false
-            }
-            const selector = `[data-hapi-message-id="${escapeAttrValue(pending.anchorId)}"]`
-            const anchorEl = viewport.querySelector<HTMLElement>(selector)
-            if (!anchorEl) {
+            if (!pending.anchors.length) {
                 return false
             }
 
-            const nextTop = getOffsetTopRelativeToViewport(anchorEl, viewport)
-            const desiredScrollTop = Math.max(0, nextTop - pending.anchorOffsetTop)
-            if (!Number.isFinite(desiredScrollTop)) {
-                return false
+            const viewportRect = viewport.getBoundingClientRect()
+
+            for (const anchor of pending.anchors) {
+                const selector = `[data-hapi-message-id="${escapeAttrValue(anchor.id)}"]`
+                const anchorEl = viewport.querySelector<HTMLElement>(selector)
+                if (!anchorEl) continue
+
+                const nextOffsetTop = anchorEl.getBoundingClientRect().top - viewportRect.top
+                const diff = nextOffsetTop - anchor.offsetTop
+                if (Number.isFinite(diff) && Math.abs(diff) > 0.5) {
+                    viewport.scrollTop += diff
+                }
+                return true
             }
 
-            if (Math.abs(viewport.scrollTop - desiredScrollTop) > 0.5) {
-                viewport.scrollTop = desiredScrollTop
-            }
-            return true
+            return false
         }
 
         const didAnchorAdjust = applyAnchorAdjustment()
@@ -456,7 +437,7 @@ export function HappyThread(props: {
         }
 
         // Reconcile again after layout settles (markdown/images may change height after first paint).
-        if (pending.anchorId) {
+        if (pending.anchors.length) {
             requestAnimationFrame(() => {
                 applyAnchorAdjustment()
             })
@@ -498,7 +479,11 @@ export function HappyThread(props: {
                     <div
                         ref={viewportRef}
                         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-                        style={touchCapable ? { WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } : undefined}
+                        style={(
+                            touchCapable
+                                ? { WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', overflowAnchor: 'none' }
+                                : { overflowAnchor: 'none' }
+                        ) as unknown as CSSProperties}
                     >
                         <div className="mx-auto w-full max-w-content min-w-0 p-3">
                             <div ref={topSentinelRef} className="h-px w-full" aria-hidden="true" />
