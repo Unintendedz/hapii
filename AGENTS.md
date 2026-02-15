@@ -82,11 +82,13 @@ Bun workspaces; `shared` consumed by cli, hub, web.
 ## Common commands (repo root)
 
 ```bash
-bun typecheck           # All packages
-bun run test            # cli + hub tests
-bun run test:e2e        # Playwright (WebKit) e2e
-bun run dev             # hub + web concurrently
+bun typecheck            # All packages
+bun run test             # cli + hub tests
+bun run test:e2e         # Playwright (WebKit) e2e
+bun run dev              # hub + web concurrently
 bun run build:single-exe # All-in-one binary
+bun run redeploy         # Full pipeline: typecheck → test → build → restart hub → smoke
+bun run redeploy:fast    # Same but skip typecheck/test (trusted changes only)
 ```
 
 ## Required workflow (local dev)
@@ -137,30 +139,19 @@ bun run test:e2e
 
 Most common: macOS + single-exe + launchd (`org.hapii.hub`).
 
+**One command** (typecheck + test + build + restart + smoke):
+
 ```bash
-export PATH="$HOME/.bun/bin:$PATH"
-bun typecheck
-bun run test
-bun run build:single-exe
-launchctl kickstart -k gui/$(id -u)/org.hapii.hub
+bun run redeploy
 ```
 
-Verify:
-- Settings → About → Build (timestamp + short SHA) matches latest commit
-- API smoke:
+Or skip checks for trusted changes: `bun run redeploy:fast`
+
+Script: `scripts/redeploy.sh` — handles PATH setup, `build:single-exe`, `launchctl kickstart`, wait-for-ready, version.json SHA verification, and API smoke test automatically.
+
+4. Push after redeploy succeeds.
 
 ```bash
-ACCESS=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.hapi/settings.json")))["cliApiToken"])')
-JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"accessToken\":\"$ACCESS\"}" http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])')
-curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
-```
-
-4. Smoke checks; then push.
-
-```bash
-ACCESS=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.hapi/settings.json")))["cliApiToken"])')
-JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"accessToken\":\"$ACCESS\"}" http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])')
-curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
 git push
 ```
 
@@ -181,28 +172,24 @@ ps aux | rg "hapi hub|hapi runner|bun run dev|bun --watch run src/index.ts|vite|
 - Force-refresh web app once (especially installed PWA).
 
 3. If running single-exe / packaged binary (`hapi hub`):
-- Rebuild local binary with latest web assets:
+
+Preferred (launchd, macOS — handles build + restart + smoke in one shot):
+
+```bash
+bun run redeploy         # or: bun run redeploy:fast
+```
+
+Manual (other process managers):
 
 ```bash
 bun run build:single-exe
+# then restart via your process manager:
+# pm2:      pm2 restart hapi-hub
+# systemd:  systemctl --user restart hapi-hub
+# launchd:  launchctl kickstart -k gui/$(id -u)/org.hapii.hub
 ```
 
-- Restart hub process with the same launch method (foreground/nohup/pm2/systemd).
-- Restart runner only when CLI/shared protocol changed (RPC/schema/session lifecycle changes).
-
-4. Process manager commands:
-- pm2: `pm2 restart hapi-hub` and (if needed) `pm2 restart hapi-runner`.
-- systemd user service: `systemctl --user restart hapi-hub` and (if needed) `systemctl --user restart hapi-runner`.
-- launchd (macOS): `launchctl kickstart -k gui/$(id -u)/org.hapii.hub` (runner restart only if needed).
-
-5. Post-replace checks (fail fast):
-
-```bash
-ACCESS=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.hapi/settings.json")))["cliApiToken"])')
-JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"accessToken\":\"$ACCESS\"}" http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])')
-curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
-curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=true&limit=1&offset=0' >/dev/null
-```
+Restart runner only when CLI/shared protocol changed (RPC/schema/session lifecycle changes).
 
 Agent requirement: after changing `web/` or `hub/`, include runtime replacement steps in final handoff.
 

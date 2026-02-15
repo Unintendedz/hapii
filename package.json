@@ -24,7 +24,9 @@
         "test:web": "cd web && bun run test",
         "test:e2e": "playwright test",
         "clean-session": "bun run hub/scripts/cleanup-sessions.ts",
-        "release-all": "cd cli && bun run release-all"
+        "release-all": "cd cli && bun run release-all",
+        "redeploy": "bash scripts/redeploy.sh",
+        "redeploy:fast": "bash scripts/redeploy.sh --skip-test"
     },
     "devDependencies": {
         "concurrently": "^9.2.1",
