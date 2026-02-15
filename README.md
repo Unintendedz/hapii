@@ -24,6 +24,8 @@
 
 `00:17:59` &ensp; [`e2c2552`](https://github.com/Unintendedz/hapii/commit/e2c2552) — 上翻加载历史时保持滚动位置不跳页（可直接看到新旧交接处）
 
+`01:31:12` &ensp; [`27eef0d`](https://github.com/Unintendedz/hapii/commit/27eef0d) — 改用更稳定的锚点算法，减少 iOS 下加载历史时的跳动
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — 消息增加长按 / 右键菜单，可以复制全文

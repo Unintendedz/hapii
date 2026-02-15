@@ -24,6 +24,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 `00:17:59` &ensp; [`e2c2552`](https://github.com/Unintendedz/hapii/commit/e2c2552) — Preserve scroll position when loading older history (no jump to the top of the new page)
 
+`01:31:12` &ensp; [`27eef0d`](https://github.com/Unintendedz/hapii/commit/27eef0d) — Use a more stable anchor algorithm to reduce jumps on iOS when prepending history
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — Add long-press / right-click context menu to copy message text
