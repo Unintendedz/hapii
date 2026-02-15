@@ -10,6 +10,18 @@
 
 ## 更新日志
 
+### 2026-02-16
+
+`00:01:51` &ensp; [`6adddb5`](https://github.com/Unintendedz/hapii/commit/6adddb5) — 切换页面/会话时保留未发送草稿（按会话保存）
+
+`00:02:05` &ensp; [`f5e41eb`](https://github.com/Unintendedz/hapii/commit/f5e41eb) — Build ID 增加 UTC+8 可读时间戳，方便确认 PWA 是否更新
+
+`00:02:16` &ensp; [`81084d7`](https://github.com/Unintendedz/hapii/commit/81084d7) — Terminal 进程退出后不再无限重连刷屏（Process Exited）
+
+`00:02:25` &ensp; [`7e7b0e6`](https://github.com/Unintendedz/hapii/commit/7e7b0e6) — 修复聊天滚动到顶部时的无限自动加载
+
+`00:02:38` &ensp; [`145a3ba`](https://github.com/Unintendedz/hapii/commit/145a3ba) — 会话列表/详情显示本轮工作耗时（进行中/完成后）
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — 消息增加长按 / 右键菜单，可以复制全文

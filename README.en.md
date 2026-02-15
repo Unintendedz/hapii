@@ -10,6 +10,18 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-16
+
+`00:01:51` &ensp; [`6adddb5`](https://github.com/Unintendedz/hapii/commit/6adddb5) — Persist unsent drafts per session when navigating away
+
+`00:02:05` &ensp; [`f5e41eb`](https://github.com/Unintendedz/hapii/commit/f5e41eb) — Add a UTC+8 timestamp to the Build ID for easier PWA version checks
+
+`00:02:16` &ensp; [`81084d7`](https://github.com/Unintendedz/hapii/commit/81084d7) — Stop the terminal reconnect loop and “Process Exited” spam after process exit
+
+`00:02:25` &ensp; [`7e7b0e6`](https://github.com/Unintendedz/hapii/commit/7e7b0e6) — Prevent runaway auto-loading when staying at the top of the chat thread
+
+`00:02:38` &ensp; [`145a3ba`](https://github.com/Unintendedz/hapii/commit/145a3ba) — Show session work duration in the list and session header (live + final)
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — Add long-press / right-click context menu to copy message text
