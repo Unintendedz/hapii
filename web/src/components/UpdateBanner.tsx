@@ -10,14 +10,14 @@ export function UpdateBanner() {
     }
 
     return (
-        <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white text-center py-2 text-sm font-medium z-50 flex items-center justify-center gap-3">
-            <span>{t('update.message')}</span>
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
             <button
                 type="button"
-                className="rounded bg-white/20 px-3 py-0.5 text-xs font-semibold hover:bg-white/30 transition-colors"
+                className="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-blue-700 transition-colors"
                 onClick={applyUpdate}
             >
-                {t('update.button')}
+                <span>{t('update.message')}</span>
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">{t('update.button')}</span>
             </button>
         </div>
     )
