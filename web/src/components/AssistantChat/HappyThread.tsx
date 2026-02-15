@@ -69,29 +69,42 @@ function escapeAttrValue(value: string): string {
     return value.replace(/"/g, '\\"')
 }
 
+function getOffsetTopToRoot(el: HTMLElement): number {
+    let top = 0
+    let node: HTMLElement | null = el
+    while (node) {
+        top += node.offsetTop
+        node = node.offsetParent as HTMLElement | null
+    }
+    return top
+}
+
+function getOffsetTopRelativeToViewport(el: HTMLElement, viewport: HTMLElement): number {
+    return getOffsetTopToRoot(el) - getOffsetTopToRoot(viewport)
+}
+
 function getTopVisibleMessageAnchor(viewport: HTMLElement): { id: string; offsetTop: number } | null {
-    const viewportRect = viewport.getBoundingClientRect()
     const candidates = viewport.querySelectorAll<HTMLElement>('[data-hapi-message-id]')
+    const scrollTop = viewport.scrollTop
+    const viewportBottom = scrollTop + viewport.clientHeight
 
     let best: { id: string; top: number } | null = null
     for (const el of candidates) {
         const id = el.dataset.hapiMessageId
         if (!id) continue
 
-        const rect = el.getBoundingClientRect()
-        if (rect.bottom <= viewportRect.top + 1) continue
-        if (rect.top >= viewportRect.bottom - 1) continue
+        const top = getOffsetTopRelativeToViewport(el, viewport)
+        const bottom = top + el.offsetHeight
+        if (bottom <= scrollTop + 1) continue
+        if (top >= viewportBottom - 1) continue
 
-        if (!best || rect.top < best.top) {
-            best = { id, top: rect.top }
+        if (!best || top < best.top) {
+            best = { id, top }
         }
     }
 
-    if (!best) {
-        return null
-    }
-
-    return { id: best.id, offsetTop: best.top - viewportRect.top }
+    if (!best) return null
+    return { id: best.id, offsetTop: best.top - scrollTop }
 }
 
 export function HappyThread(props: {
@@ -424,11 +437,14 @@ export function HappyThread(props: {
                 return false
             }
 
-            const viewportRect = viewport.getBoundingClientRect()
-            const nextOffsetTop = anchorEl.getBoundingClientRect().top - viewportRect.top
-            const diff = nextOffsetTop - pending.anchorOffsetTop
-            if (Number.isFinite(diff) && Math.abs(diff) > 0.5) {
-                viewport.scrollTop += diff
+            const nextTop = getOffsetTopRelativeToViewport(anchorEl, viewport)
+            const desiredScrollTop = Math.max(0, nextTop - pending.anchorOffsetTop)
+            if (!Number.isFinite(desiredScrollTop)) {
+                return false
+            }
+
+            if (Math.abs(viewport.scrollTop - desiredScrollTop) > 0.5) {
+                viewport.scrollTop = desiredScrollTop
             }
             return true
         }
