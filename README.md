@@ -26,6 +26,12 @@
 
 `01:31:12` &ensp; [`27eef0d`](https://github.com/Unintendedz/hapii/commit/27eef0d) — 改用更稳定的锚点算法，减少 iOS 下加载历史时的跳动
 
+`01:53:17` &ensp; [`11f2bf2`](https://github.com/Unintendedz/hapii/commit/11f2bf2) — Hub 计时改为使用 thinkingSince，避免丢包/重启导致耗时偏短
+
+`01:53:31` &ensp; [`60591f9`](https://github.com/Unintendedz/hapii/commit/60591f9) — CLI keepalive 携带 thinkingSince，工作耗时展示更准确
+
+`01:53:45` &ensp; [`eabd7a9`](https://github.com/Unintendedz/hapii/commit/eabd7a9) — 上翻加载历史使用多锚点保持位置，减少跳到新页顶部
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — 消息增加长按 / 右键菜单，可以复制全文

@@ -26,6 +26,12 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 `01:31:12` &ensp; [`27eef0d`](https://github.com/Unintendedz/hapii/commit/27eef0d) — Use a more stable anchor algorithm to reduce jumps on iOS when prepending history
 
+`01:53:17` &ensp; [`11f2bf2`](https://github.com/Unintendedz/hapii/commit/11f2bf2) — Compute work timers from thinkingSince to avoid undercount after drops/restarts
+
+`01:53:31` &ensp; [`60591f9`](https://github.com/Unintendedz/hapii/commit/60591f9) — Include thinkingSince in CLI keepalive for more accurate work duration
+
+`01:53:45` &ensp; [`eabd7a9`](https://github.com/Unintendedz/hapii/commit/eabd7a9) — Use multi-anchor scroll retention when prepending history to reduce jumps
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — Add long-press / right-click context menu to copy message text
