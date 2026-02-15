@@ -32,6 +32,8 @@
 
 `01:53:45` &ensp; [`eabd7a9`](https://github.com/Unintendedz/hapii/commit/eabd7a9) — 上翻加载历史使用多锚点保持位置，减少跳到新页顶部
 
+`02:39:22` &ensp; [`bcdbf09`](https://github.com/Unintendedz/hapii/commit/bcdbf09) — 重做上翻加载历史的滚动保持逻辑，避免跳到新页顶部（兼容延迟布局变化）
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — 消息增加长按 / 右键菜单，可以复制全文

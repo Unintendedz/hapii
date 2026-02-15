@@ -32,6 +32,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 `01:53:45` &ensp; [`eabd7a9`](https://github.com/Unintendedz/hapii/commit/eabd7a9) — Use multi-anchor scroll retention when prepending history to reduce jumps
 
+`02:39:22` &ensp; [`bcdbf09`](https://github.com/Unintendedz/hapii/commit/bcdbf09) — Rework history prepend scroll retention to prevent jumps (handles late layout changes)
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — Add long-press / right-click context menu to copy message text
