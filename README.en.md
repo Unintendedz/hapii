@@ -38,6 +38,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 `05:35:17` &ensp; [`3b03506`](https://github.com/Unintendedz/hapii/commit/3b03506) — Fix history prepend jumping to the top of the loaded page (use MutationObserver to wait for actual DOM update before restoring scroll)
 
+`05:49:38` &ensp; [`4c4266a`](https://github.com/Unintendedz/hapii/commit/4c4266a) — Move PWA update prompt to a floating capsule at the bottom to avoid Dynamic Island / notch obstruction
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — Add long-press / right-click context menu to copy message text
