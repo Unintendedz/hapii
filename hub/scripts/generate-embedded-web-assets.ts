@@ -84,7 +84,16 @@ function main(): void {
         const importName = `asset${index}`;
         const mimeType = resolveMimeType(filePath);
 
-        imports.push(`import ${importName} from '${importPath}' assert { type: 'file' };`);
+        // Bun's `assert { type: 'file' }` returns the file path as a string, but
+        // TypeScript's resolveJsonModule infers the JSON *content* shape for .json
+        // files, causing a type mismatch.  Work around with an intermediate cast.
+        const isJsonFile = extname(filePath).toLowerCase() === '.json';
+        if (isJsonFile) {
+            imports.push(`import ${importName}_raw from '${importPath}' assert { type: 'file' };`);
+            imports.push(`const ${importName} = ${importName}_raw as unknown as string;`);
+        } else {
+            imports.push(`import ${importName} from '${importPath}' assert { type: 'file' };`);
+        }
         manifestLines.push(`    { path: '${requestPath}', sourcePath: ${importName}, mimeType: '${mimeType}' },`);
     });
 

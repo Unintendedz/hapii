@@ -95,6 +95,8 @@ export function HappyThread(props: {
     const loadLockRef = useRef(false)
     const pendingScrollRef = useRef<PrependScrollSnapshot | null>(null)
     const scrollStabilizerCleanupRef = useRef<(() => void) | null>(null)
+    const scrollObserverRef = useRef<MutationObserver | null>(null)
+    const scrollObserverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const prevLoadingMoreRef = useRef(false)
     const loadStartedRef = useRef(false)
     const isLoadingMoreRef = useRef(props.isLoadingMoreMessages)
@@ -294,6 +296,33 @@ export function HappyThread(props: {
         scrollToBottom()
     }, [props.forceScrollToken, scrollToBottom])
 
+    // Shared scroll restoration logic used by both useLayoutEffect and MutationObserver.
+    const runScrollRestoration = useCallback(() => {
+        const pending = pendingScrollRef.current
+        const viewport = viewportRef.current
+        if (!pending || !viewport) return false
+
+        scrollObserverRef.current?.disconnect()
+        scrollObserverRef.current = null
+        if (scrollObserverTimeoutRef.current !== null) {
+            clearTimeout(scrollObserverTimeoutRef.current)
+            scrollObserverTimeoutRef.current = null
+        }
+
+        scrollStabilizerCleanupRef.current?.()
+        const restored = restorePrependScrollSnapshot(viewport, pending, {
+            selector: '[data-hapi-message-id]',
+            observeElement: contentRef.current,
+            stabilizeMs: 1600,
+        })
+        scrollStabilizerCleanupRef.current = restored.cleanup
+
+        pendingScrollRef.current = null
+        loadLockRef.current = false
+        suppressTopLoadUntilRef.current = Date.now() + 250
+        return true
+    }, [])
+
     const handleLoadMore = useCallback(() => {
         if (isLoadingMessagesRef.current || !hasMoreMessagesRef.current || isLoadingMoreRef.current || loadLockRef.current) {
             return
@@ -304,7 +333,49 @@ export function HappyThread(props: {
         }
         scrollStabilizerCleanupRef.current?.()
         scrollStabilizerCleanupRef.current = null
+        scrollObserverRef.current?.disconnect()
+        scrollObserverRef.current = null
+        if (scrollObserverTimeoutRef.current !== null) {
+            clearTimeout(scrollObserverTimeoutRef.current)
+            scrollObserverTimeoutRef.current = null
+        }
+
         pendingScrollRef.current = capturePrependScrollSnapshot(viewport, { selector: '[data-hapi-message-id]', maxAnchors: 16 })
+
+        // Set up a MutationObserver to detect when the DOM actually updates with
+        // prepended messages.  @assistant-ui/react updates its runtime via useEffect
+        // (not useLayoutEffect), so the DOM change happens in a later render cycle
+        // — after our useLayoutEffect has already fired.  The observer catches that
+        // second commit and runs scroll restoration before the browser paints.
+        const content = contentRef.current
+        if (content) {
+            const snapshotScrollHeight = viewport.scrollHeight
+            const observer = new MutationObserver(() => {
+                const vp = viewportRef.current
+                if (!pendingScrollRef.current || !vp) {
+                    observer.disconnect()
+                    scrollObserverRef.current = null
+                    return
+                }
+                // Only restore once new content has actually been added to the DOM.
+                if (vp.scrollHeight <= snapshotScrollHeight + 2) return
+                runScrollRestoration()
+            })
+            observer.observe(content, { childList: true, subtree: true })
+            scrollObserverRef.current = observer
+
+            // Safety: clean up if nothing happens within 5 seconds.
+            scrollObserverTimeoutRef.current = setTimeout(() => {
+                observer.disconnect()
+                scrollObserverRef.current = null
+                scrollObserverTimeoutRef.current = null
+                if (pendingScrollRef.current) {
+                    pendingScrollRef.current = null
+                    loadLockRef.current = false
+                }
+            }, 5000)
+        }
+
         loadLockRef.current = true
         loadStartedRef.current = false
         let loadPromise: Promise<unknown>
@@ -313,16 +384,22 @@ export function HappyThread(props: {
         } catch (error) {
             pendingScrollRef.current = null
             loadLockRef.current = false
+            scrollObserverRef.current?.disconnect()
+            scrollObserverRef.current = null
             throw error
         }
         void loadPromise.catch((error) => {
             pendingScrollRef.current = null
             loadLockRef.current = false
+            scrollObserverRef.current?.disconnect()
+            scrollObserverRef.current = null
             console.error('Failed to load older messages:', error)
         }).finally(() => {
             if (!loadStartedRef.current && !isLoadingMoreRef.current && pendingScrollRef.current) {
                 pendingScrollRef.current = null
                 loadLockRef.current = false
+                scrollObserverRef.current?.disconnect()
+                scrollObserverRef.current = null
             }
         })
     }, [])
@@ -334,6 +411,10 @@ export function HappyThread(props: {
     useEffect(() => {
         return () => {
             scrollStabilizerCleanupRef.current?.()
+            scrollObserverRef.current?.disconnect()
+            if (scrollObserverTimeoutRef.current !== null) {
+                clearTimeout(scrollObserverTimeoutRef.current)
+            }
         }
     }, [])
 
@@ -383,18 +464,18 @@ export function HappyThread(props: {
         if (!pending || !viewport) {
             return
         }
-        scrollStabilizerCleanupRef.current?.()
-        const restored = restorePrependScrollSnapshot(viewport, pending, {
-            selector: '[data-hapi-message-id]',
-            observeElement: contentRef.current,
-            stabilizeMs: 1600,
-        })
-        scrollStabilizerCleanupRef.current = restored.cleanup
 
-        pendingScrollRef.current = null
-        loadLockRef.current = false
-        suppressTopLoadUntilRef.current = Date.now() + 250
-    }, [props.messagesVersion])
+        // @assistant-ui/react updates its internal runtime via useEffect (after
+        // useLayoutEffect), so the DOM may still show the old messages at this
+        // point.  Only run restoration if the DOM has actually changed; otherwise
+        // the MutationObserver set up in handleLoadMore will handle it once the
+        // runtime commits the new messages.
+        if (viewport.scrollHeight <= pending.scrollHeight + 2) {
+            return
+        }
+
+        runScrollRestoration()
+    }, [props.messagesVersion, runScrollRestoration])
 
     useEffect(() => {
         isLoadingMoreRef.current = props.isLoadingMoreMessages
@@ -404,6 +485,8 @@ export function HappyThread(props: {
         if (prevLoadingMoreRef.current && !props.isLoadingMoreMessages && pendingScrollRef.current) {
             pendingScrollRef.current = null
             loadLockRef.current = false
+            scrollObserverRef.current?.disconnect()
+            scrollObserverRef.current = null
         }
         prevLoadingMoreRef.current = props.isLoadingMoreMessages
     }, [props.isLoadingMoreMessages])
