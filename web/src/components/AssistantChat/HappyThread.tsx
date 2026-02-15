@@ -82,6 +82,10 @@ export function HappyThread(props: {
     const NEAR_TOP_THRESHOLD_PX = 120
     const viewportRef = useRef<HTMLDivElement | null>(null)
     const topSentinelRef = useRef<HTMLDivElement | null>(null)
+    const wasNearTopRef = useRef(false)
+    const wasTopSentinelIntersectingRef = useRef(false)
+    const lastScrollTopRef = useRef(0)
+    const suppressTopLoadUntilRef = useRef(0)
     const loadLockRef = useRef(false)
     const pendingScrollRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
     const prevLoadingMoreRef = useRef(false)
@@ -126,9 +130,11 @@ export function HappyThread(props: {
         if (!viewport) return
 
         const handleScroll = () => {
+            const prevScrollTop = lastScrollTopRef.current
             const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
             const isNearBottom = distanceFromBottom < NEAR_BOTTOM_THRESHOLD_PX
-            const isNearTop = viewport.scrollTop < NEAR_TOP_THRESHOLD_PX
+            const now = Date.now()
+            const suppressTopLoad = now < suppressTopLoadUntilRef.current
 
             if (isNearBottom) {
                 if (!autoScrollEnabledRef.current) setAutoScrollEnabled(true)
@@ -136,9 +142,26 @@ export function HappyThread(props: {
                 setAutoScrollEnabled(false)
             }
 
-            if (isNearTop) {
-                handleLoadMoreRef.current()
+            // Load older messages only when the user *enters* the near-top region.
+            // Avoid "level-triggered" loops where staying at the top keeps loading forever.
+            const isNearTop = viewport.scrollTop < NEAR_TOP_THRESHOLD_PX
+            const reachedTop = viewport.scrollTop <= 0 && prevScrollTop > 0
+            if (isNearTop && !wasNearTopRef.current) {
+                wasNearTopRef.current = true
+                if (!suppressTopLoad) {
+                    handleLoadMoreRef.current()
+                }
+            } else if (!isNearTop && wasNearTopRef.current) {
+                wasNearTopRef.current = false
+            } else if (reachedTop) {
+                // Allow repeated "scroll to top" loads without requiring the user to scroll
+                // down past the near-top threshold in between.
+                if (!suppressTopLoad) {
+                    handleLoadMoreRef.current()
+                }
             }
+
+            lastScrollTopRef.current = viewport.scrollTop
 
             if (isNearBottom !== atBottomRef.current) {
                 atBottomRef.current = isNearBottom
@@ -152,6 +175,67 @@ export function HappyThread(props: {
         viewport.addEventListener('scroll', handleScroll, { passive: true })
         return () => viewport.removeEventListener('scroll', handleScroll)
     }, []) // Stable: no dependencies, reads from refs
+
+    useEffect(() => {
+        const viewport = viewportRef.current
+        if (!viewport) return
+
+        const touchStartYRef = { current: null as number | null }
+        const pullTriggeredRef = { current: false }
+        const lastWheelTriggerAtRef = { current: 0 }
+
+        const resetPullState = () => {
+            touchStartYRef.current = null
+            pullTriggeredRef.current = false
+        }
+
+        const handleWheel = (event: WheelEvent) => {
+            if (viewport.scrollTop > 0) return
+            if (event.deltaY >= 0) return
+            const now = Date.now()
+            if (now - lastWheelTriggerAtRef.current < 600) {
+                return
+            }
+            lastWheelTriggerAtRef.current = now
+            handleLoadMoreRef.current()
+        }
+
+        const handleTouchStart = (event: TouchEvent) => {
+            if (event.touches.length !== 1) return
+            touchStartYRef.current = event.touches[0]?.clientY ?? null
+            pullTriggeredRef.current = false
+        }
+
+        const handleTouchMove = (event: TouchEvent) => {
+            if (pullTriggeredRef.current) return
+            const startY = touchStartYRef.current
+            if (startY === null) return
+            if (viewport.scrollTop > 0) return
+            const currentY = event.touches[0]?.clientY
+            if (typeof currentY !== 'number') return
+
+            // At scrollTop=0, dragging downward (positive delta) means "pulling past the top".
+            // Trigger one load per gesture.
+            const delta = currentY - startY
+            if (delta < 28) return
+            pullTriggeredRef.current = true
+            handleLoadMoreRef.current()
+        }
+
+        viewport.addEventListener('wheel', handleWheel, { passive: true })
+        viewport.addEventListener('touchstart', handleTouchStart, { passive: true })
+        viewport.addEventListener('touchmove', handleTouchMove, { passive: true })
+        viewport.addEventListener('touchend', resetPullState, { passive: true })
+        viewport.addEventListener('touchcancel', resetPullState, { passive: true })
+
+        return () => {
+            viewport.removeEventListener('wheel', handleWheel)
+            viewport.removeEventListener('touchstart', handleTouchStart)
+            viewport.removeEventListener('touchmove', handleTouchMove)
+            viewport.removeEventListener('touchend', resetPullState)
+            viewport.removeEventListener('touchcancel', resetPullState)
+        }
+    }, [])
 
     // Scroll to bottom handler for the indicator button
     const scrollToBottom = useCallback(() => {
@@ -253,9 +337,21 @@ export function HappyThread(props: {
 
         const observer = new IntersectionObserver(
             (entries) => {
+                const now = Date.now()
+                const suppressTopLoad = now < suppressTopLoadUntilRef.current
                 for (const entry of entries) {
+                    // Same idea as the scroll handler: trigger only on the transition
+                    // from "not intersecting" -> "intersecting", so we don't keep
+                    // loading pages just because the layout changes while staying at the top.
                     if (entry.isIntersecting) {
-                        handleLoadMoreRef.current()
+                        if (!wasTopSentinelIntersectingRef.current) {
+                            wasTopSentinelIntersectingRef.current = true
+                            if (!suppressTopLoad) {
+                                handleLoadMoreRef.current()
+                            }
+                        }
+                    } else if (wasTopSentinelIntersectingRef.current) {
+                        wasTopSentinelIntersectingRef.current = false
                     }
                 }
             },
@@ -279,18 +375,8 @@ export function HappyThread(props: {
         viewport.scrollTop = pending.scrollTop + delta
         pendingScrollRef.current = null
         loadLockRef.current = false
+        suppressTopLoadUntilRef.current = Date.now() + 250
     }, [props.messagesVersion])
-
-    useEffect(() => {
-        if (props.isLoadingMessages || props.isLoadingMoreMessages || !props.hasMoreMessages) {
-            return
-        }
-        const viewport = viewportRef.current
-        if (!viewport) return
-        if (viewport.scrollTop < NEAR_TOP_THRESHOLD_PX) {
-            requestAnimationFrame(() => handleLoadMoreRef.current())
-        }
-    }, [props.messagesVersion, props.hasMoreMessages, props.isLoadingMessages, props.isLoadingMoreMessages])
 
     useEffect(() => {
         isLoadingMoreRef.current = props.isLoadingMoreMessages
