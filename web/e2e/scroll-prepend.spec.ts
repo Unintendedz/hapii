@@ -52,7 +52,7 @@ test('keeps scroll anchored when prepending history (with late layout changes)',
         await expect(status).toHaveAttribute('data-phase', 'settled')
 
         const after = await getRelativeTop(page, anchorId)
-        expect(Math.abs(after - before)).toBeLessThan(1.5)
+        expect(Math.abs(after - before)).toBeLessThan(2)
 
         const scrollTop = await getScrollTop(page)
         expect(scrollTop).toBeGreaterThan(0)

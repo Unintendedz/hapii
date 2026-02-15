@@ -9,116 +9,85 @@ export type PrependScrollSnapshot = {
     anchors: PrependScrollAnchorSnapshot[]
 }
 
-function getAnchorId(el: HTMLElement, selector: string): string | null {
-    const anchorEl = el.closest(selector) as HTMLElement | null
-    const id = anchorEl?.dataset.hapiMessageId
-    if (!id) {
-        return null
-    }
-    return id
-}
+// ---------------------------------------------------------------------------
+// Capture – run BEFORE the prepend mutation
+// ---------------------------------------------------------------------------
 
-function getAnchorFromProbePoint(viewport: HTMLElement, selector: string): PrependScrollAnchorSnapshot | null {
+function probeAnchorAtPoint(viewport: HTMLElement, selector: string): PrependScrollAnchorSnapshot | null {
     const rect = viewport.getBoundingClientRect()
     const probeX = rect.left + Math.min(48, rect.width / 2)
     const probeY = rect.top + 16
 
     const hit = document.elementFromPoint(probeX, probeY) as HTMLElement | null
-    if (!hit) {
-        return null
-    }
+    if (!hit) return null
 
-    const id = getAnchorId(hit, selector)
-    if (!id) {
-        return null
-    }
+    const anchorEl = hit.closest(selector) as HTMLElement | null
+    const id = anchorEl?.dataset.hapiMessageId
+    if (!id || !anchorEl) return null
 
-    const anchorEl = hit.closest(selector) as HTMLElement
-    return {
-        id,
-        offsetTop: anchorEl.getBoundingClientRect().top - rect.top
-    }
+    return { id, offsetTop: anchorEl.getBoundingClientRect().top - rect.top }
 }
 
-function getVisibleAnchors(viewport: HTMLElement, selector: string, maxAnchors: number): PrependScrollAnchorSnapshot[] {
-    const viewportRect = viewport.getBoundingClientRect()
-    const candidates = viewport.querySelectorAll<HTMLElement>(selector)
-    const anchors: PrependScrollAnchorSnapshot[] = []
+function collectVisibleAnchors(viewport: HTMLElement, selector: string, max: number): PrependScrollAnchorSnapshot[] {
+    const vr = viewport.getBoundingClientRect()
+    const els = viewport.querySelectorAll<HTMLElement>(selector)
+    const out: PrependScrollAnchorSnapshot[] = []
 
-    for (const el of candidates) {
+    for (const el of els) {
         const id = el.dataset.hapiMessageId
         if (!id) continue
 
-        const rect = el.getBoundingClientRect()
-        if (rect.bottom <= viewportRect.top + 1) continue
-        if (rect.top >= viewportRect.bottom - 1) continue
+        const r = el.getBoundingClientRect()
+        if (r.bottom <= vr.top + 1 || r.top >= vr.bottom - 1) continue
 
-        anchors.push({ id, offsetTop: rect.top - viewportRect.top })
+        out.push({ id, offsetTop: r.top - vr.top })
     }
 
-    anchors.sort((a, b) => a.offsetTop - b.offsetTop)
-    return anchors.slice(0, maxAnchors)
+    out.sort((a, b) => a.offsetTop - b.offsetTop)
+    return out.slice(0, max)
 }
 
 export function capturePrependScrollSnapshot(
     viewport: HTMLElement,
-    opts?: {
-        selector?: string
-        maxAnchors?: number
-    }
+    opts?: { selector?: string; maxAnchors?: number }
 ): PrependScrollSnapshot {
     const selector = opts?.selector ?? '[data-hapi-message-id]'
-    const maxAnchors = opts?.maxAnchors ?? 12
+    const max = opts?.maxAnchors ?? 12
 
-    const probe = getAnchorFromProbePoint(viewport, selector)
-    const visible = getVisibleAnchors(viewport, selector, maxAnchors)
+    const probe = probeAnchorAtPoint(viewport, selector)
+    const visible = collectVisibleAnchors(viewport, selector, max)
 
     const anchors: PrependScrollAnchorSnapshot[] = []
-    if (probe) {
-        anchors.push(probe)
-    }
+    if (probe) anchors.push(probe)
     for (const a of visible) {
-        if (!anchors.some((existing) => existing.id === a.id)) {
-            anchors.push(a)
-        }
+        if (!anchors.some((e) => e.id === a.id)) anchors.push(a)
     }
 
-    return {
-        scrollTop: viewport.scrollTop,
-        scrollHeight: viewport.scrollHeight,
-        anchors
-    }
+    return { scrollTop: viewport.scrollTop, scrollHeight: viewport.scrollHeight, anchors }
 }
 
-function buildAnchorMap(viewport: HTMLElement, selector: string): Map<string, HTMLElement> {
-    const map = new Map<string, HTMLElement>()
-    for (const el of viewport.querySelectorAll<HTMLElement>(selector)) {
-        const id = el.dataset.hapiMessageId
-        if (!id) continue
-        if (!map.has(id)) {
-            map.set(id, el)
-        }
-    }
-    return map
+// ---------------------------------------------------------------------------
+// Restore – run AFTER the DOM commit (useLayoutEffect)
+// ---------------------------------------------------------------------------
+
+function findAnchorById(viewport: HTMLElement, id: string): HTMLElement | null {
+    return viewport.querySelector<HTMLElement>(`[data-hapi-message-id="${CSS.escape(id)}"]`)
 }
 
-function applyAnchorAdjustment(
+function applyAnchorCorrection(
     viewport: HTMLElement,
-    anchorMap: Map<string, HTMLElement>,
     snapshot: PrependScrollSnapshot
 ): PrependScrollAnchorSnapshot | null {
-    if (snapshot.anchors.length === 0) {
-        return null
-    }
+    if (snapshot.anchors.length === 0) return null
 
-    const viewportRect = viewport.getBoundingClientRect()
+    const vr = viewport.getBoundingClientRect()
 
     for (const anchor of snapshot.anchors) {
-        const el = anchorMap.get(anchor.id)
+        const el = findAnchorById(viewport, anchor.id)
         if (!el) continue
 
-        const nextOffsetTop = el.getBoundingClientRect().top - viewportRect.top
-        const diff = nextOffsetTop - anchor.offsetTop
+        const currentOffset = el.getBoundingClientRect().top - vr.top
+        const diff = currentOffset - anchor.offsetTop
         if (Number.isFinite(diff) && Math.abs(diff) > 0.5) {
             viewport.scrollTop += diff
         }
@@ -129,98 +98,92 @@ function applyAnchorAdjustment(
 }
 
 function applyScrollHeightFallback(viewport: HTMLElement, snapshot: PrependScrollSnapshot): void {
-    const delta = viewport.scrollHeight - snapshot.scrollHeight
-    viewport.scrollTop = snapshot.scrollTop + delta
+    viewport.scrollTop = snapshot.scrollTop + (viewport.scrollHeight - snapshot.scrollHeight)
 }
 
-function stabilizeAnchorOffset(params: {
+// ---------------------------------------------------------------------------
+// Stabilizer – compensates for late layout shifts (images, code blocks, etc.)
+//
+// Uses a timestamp-based approach to distinguish programmatic scrollTop
+// adjustments from real user scrolls.  The previous `applying` boolean flag
+// was racy: setting `scrollTop` fires the scroll event *asynchronously*, so
+// the flag was always false by the time the handler ran, causing the
+// stabilizer to stop on its own first correction.
+// ---------------------------------------------------------------------------
+
+const PROGRAMMATIC_SCROLL_GRACE_MS = 120
+
+function createStabilizer(params: {
     viewport: HTMLElement
     observeElement: Element
-    selector: string
     anchorId: string
-    expectedOffsetTop: number
+    expectedOffset: number
     maxMs: number
 }): () => void {
-    const { viewport, observeElement, selector, anchorId, expectedOffsetTop, maxMs } = params
+    const { viewport, observeElement, anchorId, expectedOffset, maxMs } = params
 
-    const ignoreUserScrollUntil = Date.now() + 250
-    let resizeObserver: ResizeObserver | null = null
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    let rafId: number | null = null
+    let lastAdjustAt = Date.now()
+    let observer: ResizeObserver | null = null
+    let timeout: ReturnType<typeof setTimeout> | null = null
+    let raf: number | null = null
     let stopped = false
-    let applying = false
+    let cachedAnchor: HTMLElement | null = null
+
+    const getAnchor = (): HTMLElement | null => {
+        if (cachedAnchor && cachedAnchor.isConnected) return cachedAnchor
+        cachedAnchor = findAnchorById(viewport, anchorId)
+        return cachedAnchor
+    }
 
     const stop = () => {
         if (stopped) return
         stopped = true
-        if (rafId !== null) {
-            cancelAnimationFrame(rafId)
-        }
-        viewport.removeEventListener('scroll', onScroll)
-        resizeObserver?.disconnect()
-        if (timeoutId !== null) {
-            clearTimeout(timeoutId)
-        }
+        if (raf !== null) cancelAnimationFrame(raf)
+        viewport.removeEventListener('scroll', onUserScroll)
+        observer?.disconnect()
+        if (timeout !== null) clearTimeout(timeout)
     }
 
-    const adjust = () => {
-        rafId = null
+    const correct = () => {
+        raf = null
         if (stopped) return
 
-        const anchorEl = buildAnchorMap(viewport, selector).get(anchorId)
-        if (!anchorEl) {
-            stop()
-            return
-        }
+        const el = getAnchor()
+        if (!el) { stop(); return }
 
-        const viewportRect = viewport.getBoundingClientRect()
-        const nextOffsetTop = anchorEl.getBoundingClientRect().top - viewportRect.top
-        const diff = nextOffsetTop - expectedOffsetTop
+        const vr = viewport.getBoundingClientRect()
+        const currentOffset = el.getBoundingClientRect().top - vr.top
+        const diff = currentOffset - expectedOffset
+
         if (Number.isFinite(diff) && Math.abs(diff) > 0.5) {
-            applying = true
+            lastAdjustAt = Date.now()
             viewport.scrollTop += diff
-            applying = false
         }
     }
 
-    const scheduleAdjust = () => {
-        if (stopped) return
-        if (rafId !== null) return
-        rafId = requestAnimationFrame(adjust)
+    const scheduleCorrection = () => {
+        if (stopped || raf !== null) return
+        raf = requestAnimationFrame(correct)
     }
 
-    const onScroll = () => {
+    const onUserScroll = () => {
         if (stopped) return
-        if (Date.now() < ignoreUserScrollUntil) return
-        if (applying) return
-        // User scroll: stop fighting them.
+        // Scroll events caused by our programmatic adjustments arrive
+        // asynchronously; ignore them within the grace window.
+        if (Date.now() - lastAdjustAt < PROGRAMMATIC_SCROLL_GRACE_MS) return
+        // Real user scroll → stop compensating immediately.
         stop()
     }
 
-    viewport.addEventListener('scroll', onScroll, { passive: true })
+    viewport.addEventListener('scroll', onUserScroll, { passive: true })
 
     if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => {
-            scheduleAdjust()
-        })
-        resizeObserver.observe(observeElement)
-    } else {
-        // Fallback: run a short rAF loop.
-        const start = Date.now()
-        const tick = () => {
-            if (stopped) return
-            adjust()
-            if (Date.now() - start > maxMs) {
-                stop()
-                return
-            }
-            rafId = requestAnimationFrame(tick)
-        }
-        rafId = requestAnimationFrame(tick)
+        observer = new ResizeObserver(scheduleCorrection)
+        observer.observe(observeElement)
     }
 
-    timeoutId = setTimeout(stop, maxMs)
-    scheduleAdjust()
+    timeout = setTimeout(stop, maxMs)
+    scheduleCorrection()
 
     return stop
 }
@@ -234,12 +197,9 @@ export function restorePrependScrollSnapshot(
         stabilizeMs?: number
     }
 ): { usedAnchor: PrependScrollAnchorSnapshot | null; cleanup: (() => void) | null; didFallback: boolean } {
-    const selector = opts?.selector ?? '[data-hapi-message-id]'
-    const anchorMap = buildAnchorMap(viewport, selector)
+    const usedAnchor = applyAnchorCorrection(viewport, snapshot)
 
-    const usedAnchor = applyAnchorAdjustment(viewport, anchorMap, snapshot)
-    const didFallback = usedAnchor === null
-    if (didFallback) {
+    if (!usedAnchor) {
         applyScrollHeightFallback(viewport, snapshot)
         return { usedAnchor: null, cleanup: null, didFallback: true }
     }
@@ -250,13 +210,12 @@ export function restorePrependScrollSnapshot(
         return { usedAnchor, cleanup: null, didFallback: false }
     }
 
-    const cleanup = stabilizeAnchorOffset({
+    const cleanup = createStabilizer({
         viewport,
         observeElement,
-        selector,
         anchorId: usedAnchor.id,
-        expectedOffsetTop: usedAnchor.offsetTop,
-        maxMs: stabilizeMs
+        expectedOffset: usedAnchor.offsetTop,
+        maxMs: stabilizeMs,
     })
 
     return { usedAnchor, cleanup, didFallback: false }
