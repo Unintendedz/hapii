@@ -22,11 +22,13 @@
         "test:cli": "cd cli && bun run test",
         "test:hub": "cd hub && bun run test",
         "test:web": "cd web && bun run test",
+        "test:e2e": "playwright test",
         "clean-session": "bun run hub/scripts/cleanup-sessions.ts",
         "release-all": "cd cli && bun run release-all"
     },
     "devDependencies": {
         "concurrently": "^9.2.1",
+        "@playwright/test": "^1.53.0",
         "react-devtools-core": "^7.0.1",
         "vite-plugin-pwa": "^1.2.0"
     }

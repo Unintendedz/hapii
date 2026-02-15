@@ -256,6 +256,11 @@ function AppInner() {
         enabled: Boolean(api && token)
     })
 
+    // Dev-only: allow e2e harness routes to render without auth/bootstrap flows.
+    if (import.meta.env.DEV && pathname.startsWith('/__e2e__/')) {
+        return <Outlet />
+    }
+
     // Loading auth source
     if (isAuthSourceLoading) {
         return (
