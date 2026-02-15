@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import type { Session } from '@/types/api'
 import type { ApiClient } from '@/api/client'
+import { useNow } from '@/hooks/useNow'
 import { isTelegramApp } from '@/hooks/useTelegram'
 import { useSessionActions } from '@/hooks/mutations/useSessionActions'
 import { SessionActionMenu } from '@/components/SessionActionMenu'
@@ -59,6 +60,23 @@ function MoreVerticalIcon(props: { className?: string }) {
     )
 }
 
+function formatDurationMs(ms: number): string {
+    if (!Number.isFinite(ms)) return ''
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+    if (minutes > 0) return `${minutes}m ${seconds}s`
+    return `${seconds}s`
+}
+
+function formatTime(ms: number): string {
+    const date = new Date(ms)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 export function SessionHeader(props: {
     session: Session
     onBack: () => void
@@ -70,6 +88,19 @@ export function SessionHeader(props: {
     const { session, api, onSessionDeleted } = props
     const title = useMemo(() => getSessionTitle(session), [session])
     const worktreeBranch = session.metadata?.worktree?.branch
+    const now = useNow({ enabled: session.thinking && Boolean(session.work?.current), intervalMs: 1000 })
+    const workLine = (() => {
+        const work = session.work
+        if (!work) return null
+        if (session.thinking && work.current) {
+            const elapsed = now - work.current.startedAt
+            return `⏱ ${formatDurationMs(elapsed)} · ${formatTime(work.current.startedAt)} → …`
+        }
+        if (!session.thinking && work.last) {
+            return `⏱ ${formatDurationMs(work.last.durationMs)} · ${formatTime(work.last.startedAt)} → ${formatTime(work.last.endedAt)}`
+        }
+        return null
+    })()
 
     const [menuOpen, setMenuOpen] = useState(false)
     const [menuAnchorPoint, setMenuAnchorPoint] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -145,6 +176,11 @@ export function SessionHeader(props: {
                                 <span>{t('session.item.worktree')}: {worktreeBranch}</span>
                             ) : null}
                         </div>
+                        {workLine ? (
+                            <div className="truncate text-xs text-[var(--app-hint)]" title={workLine}>
+                                {workLine}
+                            </div>
+                        ) : null}
                     </div>
 
                     {props.onViewFiles ? (

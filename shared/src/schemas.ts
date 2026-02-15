@@ -118,6 +118,27 @@ export const DecryptedMessageSchema = z.object({
 
 export type DecryptedMessage = z.infer<typeof DecryptedMessageSchema>
 
+export const SessionWorkCurrentSchema = z.object({
+    startedAt: z.number()
+})
+
+export type SessionWorkCurrent = z.infer<typeof SessionWorkCurrentSchema>
+
+export const SessionWorkLastSchema = z.object({
+    startedAt: z.number(),
+    endedAt: z.number(),
+    durationMs: z.number()
+})
+
+export type SessionWorkLast = z.infer<typeof SessionWorkLastSchema>
+
+export const SessionWorkSchema = z.object({
+    current: SessionWorkCurrentSchema.nullable(),
+    last: SessionWorkLastSchema.nullable()
+})
+
+export type SessionWork = z.infer<typeof SessionWorkSchema>
+
 export const SessionSchema = z.object({
     id: z.string(),
     namespace: z.string(),
@@ -132,6 +153,7 @@ export const SessionSchema = z.object({
     agentStateVersion: z.number(),
     thinking: z.boolean(),
     thinkingAt: z.number(),
+    work: SessionWorkSchema.optional(),
     todos: TodosSchema.optional(),
     permissionMode: PermissionModeSchema.optional(),
     modelMode: ModelModeSchema.optional()

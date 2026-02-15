@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionSummary } from '@/types/api'
 import type { ApiClient } from '@/api/client'
 import { useLongPress } from '@/hooks/useLongPress'
+import { useNow } from '@/hooks/useNow'
 import { usePlatform } from '@/hooks/usePlatform'
 import { useSessionActions } from '@/hooks/mutations/useSessionActions'
 import { SessionActionMenu } from '@/components/SessionActionMenu'
@@ -184,6 +185,17 @@ function formatRelativeTime(value: number, t: (key: string, params?: Record<stri
     return new Date(ms).toLocaleDateString()
 }
 
+function formatDurationMs(ms: number): string {
+    if (!Number.isFinite(ms)) return ''
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+    if (minutes > 0) return `${minutes}m ${seconds}s`
+    return `${seconds}s`
+}
+
 function SessionItem(props: {
     session: SessionSummary
     onSelect: (sessionId: string) => void
@@ -191,9 +203,10 @@ function SessionItem(props: {
     compact?: boolean
     api: ApiClient | null
     selected?: boolean
+    now: number
 }) {
     const { t } = useTranslation()
-    const { session: s, onSelect, showPath = true, compact = false, api, selected = false } = props
+    const { session: s, onSelect, showPath = true, compact = false, api, selected = false, now } = props
     const { haptic } = usePlatform()
     const [menuOpen, setMenuOpen] = useState(false)
     const [menuAnchorPoint, setMenuAnchorPoint] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -226,6 +239,17 @@ function SessionItem(props: {
         ? (s.thinking ? 'bg-[#007AFF]' : 'bg-[var(--app-badge-success-text)]')
         : 'bg-[var(--app-hint)]'
     const progress = getTodoProgress(s)
+    const workDurationMs = (() => {
+        const work = s.work
+        if (!work) return null
+        if (s.thinking && work.current) {
+            return now - work.current.startedAt
+        }
+        if (!s.thinking && work.last) {
+            return work.last.durationMs
+        }
+        return null
+    })()
 
     return (
         <>
@@ -249,6 +273,11 @@ function SessionItem(props: {
                         {!compact && s.thinking ? (
                             <span className="animate-pulse text-[#007AFF]">
                                 {t('session.item.thinking')}
+                            </span>
+                        ) : null}
+                        {!compact && workDurationMs !== null ? (
+                            <span className={s.thinking ? 'text-[#007AFF]' : 'text-[var(--app-hint)]'}>
+                                ⏱ {formatDurationMs(workDurationMs)}
                             </span>
                         ) : null}
                         {!compact && progress ? (
@@ -351,6 +380,11 @@ export function SessionList(props: {
 }) {
     const { t } = useTranslation()
     const { renderHeader = true, api, selectedSessionId } = props
+    const hasThinkingSessions = useMemo(() => {
+        const all = [...props.activeSessions, ...props.archivedSessions]
+        return all.some((session) => session.thinking && Boolean(session.work?.current))
+    }, [props.activeSessions, props.archivedSessions])
+    const now = useNow({ enabled: hasThinkingSessions, intervalMs: 1000 })
     const activeGroups = useMemo(
         () => groupSessionsByDirectory(props.activeSessions),
         [props.activeSessions]
@@ -549,6 +583,7 @@ export function SessionList(props: {
                                     compact={compactItems}
                                     api={api}
                                     selected={session.id === selectedSessionId}
+                                    now={now}
                                 />
                             ))}
                             {hasMoreInGroup ? (

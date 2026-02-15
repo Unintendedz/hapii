@@ -118,6 +118,7 @@ export class SessionCache {
             agentStateVersion: stored.agentStateVersion,
             thinking: existing?.thinking ?? false,
             thinkingAt: existing?.thinkingAt ?? 0,
+            work: existing?.work ?? { current: null, last: null },
             todos,
             permissionMode: existing?.permissionMode,
             modelMode: existing?.modelMode
@@ -149,14 +150,34 @@ export class SessionCache {
         const session = this.sessions.get(payload.sid) ?? this.refreshSession(payload.sid)
         if (!session) return
 
+        session.work ??= { current: null, last: null }
+
         const wasActive = session.active
         const wasThinking = session.thinking
         const previousPermissionMode = session.permissionMode
         const previousModelMode = session.modelMode
 
+        const nextThinking = Boolean(payload.thinking)
+        if (!wasThinking && nextThinking) {
+            session.work.current = { startedAt: t }
+        }
+        if (nextThinking && !session.work.current) {
+            session.work.current = { startedAt: t }
+        }
+        if (wasThinking && !nextThinking && session.work.current) {
+            const startedAt = session.work.current.startedAt
+            const endedAt = t
+            session.work.last = {
+                startedAt,
+                endedAt,
+                durationMs: Math.max(0, endedAt - startedAt)
+            }
+            session.work.current = null
+        }
+
         session.active = true
         session.activeAt = Math.max(session.activeAt, t)
-        session.thinking = Boolean(payload.thinking)
+        session.thinking = nextThinking
         session.thinkingAt = t
         if (payload.permissionMode !== undefined) {
             session.permissionMode = payload.permissionMode
@@ -198,6 +219,18 @@ export class SessionCache {
             return
         }
 
+        session.work ??= { current: null, last: null }
+        if (session.thinking && session.work.current) {
+            const startedAt = session.work.current.startedAt
+            const endedAt = t
+            session.work.last = {
+                startedAt,
+                endedAt,
+                durationMs: Math.max(0, endedAt - startedAt)
+            }
+            session.work.current = null
+        }
+
         session.active = false
         session.thinking = false
         session.thinkingAt = t
@@ -211,6 +244,19 @@ export class SessionCache {
         for (const session of this.sessions.values()) {
             if (!session.active) continue
             if (now - session.activeAt <= sessionTimeoutMs) continue
+
+            session.work ??= { current: null, last: null }
+            if (session.thinking && session.work.current) {
+                const startedAt = session.work.current.startedAt
+                const endedAt = now
+                session.work.last = {
+                    startedAt,
+                    endedAt,
+                    durationMs: Math.max(0, endedAt - startedAt)
+                }
+                session.work.current = null
+            }
+
             session.active = false
             session.thinking = false
             this.publisher.emit({ type: 'session-updated', sessionId: session.id, data: { active: false } })
