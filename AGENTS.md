@@ -84,6 +84,7 @@ Bun workspaces; `shared` consumed by cli, hub, web.
 ```bash
 bun typecheck           # All packages
 bun run test            # cli + hub tests
+bun run test:e2e        # Playwright (WebKit) e2e
 bun run dev             # hub + web concurrently
 bun run build:single-exe # All-in-one binary
 ```
@@ -123,6 +124,8 @@ Format (match existing entries exactly):
 ```bash
 bun typecheck
 bun run test
+# Web scroll / history prepend / PWA behavior changes: also run
+bun run test:e2e
 ```
 
 3. Build + replace the currently-running instance.
@@ -130,10 +133,34 @@ bun run test
 - Source dev (`bun run dev`): restart dev processes; force-refresh PWA once.
 - Single-exe (`hapi hub`): rebuild + restart hub (and runner if needed).
 
+### Post-commit local replace (cheatsheet)
+
+Most common: macOS + single-exe + launchd (`org.hapii.hub`).
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+bun typecheck
+bun run test
+bun run build:single-exe
+launchctl kickstart -k gui/$(id -u)/org.hapii.hub
+```
+
+Verify:
+- Settings → About → Build (timestamp + short SHA) matches latest commit
+- API smoke:
+
+```bash
+ACCESS=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.hapi/settings.json")))["cliApiToken"])')
+JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"accessToken\":\"$ACCESS\"}" http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])')
+curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
+```
+
 4. Smoke checks; then push.
 
 ```bash
-curl -fsS http://127.0.0.1:3006/api/sessions?archived=false >/dev/null
+ACCESS=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.hapi/settings.json")))["cliApiToken"])')
+JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"accessToken\":\"$ACCESS\"}" http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])')
+curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
 git push
 ```
 
@@ -171,8 +198,10 @@ bun run build:single-exe
 5. Post-replace checks (fail fast):
 
 ```bash
-curl -fsS http://127.0.0.1:3006/api/sessions?archived=false >/dev/null
-curl -fsS "http://127.0.0.1:3006/api/sessions?archived=true&limit=1&offset=0" >/dev/null
+ACCESS=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.hapi/settings.json")))["cliApiToken"])')
+JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "{\"accessToken\":\"$ACCESS\"}" http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"token\"])')
+curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
+curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=true&limit=1&offset=0' >/dev/null
 ```
 
 Agent requirement: after changing `web/` or `hub/`, include runtime replacement steps in final handoff.
@@ -225,6 +254,8 @@ Agent requirement: after changing `web/` or `hub/`, include runtime replacement 
 - Hub tests: `hub/src/**/*.test.ts`
 - CLI tests: `cli/src/**/*.test.ts`
 - Web tests: `web/src/**/*.test.{ts,tsx}` (Vitest + jsdom)
+- E2E: Playwright (WebKit): `bun run test:e2e`
+  - first run / after upgrade: `bunx playwright install webkit`
 
 ## Common tasks
 
