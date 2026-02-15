@@ -36,6 +36,8 @@
 
 `03:46:33` &ensp; [`44bb081`](https://github.com/Unintendedz/hapii/commit/44bb081) — 修复历史加载稳定器竞态条件：延迟布局变化（图片/代码块渲染）不再导致跳动
 
+`05:35:17` &ensp; [`3b03506`](https://github.com/Unintendedz/hapii/commit/3b03506) — 修复上翻加载历史后跳到新页顶部的问题（使用 MutationObserver 等待 DOM 实际更新后再恢复滚动位置）
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — 消息增加长按 / 右键菜单，可以复制全文

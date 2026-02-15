@@ -36,6 +36,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 `03:46:33` &ensp; [`44bb081`](https://github.com/Unintendedz/hapii/commit/44bb081) — Fix stabilizer race condition: late layout changes (images, code blocks) no longer cause scroll jumps
 
+`05:35:17` &ensp; [`3b03506`](https://github.com/Unintendedz/hapii/commit/3b03506) — Fix history prepend jumping to the top of the loaded page (use MutationObserver to wait for actual DOM update before restoring scroll)
+
 ### 2026-02-14
 
 `13:42:11` &ensp; [`5457d6b`](https://github.com/Unintendedz/hapii/commit/5457d6b) — Add long-press / right-click context menu to copy message text
