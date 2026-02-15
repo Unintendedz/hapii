@@ -231,6 +231,8 @@ export default {
   'syncing.title': 'Syncing…',
   'syncing.message': 'Your data is being synchronized.',
   'reconnecting.message': 'Reconnecting...',
+  'update.message': 'A new version is available.',
+  'update.button': 'Reload',
 
   // Send blocked
   'send.blocked.title': 'Cannot send message',

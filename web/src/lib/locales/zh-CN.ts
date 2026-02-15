@@ -233,6 +233,8 @@ export default {
   'syncing.title': '同步中…',
   'syncing.message': '正在同步您的数据。',
   'reconnecting.message': '正在重新连接...',
+  'update.message': '发现新版本',
+  'update.button': '立即更新',
 
   // Send blocked
   'send.blocked.title': '无法发送消息',

@@ -49,6 +49,20 @@ function resolveBuildId(): string {
     }
 }
 
+function versionJsonPlugin() {
+    const buildId = resolveBuildId()
+    return {
+        name: 'version-json',
+        generateBundle() {
+            this.emitFile({
+                type: 'asset',
+                fileName: 'version.json',
+                source: JSON.stringify({ build: buildId })
+            })
+        }
+    } satisfies import('vite').Plugin
+}
+
 export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(require('../cli/package.json').version),
@@ -70,6 +84,7 @@ export default defineConfig({
     },
     plugins: [
         react(),
+        versionJsonPlugin(),
         VitePWA({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'mask-icon.svg'],
@@ -112,6 +127,7 @@ export default defineConfig({
             },
             injectManifest: {
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+                globIgnores: ['version.json'],
                 maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
             },
             devOptions: {

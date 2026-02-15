@@ -23,6 +23,12 @@ type PushPayload = {
 
 precacheAndRoute(self.__WB_MANIFEST)
 
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'SKIP_WAITING') {
+        self.skipWaiting()
+    }
+})
+
 registerRoute(
     ({ url }) => url.pathname === '/api/sessions',
     new NetworkFirst({
