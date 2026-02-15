@@ -52,6 +52,7 @@ export async function runAgentSession(opts: {
     });
 
     let thinking = false;
+    let thinkingSince: number | null = null;
     let shouldExit = false;
     let waitAbortController: AbortController | null = null;
 
@@ -62,9 +63,9 @@ export async function runAgentSession(opts: {
 
     // Mark session as active as early as possible.
     // Important: register onUserMessage before allowing webapp sends.
-    session.keepAlive(thinking, 'remote');
+    session.keepAlive(thinking, 'remote', undefined, thinkingSince);
     keepAliveInterval = setInterval(() => {
-        session.keepAlive(thinking, 'remote');
+        session.keepAlive(thinking, 'remote', undefined, thinkingSince);
     }, 2000);
 
     try {
@@ -104,7 +105,8 @@ export async function runAgentSession(opts: {
             await activeBackend.cancelPrompt(agentSessionId);
             await activePermissionAdapter.cancelAll('User aborted');
             thinking = false;
-            session.keepAlive(thinking, 'remote');
+            thinkingSince = null;
+            session.keepAlive(thinking, 'remote', undefined, thinkingSince);
             sendReady();
             if (waitAbortController) {
                 waitAbortController.abort();
@@ -143,7 +145,8 @@ export async function runAgentSession(opts: {
             }];
 
             thinking = true;
-            session.keepAlive(thinking, 'remote');
+            thinkingSince = Date.now();
+            session.keepAlive(thinking, 'remote', undefined, thinkingSince);
 
             try {
                 await activeBackend.prompt(agentSessionId, promptContent, (message) => {
@@ -160,7 +163,8 @@ export async function runAgentSession(opts: {
                 });
             } finally {
                 thinking = false;
-                session.keepAlive(thinking, 'remote');
+                thinkingSince = null;
+                session.keepAlive(thinking, 'remote', undefined, thinkingSince);
                 await activePermissionAdapter.cancelAll('Prompt finished');
                 emitReadyIfIdle({
                     queueSize: () => messageQueue.size(),
