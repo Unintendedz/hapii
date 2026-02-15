@@ -186,6 +186,7 @@ export class SyncEngine {
         sid: string
         time: number
         thinking?: boolean
+        thinkingSince?: number | null
         mode?: 'local' | 'remote'
         permissionMode?: PermissionMode
         modelMode?: ModelMode

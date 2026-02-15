@@ -5,6 +5,15 @@ import { clampAliveTime } from './aliveTime'
 import { EventPublisher } from './eventPublisher'
 import { extractTodoWriteTodosFromMessageContent, TodosSchema } from './todos'
 
+function clampWorkStartTime(t: number, now: number): number | null {
+    if (!Number.isFinite(t)) return null
+    if (t > now) return now
+    // Allow long-running turns; still reject absurdly old values to avoid poisoning UI.
+    const maxAgeMs = 1000 * 60 * 60 * 24 * 7 // 7 days
+    if (t < now - maxAgeMs) return null
+    return t
+}
+
 export class SessionCache {
     private readonly sessions: Map<string, Session> = new Map()
     private readonly lastBroadcastAtBySessionId: Map<string, number> = new Map()
@@ -140,12 +149,15 @@ export class SessionCache {
         sid: string
         time: number
         thinking?: boolean
+        thinkingSince?: number | null
         mode?: 'local' | 'remote'
         permissionMode?: PermissionMode
         modelMode?: ModelMode
     }): void {
         const t = clampAliveTime(payload.time)
         if (!t) return
+
+        const now = Date.now()
 
         const session = this.sessions.get(payload.sid) ?? this.refreshSession(payload.sid)
         if (!session) return
@@ -158,11 +170,16 @@ export class SessionCache {
         const previousModelMode = session.modelMode
 
         const nextThinking = Boolean(payload.thinking)
-        if (!wasThinking && nextThinking) {
-            session.work.current = { startedAt: t }
-        }
-        if (nextThinking && !session.work.current) {
-            session.work.current = { startedAt: t }
+        if (nextThinking) {
+            const startedAtFromClient = typeof payload.thinkingSince === 'number'
+                ? clampWorkStartTime(payload.thinkingSince, now)
+                : null
+
+            if (!session.work.current) {
+                session.work.current = { startedAt: startedAtFromClient ?? t }
+            } else if (startedAtFromClient !== null && startedAtFromClient < session.work.current.startedAt) {
+                session.work.current.startedAt = startedAtFromClient
+            }
         }
         if (wasThinking && !nextThinking && session.work.current) {
             const startedAt = session.work.current.startedAt
@@ -186,7 +203,6 @@ export class SessionCache {
             session.modelMode = payload.modelMode
         }
 
-        const now = Date.now()
         const lastBroadcastAt = this.lastBroadcastAtBySessionId.get(session.id) ?? 0
         const modeChanged = previousPermissionMode !== session.permissionMode || previousModelMode !== session.modelMode
         const shouldBroadcast = (!wasActive && session.active)
