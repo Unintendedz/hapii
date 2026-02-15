@@ -214,7 +214,6 @@ export default function TerminalPage() {
         onExit((code, signal) => {
             setExitInfo({ code, signal })
             terminalRef.current?.write(`\r\n[process exited${code !== null ? ` with code ${code}` : ''}]`)
-            connectOnceRef.current = false
         })
     }, [onExit])
 
@@ -302,10 +301,6 @@ export default function TerminalPage() {
     }, [session?.active, disconnect])
 
     useEffect(() => {
-        if (terminalState.status === 'error') {
-            connectOnceRef.current = false
-            return
-        }
         if (terminalState.status === 'connecting' || terminalState.status === 'connected') {
             setExitInfo(null)
         }
