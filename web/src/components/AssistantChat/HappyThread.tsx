@@ -9,6 +9,11 @@ import { HappySystemMessage } from '@/components/AssistantChat/messages/SystemMe
 import { Spinner } from '@/components/Spinner'
 import { useTranslation } from '@/lib/use-translation'
 import { usePlatform } from '@/hooks/usePlatform'
+import {
+    capturePrependScrollSnapshot,
+    restorePrependScrollSnapshot,
+    type PrependScrollSnapshot
+} from '@/lib/prepend-scroll-retention'
 
 function NewMessagesIndicator(props: { count: number; onClick: () => void }) {
     const { t } = useTranslation()
@@ -55,39 +60,6 @@ const THREAD_MESSAGE_COMPONENTS = {
     SystemMessage: HappySystemMessage
 } as const
 
-type PrependScrollSnapshot = {
-    scrollTop: number
-    scrollHeight: number
-    anchors: Array<{ id: string; offsetTop: number }>
-}
-
-function escapeAttrValue(value: string): string {
-    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-        return CSS.escape(value)
-    }
-    return value.replace(/"/g, '\\"')
-}
-
-function getTopVisibleMessageAnchors(viewport: HTMLElement, max: number): Array<{ id: string; offsetTop: number }> {
-    const viewportRect = viewport.getBoundingClientRect()
-    const candidates = viewport.querySelectorAll<HTMLElement>('[data-hapi-message-id]')
-    const anchors: Array<{ id: string; offsetTop: number }> = []
-
-    for (const el of candidates) {
-        const id = el.dataset.hapiMessageId
-        if (!id) continue
-
-        const rect = el.getBoundingClientRect()
-        if (rect.bottom <= viewportRect.top + 1) continue
-        if (rect.top >= viewportRect.bottom - 1) continue
-
-        anchors.push({ id, offsetTop: rect.top - viewportRect.top })
-    }
-
-    anchors.sort((a, b) => a.offsetTop - b.offsetTop)
-    return anchors.slice(0, max)
-}
-
 export function HappyThread(props: {
     api: ApiClient
     sessionId: string
@@ -114,6 +86,7 @@ export function HappyThread(props: {
     const NEAR_BOTTOM_THRESHOLD_PX = 120
     const NEAR_TOP_THRESHOLD_PX = 120
     const viewportRef = useRef<HTMLDivElement | null>(null)
+    const contentRef = useRef<HTMLDivElement | null>(null)
     const topSentinelRef = useRef<HTMLDivElement | null>(null)
     const wasNearTopRef = useRef(false)
     const wasTopSentinelIntersectingRef = useRef(false)
@@ -121,6 +94,7 @@ export function HappyThread(props: {
     const suppressTopLoadUntilRef = useRef(0)
     const loadLockRef = useRef(false)
     const pendingScrollRef = useRef<PrependScrollSnapshot | null>(null)
+    const scrollStabilizerCleanupRef = useRef<(() => void) | null>(null)
     const prevLoadingMoreRef = useRef(false)
     const loadStartedRef = useRef(false)
     const isLoadingMoreRef = useRef(props.isLoadingMoreMessages)
@@ -328,12 +302,9 @@ export function HappyThread(props: {
         if (!viewport) {
             return
         }
-        const anchors = getTopVisibleMessageAnchors(viewport, 12)
-        pendingScrollRef.current = {
-            scrollTop: viewport.scrollTop,
-            scrollHeight: viewport.scrollHeight,
-            anchors
-        }
+        scrollStabilizerCleanupRef.current?.()
+        scrollStabilizerCleanupRef.current = null
+        pendingScrollRef.current = capturePrependScrollSnapshot(viewport, { selector: '[data-hapi-message-id]', maxAnchors: 16 })
         loadLockRef.current = true
         loadStartedRef.current = false
         let loadPromise: Promise<unknown>
@@ -359,6 +330,12 @@ export function HappyThread(props: {
     useEffect(() => {
         handleLoadMoreRef.current = handleLoadMore
     }, [handleLoadMore])
+
+    useEffect(() => {
+        return () => {
+            scrollStabilizerCleanupRef.current?.()
+        }
+    }, [])
 
     useEffect(() => {
         const sentinel = topSentinelRef.current
@@ -406,45 +383,13 @@ export function HappyThread(props: {
         if (!pending || !viewport) {
             return
         }
-
-        const applyAnchorAdjustment = () => {
-            if (!pending.anchors.length) {
-                return false
-            }
-
-            const viewportRect = viewport.getBoundingClientRect()
-
-            for (const anchor of pending.anchors) {
-                const selector = `[data-hapi-message-id="${escapeAttrValue(anchor.id)}"]`
-                const anchorEl = viewport.querySelector<HTMLElement>(selector)
-                if (!anchorEl) continue
-
-                const nextOffsetTop = anchorEl.getBoundingClientRect().top - viewportRect.top
-                const diff = nextOffsetTop - anchor.offsetTop
-                if (Number.isFinite(diff) && Math.abs(diff) > 0.5) {
-                    viewport.scrollTop += diff
-                }
-                return true
-            }
-
-            return false
-        }
-
-        const didAnchorAdjust = applyAnchorAdjustment()
-        if (!didAnchorAdjust) {
-            const delta = viewport.scrollHeight - pending.scrollHeight
-            viewport.scrollTop = pending.scrollTop + delta
-        }
-
-        // Reconcile again after layout settles (markdown/images may change height after first paint).
-        if (pending.anchors.length) {
-            requestAnimationFrame(() => {
-                applyAnchorAdjustment()
-            })
-            setTimeout(() => {
-                applyAnchorAdjustment()
-            }, 250)
-        }
+        scrollStabilizerCleanupRef.current?.()
+        const restored = restorePrependScrollSnapshot(viewport, pending, {
+            selector: '[data-hapi-message-id]',
+            observeElement: contentRef.current,
+            stabilizeMs: 1600,
+        })
+        scrollStabilizerCleanupRef.current = restored.cleanup
 
         pendingScrollRef.current = null
         loadLockRef.current = false
@@ -485,8 +430,14 @@ export function HappyThread(props: {
                                 : { overflowAnchor: 'none' }
                         ) as unknown as CSSProperties}
                     >
-                        <div className="mx-auto w-full max-w-content min-w-0 p-3">
+                        <div ref={contentRef} className="relative mx-auto w-full max-w-content min-w-0 p-3">
                             <div ref={topSentinelRef} className="h-px w-full" aria-hidden="true" />
+                            {props.isLoadingMoreMessages ? (
+                                <div className="pointer-events-none absolute top-2 left-0 right-0 flex items-center justify-center gap-2 text-xs text-[var(--app-hint)]">
+                                    <Spinner size="sm" label={null} className="text-current" />
+                                    {t('misc.loading')}
+                                </div>
+                            ) : null}
                             {showSkeleton ? (
                                 <MessageSkeleton />
                             ) : (
@@ -494,13 +445,6 @@ export function HappyThread(props: {
                                     {props.messagesWarning ? (
                                         <div className="mb-3 rounded-md bg-amber-500/10 p-2 text-xs">
                                             {props.messagesWarning}
-                                        </div>
-                                    ) : null}
-
-                                    {props.isLoadingMoreMessages ? (
-                                        <div className="mb-2 flex items-center justify-center gap-2 text-xs text-[var(--app-hint)]">
-                                            <Spinner size="sm" label={null} className="text-current" />
-                                            {t('misc.loading')}
                                         </div>
                                     ) : null}
 
