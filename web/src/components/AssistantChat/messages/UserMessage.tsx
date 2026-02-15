@@ -18,6 +18,7 @@ export function HappyUserMessage() {
     const [menuAnchorPoint, setMenuAnchorPoint] = useState({ x: 0, y: 0 })
     const [selectOpen, setSelectOpen] = useState(false)
 
+    const messageId = useAssistantState(({ message }) => message.id)
     const role = useAssistantState(({ message }) => message.role)
     const text = useAssistantState(({ message }) => {
         if (message.role !== 'user') return ''
@@ -65,7 +66,7 @@ export function HappyUserMessage() {
 
     if (isCliOutput) {
         return (
-            <MessagePrimitive.Root className="px-1 min-w-0 max-w-full overflow-x-hidden">
+            <MessagePrimitive.Root className="px-1 min-w-0 max-w-full overflow-x-hidden" data-hapi-message-id={messageId}>
                 <div className="ml-auto w-full max-w-[92%]" style={{ WebkitTouchCallout: 'none' }} {...longPressHandlers}>
                     <CliOutputBlock text={cliText} />
                 </div>
@@ -92,6 +93,7 @@ export function HappyUserMessage() {
         <MessagePrimitive.Root
             className={userBubbleClass}
             style={{ WebkitTouchCallout: 'none' }}
+            data-hapi-message-id={messageId}
             {...longPressHandlers}
         >
             <div className="flex items-end gap-2">

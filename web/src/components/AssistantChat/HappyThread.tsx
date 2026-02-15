@@ -55,6 +55,45 @@ const THREAD_MESSAGE_COMPONENTS = {
     SystemMessage: HappySystemMessage
 } as const
 
+type PrependScrollSnapshot = {
+    scrollTop: number
+    scrollHeight: number
+    anchorId: string | null
+    anchorOffsetTop: number
+}
+
+function escapeAttrValue(value: string): string {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(value)
+    }
+    return value.replace(/"/g, '\\"')
+}
+
+function getTopVisibleMessageAnchor(viewport: HTMLElement): { id: string; offsetTop: number } | null {
+    const viewportRect = viewport.getBoundingClientRect()
+    const candidates = viewport.querySelectorAll<HTMLElement>('[data-hapi-message-id]')
+
+    let best: { id: string; top: number } | null = null
+    for (const el of candidates) {
+        const id = el.dataset.hapiMessageId
+        if (!id) continue
+
+        const rect = el.getBoundingClientRect()
+        if (rect.bottom <= viewportRect.top + 1) continue
+        if (rect.top >= viewportRect.bottom - 1) continue
+
+        if (!best || rect.top < best.top) {
+            best = { id, top: rect.top }
+        }
+    }
+
+    if (!best) {
+        return null
+    }
+
+    return { id: best.id, offsetTop: best.top - viewportRect.top }
+}
+
 export function HappyThread(props: {
     api: ApiClient
     sessionId: string
@@ -87,7 +126,7 @@ export function HappyThread(props: {
     const lastScrollTopRef = useRef(0)
     const suppressTopLoadUntilRef = useRef(0)
     const loadLockRef = useRef(false)
-    const pendingScrollRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
+    const pendingScrollRef = useRef<PrependScrollSnapshot | null>(null)
     const prevLoadingMoreRef = useRef(false)
     const loadStartedRef = useRef(false)
     const isLoadingMoreRef = useRef(props.isLoadingMoreMessages)
@@ -295,9 +334,12 @@ export function HappyThread(props: {
         if (!viewport) {
             return
         }
+        const anchor = getTopVisibleMessageAnchor(viewport)
         pendingScrollRef.current = {
             scrollTop: viewport.scrollTop,
-            scrollHeight: viewport.scrollHeight
+            scrollHeight: viewport.scrollHeight,
+            anchorId: anchor?.id ?? null,
+            anchorOffsetTop: anchor?.offsetTop ?? 0
         }
         loadLockRef.current = true
         loadStartedRef.current = false
@@ -371,8 +413,42 @@ export function HappyThread(props: {
         if (!pending || !viewport) {
             return
         }
-        const delta = viewport.scrollHeight - pending.scrollHeight
-        viewport.scrollTop = pending.scrollTop + delta
+
+        const applyAnchorAdjustment = () => {
+            if (!pending.anchorId) {
+                return false
+            }
+            const selector = `[data-hapi-message-id="${escapeAttrValue(pending.anchorId)}"]`
+            const anchorEl = viewport.querySelector<HTMLElement>(selector)
+            if (!anchorEl) {
+                return false
+            }
+
+            const viewportRect = viewport.getBoundingClientRect()
+            const nextOffsetTop = anchorEl.getBoundingClientRect().top - viewportRect.top
+            const diff = nextOffsetTop - pending.anchorOffsetTop
+            if (Number.isFinite(diff) && Math.abs(diff) > 0.5) {
+                viewport.scrollTop += diff
+            }
+            return true
+        }
+
+        const didAnchorAdjust = applyAnchorAdjustment()
+        if (!didAnchorAdjust) {
+            const delta = viewport.scrollHeight - pending.scrollHeight
+            viewport.scrollTop = pending.scrollTop + delta
+        }
+
+        // Reconcile again after layout settles (markdown/images may change height after first paint).
+        if (pending.anchorId) {
+            requestAnimationFrame(() => {
+                applyAnchorAdjustment()
+            })
+            setTimeout(() => {
+                applyAnchorAdjustment()
+            }, 250)
+        }
+
         pendingScrollRef.current = null
         loadLockRef.current = false
         suppressTopLoadUntilRef.current = Date.now() + 250

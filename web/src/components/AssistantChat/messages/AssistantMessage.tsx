@@ -27,6 +27,7 @@ export function HappyAssistantMessage() {
     const [menuAnchorPoint, setMenuAnchorPoint] = useState({ x: 0, y: 0 })
     const [selectOpen, setSelectOpen] = useState(false)
 
+    const messageId = useAssistantState(({ message }) => message.id)
     const isCliOutput = useAssistantState(({ message }) => {
         const custom = message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined
         return custom?.kind === 'cli-output'
@@ -68,6 +69,7 @@ export function HappyAssistantMessage() {
             <MessagePrimitive.Root
                 className="px-1 min-w-0 max-w-full overflow-x-hidden"
                 style={{ WebkitTouchCallout: 'none' }}
+                data-hapi-message-id={messageId}
                 {...longPressHandlers}
             >
                 <CliOutputBlock text={cliText} />
@@ -91,6 +93,7 @@ export function HappyAssistantMessage() {
         <MessagePrimitive.Root
             className={rootClass}
             style={{ WebkitTouchCallout: 'none' }}
+            data-hapi-message-id={messageId}
             {...longPressHandlers}
         >
             <MessagePrimitive.Content components={MESSAGE_PART_COMPONENTS} />
