@@ -4,6 +4,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { I18nContext } from '@/lib/i18n-context'
 import { HappyComposer } from './HappyComposer'
 
+const { setTextMock } = vi.hoisted(() => ({
+    setTextMock: vi.fn()
+}))
+
 vi.mock('@assistant-ui/react', async () => {
     const React = await import('react')
 
@@ -36,7 +40,7 @@ vi.mock('@assistant-ui/react', async () => {
             composer: () => ({
                 send: vi.fn(),
                 addAttachment: vi.fn(),
-                setText: vi.fn()
+                setText: setTextMock
             })
         }),
         useAssistantState: (selector: (state: any) => any) => selector({
@@ -48,6 +52,9 @@ vi.mock('@assistant-ui/react', async () => {
 
 describe('HappyComposer', () => {
     beforeEach(() => {
+        localStorage.clear()
+        setTextMock.mockClear()
+
         Object.defineProperty(window, 'matchMedia', {
             writable: true,
             value: vi.fn().mockImplementation((query) => ({
@@ -68,7 +75,7 @@ describe('HappyComposer', () => {
 
         render(
             <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
-                <HappyComposer agentFlavor="claude" onPermissionModeChange={vi.fn()} />
+                <HappyComposer sessionId="s1" agentFlavor="claude" onPermissionModeChange={vi.fn()} />
             </I18nContext.Provider>
         )
 
@@ -79,6 +86,22 @@ describe('HappyComposer', () => {
 
         await waitFor(() => {
             expect(screen.queryByText('misc.permissionMode')).not.toBeInTheDocument()
+        })
+    })
+
+    it('restores draft text from localStorage', async () => {
+        localStorage.setItem('hapi:sessionDraft:s1', 'hello draft')
+
+        const t = (key: string) => key
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer sessionId="s1" agentFlavor="claude" onPermissionModeChange={vi.fn()} />
+            </I18nContext.Provider>
+        )
+
+        await waitFor(() => {
+            expect(setTextMock).toHaveBeenCalledWith('hello draft')
         })
     })
 })

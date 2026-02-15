@@ -8,6 +8,7 @@ import {
     type SyntheticEvent as ReactSyntheticEvent,
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState
@@ -33,9 +34,16 @@ export interface TextInputState {
     selection: { start: number; end: number }
 }
 
+const SESSION_DRAFT_KEY_PREFIX = 'hapi:sessionDraft:'
+
+function getSessionDraftKey(sessionId: string): string {
+    return `${SESSION_DRAFT_KEY_PREFIX}${sessionId}`
+}
+
 const defaultSuggestionHandler = async (): Promise<Suggestion[]> => []
 
 export function HappyComposer(props: {
+    sessionId: string
     disabled?: boolean
     permissionMode?: PermissionMode
     modelMode?: ModelMode
@@ -60,6 +68,7 @@ export function HappyComposer(props: {
 }) {
     const { t } = useTranslation()
     const {
+        sessionId,
         disabled = false,
         permissionMode: rawPermissionMode,
         modelMode: rawModelMode,
@@ -119,6 +128,67 @@ export function HappyComposer(props: {
 
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const prevControlledByUser = useRef(controlledByUser)
+    const draftSessionIdRef = useRef(sessionId)
+    const skipNextDraftSaveRef = useRef(true)
+    const draftTextRef = useRef(composerText)
+    draftTextRef.current = composerText
+
+    useEffect(() => {
+        // Avoid wiping a stored draft on the first render (composer text starts empty).
+        if (skipNextDraftSaveRef.current && composerText.length === 0) {
+            skipNextDraftSaveRef.current = false
+            return
+        }
+        skipNextDraftSaveRef.current = false
+
+        const key = getSessionDraftKey(draftSessionIdRef.current)
+
+        try {
+            if (composerText.length === 0) {
+                localStorage.removeItem(key)
+            } else {
+                localStorage.setItem(key, composerText)
+            }
+        } catch {
+            // Ignore storage errors
+        }
+    }, [composerText])
+
+    useLayoutEffect(() => {
+        skipNextDraftSaveRef.current = true
+        draftSessionIdRef.current = sessionId
+        const key = getSessionDraftKey(sessionId)
+
+        let stored: string | null = null
+        try {
+            stored = localStorage.getItem(key)
+        } catch {
+            stored = null
+        }
+
+        // If we have a stored draft, restore it.
+        // If we don't, but the composer still has text (e.g. runtime reuse across sessions), clear it.
+        if (stored !== null) {
+            if (stored !== composerText) {
+                api.composer().setText(stored)
+            }
+        } else if (composerText.length > 0) {
+            api.composer().setText('')
+        }
+
+        return () => {
+            const textToSave = draftTextRef.current
+            try {
+                if (textToSave.length === 0) {
+                    localStorage.removeItem(key)
+                } else {
+                    localStorage.setItem(key, textToSave)
+                }
+            } catch {
+                // Ignore storage errors
+            }
+        }
+    }, [api, sessionId])
 
     useEffect(() => {
         if (!showSettings) {

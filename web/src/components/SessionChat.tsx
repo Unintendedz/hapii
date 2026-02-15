@@ -284,7 +284,7 @@ export function SessionChat(props: {
                 </div>
             ) : null}
 
-            <AssistantRuntimeProvider runtime={runtime}>
+            <AssistantRuntimeProvider key={props.session.id} runtime={runtime}>
                 <div className="relative flex min-h-0 flex-1 flex-col">
                     <HappyThread
                         key={props.session.id}
@@ -309,6 +309,7 @@ export function SessionChat(props: {
                     />
 
                     <HappyComposer
+                        sessionId={props.session.id}
                         disabled={props.isSending}
                         permissionMode={props.session.permissionMode}
                         modelMode={props.session.modelMode}
