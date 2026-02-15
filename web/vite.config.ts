@@ -9,19 +9,40 @@ const require = createRequire(import.meta.url)
 const base = process.env.VITE_BASE_URL || '/'
 const repoRoot = resolve(__dirname, '..')
 
+function pad2(value: number): string {
+    return String(value).padStart(2, '0')
+}
+
+function formatBuildTimestampUTC8(date: Date = new Date()): string {
+    // Always show a human-readable timestamp in UTC+8 (Asia/Shanghai),
+    // independent of the builder machine's local timezone.
+    const utc8Ms = date.getTime() + 8 * 60 * 60 * 1000
+    const d = new Date(utc8Ms)
+
+    const yyyy = d.getUTCFullYear()
+    const mm = pad2(d.getUTCMonth() + 1)
+    const dd = pad2(d.getUTCDate())
+    const hh = pad2(d.getUTCHours())
+    const mi = pad2(d.getUTCMinutes())
+    const ss = pad2(d.getUTCSeconds())
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss} +08:00`
+}
+
 function resolveBuildId(): string {
     const fromEnv = process.env.HAPI_BUILD_ID?.trim()
-    if (fromEnv) {
-        return fromEnv
-    }
+    const timestamp = formatBuildTimestampUTC8()
 
     try {
         const sha = execSync(`git -C "${repoRoot}" rev-parse --short HEAD`, { encoding: 'utf8' }).trim()
         if (!sha) {
             throw new Error('empty git sha')
         }
-        return sha
+        return `${timestamp} ${fromEnv || sha}`
     } catch (error) {
+        if (fromEnv) {
+            return `${timestamp} ${fromEnv}`
+        }
         throw new Error(
             `Failed to resolve build id (set HAPI_BUILD_ID to override). Original error: ${String(error)}`
         )
