@@ -11,8 +11,8 @@ Goal: verify deployed frontend actually updated (PWA/SW caching common).
 - UI: Settings → About
   - **App Version**: `__APP_VERSION__` (from `cli/package.json` version)
   - **Build**: `__APP_BUILD__`
-    - default: git short SHA at build time (`git rev-parse --short HEAD`)
-    - override: set `HAPI_BUILD_ID` env var when running `bun run build:web` / `bun run build:single-exe`
+    - default: `YYYY-MM-DD HH:mm:ss +08:00 <git-short-sha>` (UTC+8 timestamp + git short SHA at build time)
+    - override: set `HAPI_BUILD_ID` env var to replace the `<git-short-sha>` part when running `bun run build:web` / `bun run build:single-exe`
 
 Agent workflow (after rebuild + restart hub):
 - Open Settings → About; confirm **Build** matches expected SHA/build id.
@@ -105,6 +105,7 @@ git commit -m "fix(web): ..."
 1b. Update README changelog (user-facing changes only).
 
 For each `feat` or `fix` commit that changes user-visible behavior, append a changelog entry to **both** `README.md` and `README.en.md`.
+**Rule:** if a commit contains user-visible improvements/bugfixes, do **not** land it without a corresponding changelog entry (same commit/PR).
 
 Format (match existing entries exactly):
 
