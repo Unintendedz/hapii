@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-17
+
+`11:32:21` &ensp; [`8b62071`](https://github.com/Unintendedz/hapii/commit/8b62071) — De-duplicate same-turn echoes: prevent tiny duplicate system text after the main assistant reply (reasoning + event.message echoes)
+
 ### 2026-02-16
 
 `00:01:51` &ensp; [`6adddb5`](https://github.com/Unintendedz/hapii/commit/6adddb5) — Persist unsent drafts per session when navigating away

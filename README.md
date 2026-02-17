@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-17
+
+`11:32:21` &ensp; [`8b62071`](https://github.com/Unintendedz/hapii/commit/8b62071) — 去重同轮重复内容：正文后不再追加同文系统小字（含 reasoning 与 event.message 回声）
+
 ### 2026-02-16
 
 `00:01:51` &ensp; [`6adddb5`](https://github.com/Unintendedz/hapii/commit/6adddb5) — 切换页面/会话时保留未发送草稿（按会话保存）
