@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-17
 
+`13:56:58` &ensp; [`612bce2`](https://github.com/Unintendedz/hapii/commit/612bce2) — On desktop, selecting text inside a message no longer opens the custom “copy/select text” menu (native text selection preserved)
+
 `11:32:21` &ensp; [`8b62071`](https://github.com/Unintendedz/hapii/commit/8b62071) — De-duplicate same-turn echoes: prevent tiny duplicate system text after the main assistant reply (reasoning + event.message echoes)
 
 ### 2026-02-16

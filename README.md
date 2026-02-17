@@ -12,6 +12,8 @@
 
 ### 2026-02-17
 
+`13:56:58` &ensp; [`612bce2`](https://github.com/Unintendedz/hapii/commit/612bce2) — 桌面端框选消息文字时不再弹出“复制消息/选取文字”菜单（保留原生选择行为）
+
 `11:32:21` &ensp; [`8b62071`](https://github.com/Unintendedz/hapii/commit/8b62071) — 去重同轮重复内容：正文后不再追加同文系统小字（含 reasoning 与 event.message 回声）
 
 ### 2026-02-16
