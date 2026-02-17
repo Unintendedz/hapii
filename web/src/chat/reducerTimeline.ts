@@ -4,6 +4,56 @@ import { createCliOutputBlock, isCliOutputText, mergeCliOutputBlocks } from '@/c
 import { parseMessageAsEvent } from '@/chat/reducerEvents'
 import { ensureToolBlock, extractTitleFromChangeTitleInput, isChangeTitleToolName, type PermissionEntry } from '@/chat/reducerTools'
 
+function normalizeContentText(text: string): string {
+    return text.replace(/\s+/g, ' ').trim()
+}
+
+type RecentAssistantContent = {
+    index: number
+    kind: 'agent-text' | 'agent-reasoning' | 'cli-output'
+    normalizedText: string
+}
+
+function findRecentAssistantContentSinceLastUser(blocks: ChatBlock[]): RecentAssistantContent | null {
+    for (let index = blocks.length - 1; index >= 0; index -= 1) {
+        const block = blocks[index]
+        if (block.kind === 'user-text') {
+            return null
+        }
+        if (block.kind === 'agent-text' || block.kind === 'agent-reasoning') {
+            const normalizedText = normalizeContentText(block.text)
+            if (normalizedText.length === 0) continue
+            return {
+                index,
+                kind: block.kind,
+                normalizedText
+            }
+        }
+        if (block.kind === 'cli-output' && block.source === 'assistant') {
+            const normalizedText = normalizeContentText(block.text)
+            if (normalizedText.length === 0) continue
+            return {
+                index,
+                kind: block.kind,
+                normalizedText
+            }
+        }
+    }
+    return null
+}
+
+function shouldDropDuplicateEventMessage(blocks: ChatBlock[], message: string): boolean {
+    const normalizedMessage = normalizeContentText(message)
+    if (normalizedMessage.length === 0) {
+        return false
+    }
+    const recent = findRecentAssistantContentSinceLastUser(blocks)
+    if (!recent) {
+        return false
+    }
+    return recent.normalizedText === normalizedMessage
+}
+
 export function reduceTimeline(
     messages: TracedMessage[],
     context: {
@@ -24,6 +74,13 @@ export function reduceTimeline(
                 hasReadyEvent = true
                 continue
             }
+            if (
+                msg.content.type === 'message'
+                && typeof msg.content.message === 'string'
+                && shouldDropDuplicateEventMessage(blocks, msg.content.message)
+            ) {
+                continue
+            }
             blocks.push({
                 kind: 'agent-event',
                 id: msg.id,
@@ -36,6 +93,13 @@ export function reduceTimeline(
 
         const event = parseMessageAsEvent(msg)
         if (event) {
+            if (
+                event.type === 'message'
+                && typeof event.message === 'string'
+                && shouldDropDuplicateEventMessage(blocks, event.message)
+            ) {
+                continue
+            }
             blocks.push({
                 kind: 'agent-event',
                 id: msg.id,
@@ -76,6 +140,13 @@ export function reduceTimeline(
             for (let idx = 0; idx < msg.content.length; idx += 1) {
                 const c = msg.content[idx]
                 if (c.type === 'text') {
+                    const normalizedText = normalizeContentText(c.text)
+                    if (normalizedText.length > 0) {
+                        const recent = findRecentAssistantContentSinceLastUser(blocks)
+                        if (recent && recent.kind === 'agent-reasoning' && recent.normalizedText === normalizedText) {
+                            blocks.splice(recent.index, 1)
+                        }
+                    }
                     if (isCliOutputText(c.text, msg.meta)) {
                         blocks.push(createCliOutputBlock({
                             id: `${msg.id}:${idx}`,
@@ -99,6 +170,14 @@ export function reduceTimeline(
                 }
 
                 if (c.type === 'reasoning') {
+                    const normalizedText = normalizeContentText(c.text)
+                    if (normalizedText.length === 0) {
+                        continue
+                    }
+                    const recent = findRecentAssistantContentSinceLastUser(blocks)
+                    if (recent && recent.normalizedText === normalizedText) {
+                        continue
+                    }
                     blocks.push({
                         kind: 'agent-reasoning',
                         id: `${msg.id}:${idx}`,
