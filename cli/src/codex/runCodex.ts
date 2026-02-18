@@ -79,9 +79,7 @@ export async function runCodex(opts: {
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
     let currentRuntimeConfigVersion = 0;
     const currentModel = opts.model;
-    if (currentModel) {
-        session.updateMetadata((m) => ({ ...m, resolvedModel: currentModel }));
-    }
+    session.updateMetadata((m) => ({ ...m, resolvedModel: currentModel ?? 'auto' }));
     let currentCollaborationMode: EnhancedMode['collaborationMode'];
 
     const lifecycle = createRunnerLifecycle({
@@ -99,7 +97,8 @@ export async function runCodex(opts: {
             return;
         }
         sessionInstance.setPermissionMode(currentPermissionMode);
-        logger.debug(`[Codex] Synced session permission mode for keepalive: ${currentPermissionMode}`);
+        sessionInstance.setRuntimeConfigVersion(currentRuntimeConfigVersion);
+        logger.debug(`[Codex] Synced session mode for keepalive: runtimeConfigVersion=${currentRuntimeConfigVersion}, permissionMode=${currentPermissionMode}`);
     };
 
     session.onUserMessage((message) => {
@@ -156,7 +155,18 @@ export async function runCodex(opts: {
         if (!payload || typeof payload !== 'object') {
             throw new Error('Invalid session config payload');
         }
-        const config = payload as { permissionMode?: unknown; collaborationMode?: unknown };
+        const config = payload as { permissionMode?: unknown; collaborationMode?: unknown; runtimeConfigVersion?: unknown };
+
+        if (config.runtimeConfigVersion !== undefined) {
+            const version = config.runtimeConfigVersion;
+            if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) {
+                throw new Error('Invalid runtime config version');
+            }
+            if (version < currentRuntimeConfigVersion) {
+                throw new Error('Stale runtime config version');
+            }
+            currentRuntimeConfigVersion = version;
+        }
 
         if (config.permissionMode !== undefined) {
             currentPermissionMode = resolvePermissionMode(config.permissionMode);
@@ -167,7 +177,13 @@ export async function runCodex(opts: {
         }
 
         syncSessionMode();
-        return { applied: { permissionMode: currentPermissionMode, collaborationMode: currentCollaborationMode } };
+        return {
+            applied: {
+                runtimeConfigVersion: currentRuntimeConfigVersion,
+                permissionMode: currentPermissionMode,
+                collaborationMode: currentCollaborationMode
+            }
+        };
     });
 
     try {

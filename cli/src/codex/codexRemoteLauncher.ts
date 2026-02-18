@@ -226,6 +226,10 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     this.currentThreadId = threadId;
                     session.onSessionFound(threadId);
                 }
+                const eventModel = asString(msg.model);
+                if (eventModel) {
+                    session.client.updateMetadata((m) => ({ ...m, resolvedModel: eventModel }));
+                }
                 return;
             }
 
@@ -624,6 +628,10 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                             threadId = asString(thread?.id);
                             if (!threadId) {
                                 throw new Error('app-server thread/start did not return thread.id');
+                            }
+                            const responseModel = asString(threadRecord?.model) ?? asString(thread?.model);
+                            if (responseModel) {
+                                session.client.updateMetadata((m) => ({ ...m, resolvedModel: responseModel }));
                             }
                         }
 
