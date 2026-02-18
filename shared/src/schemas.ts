@@ -45,6 +45,7 @@ export const MetadataSchema = z.object({
     archivedBy: z.string().optional(),
     archiveReason: z.string().optional(),
     flavor: z.string().nullish(),
+    resolvedModel: z.string().optional(),
     worktree: WorktreeMetadataSchema.optional()
 })
 
@@ -155,6 +156,7 @@ export const SessionSchema = z.object({
     thinkingAt: z.number(),
     work: SessionWorkSchema.optional(),
     todos: TodosSchema.optional(),
+    runtimeConfigVersion: z.number().int().nonnegative().optional(),
     permissionMode: PermissionModeSchema.optional(),
     modelMode: ModelModeSchema.optional()
 })

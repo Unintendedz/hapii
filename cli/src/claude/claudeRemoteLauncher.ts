@@ -335,6 +335,9 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         onSessionFound: (sessionId) => {
                             session.onSessionFound(sessionId);
                         },
+                        onModelResolved: (model) => {
+                            session.client.updateMetadata((m) => ({ ...m, resolvedModel: model }));
+                        },
                         onThinkingChange: session.onThinkingChange,
                         claudeEnvVars: session.claudeEnvVars,
                         claudeArgs: session.claudeArgs,

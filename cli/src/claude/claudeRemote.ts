@@ -34,7 +34,8 @@ export async function claudeRemote(opts: {
     onThinkingChange?: (thinking: boolean) => void,
     onMessage: (message: SDKMessage) => void,
     onCompletionEvent?: (message: string) => void,
-    onSessionReset?: () => void
+    onSessionReset?: () => void,
+    onModelResolved?: (model: string) => void
 }) {
 
     // Check if session is valid
@@ -171,6 +172,10 @@ export async function claudeRemote(opts: {
 
                 const systemInit = message as SDKSystemMessage;
 
+                if (systemInit.model) {
+                    opts.onModelResolved?.(systemInit.model);
+                }
+
                 // Session id is still in memory, wait until session file is written to disk
                 // Start a watcher for to detect the session id
                 if (systemInit.session_id) {
@@ -186,6 +191,12 @@ export async function claudeRemote(opts: {
             if (message.type === 'result') {
                 updateThinking(false);
                 logger.debug('[claudeRemote] Result received, exiting claudeRemote');
+
+                const resultText = typeof message.result === 'string' ? message.result.trim() : '';
+                if (resultText.length > 0 && opts.onCompletionEvent) {
+                    logger.debug(`[claudeRemote] Result message: ${resultText}`);
+                    opts.onCompletionEvent(resultText);
+                }
 
                 // Send completion messages
                 if (isCompactCommand) {

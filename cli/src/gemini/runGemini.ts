@@ -59,7 +59,9 @@ export async function runGemini(opts: {
 
     const sessionWrapperRef: { current: GeminiSession | null } = { current: null };
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
+    let currentRuntimeConfigVersion = 0;
     const resolvedModel = resolveGeminiRuntimeConfig({ model: opts.model }).model;
+    session.updateMetadata((m) => ({ ...m, resolvedModel }));
 
     const hookServer = await startHookServer({
         onSessionHook: (sessionId, data) => {

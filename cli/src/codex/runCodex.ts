@@ -77,7 +77,11 @@ export async function runCodex(opts: {
     const sessionWrapperRef: { current: CodexSession | null } = { current: null };
 
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
+    let currentRuntimeConfigVersion = 0;
     const currentModel = opts.model;
+    if (currentModel) {
+        session.updateMetadata((m) => ({ ...m, resolvedModel: currentModel }));
+    }
     let currentCollaborationMode: EnhancedMode['collaborationMode'];
 
     const lifecycle = createRunnerLifecycle({
