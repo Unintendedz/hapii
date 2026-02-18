@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-18
 
+`15:22:00` &ensp; [`c4ec772`](https://github.com/Unintendedz/hapii/commit/c4ec772) — Fix Codex sessions always showing "default"; now shows "auto" for auto mode or the actual model ID when explicitly selected
+
 `14:55:30` &ensp; [`18fecff`](https://github.com/Unintendedz/hapii/commit/18fecff) — Display actual model ID (e.g. claude-opus-4-6) in session header and list instead of generic default/sonnet/opus
 
 `14:33:28` &ensp; [`73ecb78`](https://github.com/Unintendedz/hapii/commit/73ecb78) — Update model options: add GPT-5.3 Codex/Spark, Gemini 3 Flash Preview, Gemini 2.5 Flash Lite; fix incorrect Codex Mini model name
