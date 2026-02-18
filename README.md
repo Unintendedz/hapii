@@ -12,6 +12,8 @@
 
 ### 2026-02-18
 
+`14:55:30` &ensp; [`18fecff`](https://github.com/Unintendedz/hapii/commit/18fecff) — 会话标题/列表显示实际模型 ID（如 claude-opus-4-6）而非笼统的 default/sonnet/opus
+
 `14:33:28` &ensp; [`73ecb78`](https://github.com/Unintendedz/hapii/commit/73ecb78) — 新建会话的模型选项更新：新增 GPT-5.3 Codex / Spark、Gemini 3 Flash Preview、Gemini 2.5 Flash Lite，修正错误的 Codex Mini 型号名
 
 ### 2026-02-17
