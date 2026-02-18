@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-18
+
+`14:33:28` &ensp; [`73ecb78`](https://github.com/Unintendedz/hapii/commit/73ecb78) — Update model options: add GPT-5.3 Codex/Spark, Gemini 3 Flash Preview, Gemini 2.5 Flash Lite; fix incorrect Codex Mini model name
+
 ### 2026-02-17
 
 `13:56:58` &ensp; [`612bce2`](https://github.com/Unintendedz/hapii/commit/612bce2) — On desktop, selecting text inside a message no longer opens the custom “copy/select text” menu (native text selection preserved)

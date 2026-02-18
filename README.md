@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-18
+
+`14:33:28` &ensp; [`73ecb78`](https://github.com/Unintendedz/hapii/commit/73ecb78) — 新建会话的模型选项更新：新增 GPT-5.3 Codex / Spark、Gemini 3 Flash Preview、Gemini 2.5 Flash Lite，修正错误的 Codex Mini 型号名
+
 ### 2026-02-17
 
 `13:56:58` &ensp; [`612bce2`](https://github.com/Unintendedz/hapii/commit/612bce2) — 桌面端框选消息文字时不再弹出“复制消息/选取文字”菜单（保留原生选择行为）
