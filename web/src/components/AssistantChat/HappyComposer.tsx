@@ -1,4 +1,10 @@
-import { getAgentCapabilities, getPermissionModeOptionsForFlavor, MODEL_MODE_LABELS, MODEL_MODES } from '@hapi/protocol'
+import {
+    getAgentCapabilities,
+    getPermissionModeOptionsForFlavor,
+    getReasoningEffortsForFlavor,
+    MODEL_MODE_LABELS,
+    MODEL_MODES
+} from '@hapi/protocol'
 import { ComposerPrimitive, useAssistantApi, useAssistantState } from '@assistant-ui/react'
 import {
     type ChangeEvent as ReactChangeEvent,
@@ -13,7 +19,7 @@ import {
     useRef,
     useState
 } from 'react'
-import type { AgentState, ModelMode, PermissionMode } from '@/types/api'
+import type { AgentState, ModelMode, PermissionMode, ReasoningEffort } from '@/types/api'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import type { ConversationStatus } from '@/realtime/types'
 import { useActiveWord } from '@/hooks/useActiveWord'
@@ -47,6 +53,7 @@ export function HappyComposer(props: {
     disabled?: boolean
     permissionMode?: PermissionMode
     modelMode?: ModelMode
+    reasoningEffort?: ReasoningEffort
     active?: boolean
     allowSendWhenInactive?: boolean
     thinking?: boolean
@@ -56,6 +63,7 @@ export function HappyComposer(props: {
     agentFlavor?: string | null
     onPermissionModeChange?: (mode: PermissionMode) => void
     onModelModeChange?: (mode: ModelMode) => void
+    onReasoningEffortChange?: (effort: ReasoningEffort) => void
     onSwitchToRemote?: () => void
     onTerminal?: () => void
     autocompletePrefixes?: string[]
@@ -72,6 +80,7 @@ export function HappyComposer(props: {
         disabled = false,
         permissionMode: rawPermissionMode,
         modelMode: rawModelMode,
+        reasoningEffort: rawReasoningEffort,
         active = true,
         allowSendWhenInactive = false,
         thinking = false,
@@ -81,6 +90,7 @@ export function HappyComposer(props: {
         agentFlavor,
         onPermissionModeChange,
         onModelModeChange,
+        onReasoningEffortChange,
         onSwitchToRemote,
         onTerminal,
         autocompletePrefixes = ['@', '/', '$'],
@@ -94,6 +104,7 @@ export function HappyComposer(props: {
     // Use ?? so missing values fall back to default (destructuring defaults only handle undefined)
     const permissionMode = rawPermissionMode ?? 'default'
     const modelMode = rawModelMode ?? 'default'
+    const reasoningEffort = rawReasoningEffort ?? 'auto'
 
     const api = useAssistantApi()
     const composerText = useAssistantState(({ composer }) => composer.text)
@@ -353,6 +364,15 @@ export function HappyComposer(props: {
         [agentFlavor]
     )
 
+    const supportsReasoningEffort = useMemo(
+        () => getAgentCapabilities(agentFlavor).supportsReasoningEffort,
+        [agentFlavor]
+    )
+    const reasoningEffortModes = useMemo(
+        () => getReasoningEffortsForFlavor(agentFlavor),
+        [agentFlavor]
+    )
+
     const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
         const key = e.key
 
@@ -489,9 +509,17 @@ export function HappyComposer(props: {
         haptic('light')
     }, [onModelModeChange, controlsDisabled, haptic])
 
+    const handleReasoningEffortChange = useCallback((effort: ReasoningEffort) => {
+        if (!onReasoningEffortChange || controlsDisabled) return
+        onReasoningEffortChange(effort)
+        setShowSettings(false)
+        haptic('light')
+    }, [onReasoningEffortChange, controlsDisabled, haptic])
+
     const showPermissionSettings = Boolean(onPermissionModeChange && permissionModeOptions.length > 0)
     const showModelSettings = Boolean(onModelModeChange && supportsModelMode)
-    const showSettingsButton = Boolean(showPermissionSettings || showModelSettings)
+    const showReasoningSettings = Boolean(onReasoningEffortChange && supportsReasoningEffort && reasoningEffortModes.length > 0)
+    const showSettingsButton = Boolean(showPermissionSettings || showModelSettings || showReasoningSettings)
     const showAbortButton = true
     const voiceEnabled = Boolean(onVoiceToggle)
 
@@ -500,7 +528,7 @@ export function HappyComposer(props: {
     }, [api])
 
     const overlays = useMemo(() => {
-        if (showSettings && (showPermissionSettings || showModelSettings)) {
+        if (showSettings && (showPermissionSettings || showModelSettings || showReasoningSettings)) {
             return (
                 <div className="absolute bottom-[100%] mb-2 w-full" data-hapi-composer-settings-overlay>
                     <FloatingOverlay maxHeight={320}>
@@ -541,7 +569,8 @@ export function HappyComposer(props: {
                             </div>
                         ) : null}
 
-                        {showPermissionSettings && showModelSettings ? (
+                        {(showPermissionSettings && showModelSettings)
+                            || (showPermissionSettings && showReasoningSettings) ? (
                             <div className="mx-3 h-px bg-[var(--app-divider)]" />
                         ) : null}
 
@@ -581,6 +610,47 @@ export function HappyComposer(props: {
                                 ))}
                             </div>
                         ) : null}
+
+                        {(showModelSettings && showReasoningSettings) ? (
+                            <div className="mx-3 h-px bg-[var(--app-divider)]" />
+                        ) : null}
+
+                        {showReasoningSettings ? (
+                            <div className="py-2">
+                                <div className="px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
+                                    {t('misc.reasoning')}
+                                </div>
+                                {reasoningEffortModes.map((effort) => (
+                                    <button
+                                        key={effort}
+                                        type="button"
+                                        disabled={controlsDisabled}
+                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                                            controlsDisabled
+                                                ? 'cursor-not-allowed opacity-50'
+                                                : 'cursor-pointer hover:bg-[var(--app-secondary-bg)]'
+                                        }`}
+                                        onClick={() => handleReasoningEffortChange(effort)}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                    >
+                                        <div
+                                            className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${
+                                                reasoningEffort === effort
+                                                    ? 'border-[var(--app-link)]'
+                                                    : 'border-[var(--app-hint)]'
+                                            }`}
+                                        >
+                                            {reasoningEffort === effort && (
+                                                <div className="h-2 w-2 rounded-full bg-[var(--app-link)]" />
+                                            )}
+                                        </div>
+                                        <span className={reasoningEffort === effort ? 'text-[var(--app-link)]' : ''}>
+                                            {t(`mode.reasoning.${effort}`)}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : null}
                     </FloatingOverlay>
                 </div>
             )
@@ -605,15 +675,20 @@ export function HappyComposer(props: {
         showSettings,
         showPermissionSettings,
         showModelSettings,
+        showReasoningSettings,
         suggestions,
         selectedIndex,
         controlsDisabled,
         permissionMode,
         modelMode,
+        reasoningEffort,
         permissionModeOptions,
+        reasoningEffortModes,
         handlePermissionChange,
         handleModelChange,
-        handleSuggestionSelect
+        handleReasoningEffortChange,
+        handleSuggestionSelect,
+        t
     ])
 
     return (
@@ -629,6 +704,7 @@ export function HappyComposer(props: {
                         contextSize={contextSize}
                         modelMode={modelMode}
                         permissionMode={permissionMode}
+                        reasoningEffort={reasoningEffort}
                         agentFlavor={agentFlavor}
                         voiceStatus={voiceStatus}
                     />

@@ -20,6 +20,7 @@ export type {
     GeminiPermissionMode,
     OpencodePermissionMode,
     ModelMode,
+    ReasoningEffort,
     PermissionMode,
     PermissionModeOption,
     PermissionModeTone

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AssistantRuntimeProvider } from '@assistant-ui/react'
 import type { ApiClient } from '@/api/client'
-import type { AttachmentMetadata, DecryptedMessage, ModelMode, PermissionMode, Session } from '@/types/api'
+import type { AttachmentMetadata, DecryptedMessage, ModelMode, PermissionMode, ReasoningEffort, Session } from '@/types/api'
 import type { ChatBlock, NormalizedMessage } from '@/chat/types'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
@@ -17,6 +17,8 @@ import { SessionHeader } from '@/components/SessionHeader'
 import { usePlatform } from '@/hooks/usePlatform'
 import { useSessionActions } from '@/hooks/mutations/useSessionActions'
 import { useVoiceOptional } from '@/lib/voice-context'
+import { useTranslation } from '@/lib/use-translation'
+import { useToast } from '@/lib/toast-context'
 import { RealtimeVoiceSession, registerSessionStore, registerVoiceHooksStore, voiceHooks } from '@/realtime'
 
 export function SessionChat(props: {
@@ -40,6 +42,8 @@ export function SessionChat(props: {
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
 }) {
     const { haptic } = usePlatform()
+    const { t } = useTranslation()
+    const { addToast } = useToast()
     const navigate = useNavigate()
     const sessionInactive = !props.session.active
     const sessionStarting = sessionInactive && isStartingInactiveSession(props.session)
@@ -47,11 +51,35 @@ export function SessionChat(props: {
     const blocksByIdRef = useRef<Map<string, ChatBlock>>(new Map())
     const [forceScrollToken, setForceScrollToken] = useState(0)
     const agentFlavor = props.session.metadata?.flavor ?? null
-    const { abortSession, switchSession, setPermissionMode, setModelMode } = useSessionActions(
+    const { abortSession, switchSession, setPermissionMode, setModelMode, setReasoningEffort } = useSessionActions(
         props.api,
         props.session.id,
         agentFlavor
     )
+
+    const permissionModeLabels = useMemo<Record<PermissionMode, string>>(() => ({
+        default: t('mode.permission.default'),
+        acceptEdits: t('mode.permission.acceptEdits'),
+        bypassPermissions: t('mode.permission.bypassPermissions'),
+        plan: t('mode.permission.plan'),
+        'read-only': t('mode.permission.readOnly'),
+        'safe-yolo': t('mode.permission.safeYolo'),
+        yolo: t('mode.permission.yolo')
+    }), [t])
+
+    const modelModeLabels = useMemo<Record<ModelMode, string>>(() => ({
+        default: t('mode.model.default'),
+        sonnet: t('mode.model.sonnet'),
+        opus: t('mode.model.opus')
+    }), [t])
+
+    const reasoningEffortLabels = useMemo<Record<ReasoningEffort, string>>(() => ({
+        auto: t('mode.reasoning.auto'),
+        low: t('mode.reasoning.low'),
+        medium: t('mode.reasoning.medium'),
+        high: t('mode.reasoning.high'),
+        xhigh: t('mode.reasoning.xhigh')
+    }), [t])
 
     // Voice assistant integration
     const voice = useVoiceOptional()
@@ -196,27 +224,71 @@ export function SessionChat(props: {
 
     // Permission mode change handler
     const handlePermissionModeChange = useCallback(async (mode: PermissionMode) => {
+        if (mode === (props.session.permissionMode ?? 'default')) {
+            return
+        }
+        const pendingRequests = Object.keys(props.session.agentState?.requests ?? {}).length
         try {
             await setPermissionMode(mode)
             haptic.notification('success')
+            const modeLabel = permissionModeLabels[mode] ?? mode
+            addToast({
+                title: t('mode.permission.updated.title'),
+                body: pendingRequests > 0
+                    ? t('mode.permission.updated.nextRequest', { mode: modeLabel })
+                    : t('mode.permission.updated.immediate', { mode: modeLabel }),
+                sessionId: props.session.id,
+                url: ''
+            })
             props.onRefresh()
         } catch (e) {
             haptic.notification('error')
             console.error('Failed to set permission mode:', e)
         }
-    }, [setPermissionMode, props.onRefresh, haptic])
+    }, [setPermissionMode, props.onRefresh, haptic, addToast, t, props.session.permissionMode, props.session.agentState?.requests, props.session.id, permissionModeLabels])
 
     // Model mode change handler
     const handleModelModeChange = useCallback(async (mode: ModelMode) => {
+        if (mode === (props.session.modelMode ?? 'default')) {
+            return
+        }
         try {
             await setModelMode(mode)
             haptic.notification('success')
+            const modeLabel = modelModeLabels[mode] ?? mode
+            addToast({
+                title: t('mode.model.updated.title'),
+                body: t('mode.model.updated.body', { mode: modeLabel }),
+                sessionId: props.session.id,
+                url: ''
+            })
             props.onRefresh()
         } catch (e) {
             haptic.notification('error')
             console.error('Failed to set model mode:', e)
         }
-    }, [setModelMode, props.onRefresh, haptic])
+    }, [setModelMode, props.onRefresh, haptic, addToast, t, props.session.modelMode, props.session.id, modelModeLabels])
+
+    const handleReasoningEffortChange = useCallback(async (effort: ReasoningEffort) => {
+        if (effort === (props.session.reasoningEffort ?? 'auto')) {
+            return
+        }
+        try {
+            await setReasoningEffort(effort)
+            haptic.notification('success')
+            const effortLabel = reasoningEffortLabels[effort] ?? effort
+            addToast({
+                title: t('mode.reasoning.updated.title'),
+                body: t('mode.reasoning.updated.body', { effort: effortLabel }),
+                sessionId: props.session.id,
+                url: ''
+            })
+            props.onRefresh()
+        } catch (e) {
+            haptic.notification('error')
+            console.error('Failed to set reasoning effort:', e)
+        }
+    }, [setReasoningEffort, props.onRefresh, haptic, addToast, t, props.session.reasoningEffort, props.session.id, reasoningEffortLabels])
 
     // Abort handler
     const handleAbort = useCallback(async () => {
@@ -313,6 +385,7 @@ export function SessionChat(props: {
                         disabled={props.isSending}
                         permissionMode={props.session.permissionMode}
                         modelMode={props.session.modelMode}
+                        reasoningEffort={props.session.reasoningEffort}
                         agentFlavor={agentFlavor}
                         active={props.session.active}
                         allowSendWhenInactive
@@ -322,6 +395,7 @@ export function SessionChat(props: {
                         controlledByUser={props.session.agentState?.controlledByUser === true}
                         onPermissionModeChange={handlePermissionModeChange}
                         onModelModeChange={handleModelModeChange}
+                        onReasoningEffortChange={handleReasoningEffortChange}
                         onSwitchToRemote={handleSwitchToRemote}
                         onTerminal={props.session.active ? handleViewTerminal : undefined}
                         autocompleteSuggestions={props.autocompleteSuggestions}

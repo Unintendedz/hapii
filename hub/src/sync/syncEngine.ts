@@ -8,7 +8,7 @@
  */
 
 import { getResumeTokenFromMetadata, normalizeAgentFlavor } from '@hapi/protocol'
-import type { DecryptedMessage, ModelMode, PermissionMode, Session, SyncEvent } from '@hapi/protocol/types'
+import type { DecryptedMessage, ModelMode, PermissionMode, ReasoningEffort, Session, SyncEvent } from '@hapi/protocol/types'
 import type { Server } from 'socket.io'
 import type { Store } from '../store'
 import type { RpcRegistry } from '../socket/rpcRegistry'
@@ -188,8 +188,10 @@ export class SyncEngine {
         thinking?: boolean
         thinkingSince?: number | null
         mode?: 'local' | 'remote'
+        runtimeConfigVersion?: number
         permissionMode?: PermissionMode
         modelMode?: ModelMode
+        reasoningEffort?: ReasoningEffort
     }): void {
         this.sessionCache.handleSessionAlive(payload)
     }
@@ -284,19 +286,53 @@ export class SyncEngine {
         config: {
             permissionMode?: PermissionMode
             modelMode?: ModelMode
+            reasoningEffort?: ReasoningEffort
         }
-    ): Promise<void> {
-        const result = await this.rpcGateway.requestSessionConfig(sessionId, config)
+    ): Promise<{
+        permissionMode?: Session['permissionMode'];
+        modelMode?: Session['modelMode'];
+        reasoningEffort?: Session['reasoningEffort'];
+        runtimeConfigVersion: number;
+    }> {
+        const runtimeConfigVersion = this.sessionCache.nextRuntimeConfigVersion(sessionId)
+        const result = await this.rpcGateway.requestSessionConfig(sessionId, {
+            ...config,
+            runtimeConfigVersion
+        })
         if (!result || typeof result !== 'object') {
             throw new Error('Invalid response from session config RPC')
         }
-        const obj = result as { applied?: { permissionMode?: Session['permissionMode']; modelMode?: Session['modelMode'] } }
+        const obj = result as {
+            applied?: {
+                permissionMode?: Session['permissionMode']
+                modelMode?: Session['modelMode']
+                reasoningEffort?: Session['reasoningEffort']
+                runtimeConfigVersion?: number
+            }
+        }
         const applied = obj.applied
         if (!applied || typeof applied !== 'object') {
             throw new Error('Missing applied session config')
         }
 
-        this.sessionCache.applySessionConfig(sessionId, applied)
+        const appliedRuntimeConfigVersion = typeof applied.runtimeConfigVersion === 'number'
+            && Number.isInteger(applied.runtimeConfigVersion)
+            && applied.runtimeConfigVersion >= 0
+            ? applied.runtimeConfigVersion
+            : runtimeConfigVersion
+
+        this.sessionCache.applySessionConfig(sessionId, {
+            permissionMode: applied.permissionMode,
+            modelMode: applied.modelMode,
+            reasoningEffort: applied.reasoningEffort,
+            runtimeConfigVersion: appliedRuntimeConfigVersion
+        })
+        return {
+            permissionMode: applied.permissionMode,
+            modelMode: applied.modelMode,
+            reasoningEffort: applied.reasoningEffort,
+            runtimeConfigVersion: appliedRuntimeConfigVersion
+        }
     }
 
     async spawnSession(

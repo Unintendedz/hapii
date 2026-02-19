@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { isPermissionModeAllowedForFlavor } from '@hapi/protocol'
+import { isPermissionModeAllowedForFlavor, isReasoningEffortAllowedForFlavor } from '@hapi/protocol'
 import type { ApiClient } from '@/api/client'
-import type { ModelMode, PermissionMode } from '@/types/api'
+import type { ModelMode, PermissionMode, ReasoningEffort } from '@/types/api'
 import { queryKeys } from '@/lib/query-keys'
 import { clearMessageWindow } from '@/lib/message-window-store'
 import { isKnownFlavor } from '@/lib/agentFlavorUtils'
@@ -16,6 +16,7 @@ export function useSessionActions(
     switchSession: () => Promise<void>
     setPermissionMode: (mode: PermissionMode) => Promise<void>
     setModelMode: (mode: ModelMode) => Promise<void>
+    setReasoningEffort: (effort: ReasoningEffort) => Promise<void>
     renameSession: (name: string) => Promise<void>
     deleteSession: () => Promise<void>
     isPending: boolean
@@ -81,6 +82,19 @@ export function useSessionActions(
         onSuccess: () => void invalidateSession(),
     })
 
+    const reasoningEffortMutation = useMutation({
+        mutationFn: async (effort: ReasoningEffort) => {
+            if (!api || !sessionId) {
+                throw new Error('Session unavailable')
+            }
+            if (isKnownFlavor(agentFlavor) && !isReasoningEffortAllowedForFlavor(effort, agentFlavor)) {
+                throw new Error('Invalid reasoning effort for session flavor')
+            }
+            await api.setReasoningEffort(sessionId, effort)
+        },
+        onSuccess: () => void invalidateSession(),
+    })
+
     const renameMutation = useMutation({
         mutationFn: async (name: string) => {
             if (!api || !sessionId) {
@@ -112,6 +126,7 @@ export function useSessionActions(
         switchSession: switchMutation.mutateAsync,
         setPermissionMode: permissionMutation.mutateAsync,
         setModelMode: modelMutation.mutateAsync,
+        setReasoningEffort: reasoningEffortMutation.mutateAsync,
         renameSession: renameMutation.mutateAsync,
         deleteSession: deleteMutation.mutateAsync,
         isPending: abortMutation.isPending
@@ -119,6 +134,7 @@ export function useSessionActions(
             || switchMutation.isPending
             || permissionMutation.isPending
             || modelMutation.isPending
+            || reasoningEffortMutation.isPending
             || renameMutation.isPending
             || deleteMutation.isPending,
     }

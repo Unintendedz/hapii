@@ -104,7 +104,8 @@ export async function runGemini(opts: {
             return;
         }
         sessionInstance.setPermissionMode(currentPermissionMode);
-        logger.debug(`[gemini] Synced session permission mode for keepalive: ${currentPermissionMode}`);
+        sessionInstance.setRuntimeConfigVersion(currentRuntimeConfigVersion);
+        logger.debug(`[gemini] Synced session mode for keepalive: runtimeConfigVersion=${currentRuntimeConfigVersion}, permissionMode=${currentPermissionMode}`);
     };
 
     session.onUserMessage((message) => {
@@ -128,14 +129,30 @@ export async function runGemini(opts: {
         if (!payload || typeof payload !== 'object') {
             throw new Error('Invalid session config payload');
         }
-        const config = payload as { permissionMode?: unknown };
+        const config = payload as { permissionMode?: unknown; runtimeConfigVersion?: unknown };
+
+        if (config.runtimeConfigVersion !== undefined) {
+            const version = config.runtimeConfigVersion;
+            if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) {
+                throw new Error('Invalid runtime config version');
+            }
+            if (version < currentRuntimeConfigVersion) {
+                throw new Error('Stale runtime config version');
+            }
+            currentRuntimeConfigVersion = version;
+        }
 
         if (config.permissionMode !== undefined) {
             currentPermissionMode = resolvePermissionMode(config.permissionMode);
         }
 
         syncSessionMode();
-        return { applied: { permissionMode: currentPermissionMode } };
+        return {
+            applied: {
+                runtimeConfigVersion: currentRuntimeConfigVersion,
+                permissionMode: currentPermissionMode
+            }
+        };
     });
 
     try {

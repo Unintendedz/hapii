@@ -1,5 +1,11 @@
-import { getPermissionModesForFlavor, isModelModeAllowedForFlavor, isPermissionModeAllowedForFlavor, toSessionSummary } from '@hapi/protocol'
-import { ModelModeSchema, PermissionModeSchema } from '@hapi/protocol/schemas'
+import {
+    getPermissionModesForFlavor,
+    isModelModeAllowedForFlavor,
+    isPermissionModeAllowedForFlavor,
+    isReasoningEffortAllowedForFlavor,
+    toSessionSummary
+} from '@hapi/protocol'
+import { ModelModeSchema, PermissionModeSchema, ReasoningEffortSchema } from '@hapi/protocol/schemas'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { SyncEngine, Session } from '../../sync/syncEngine'
@@ -12,6 +18,10 @@ const permissionModeSchema = z.object({
 
 const modelModeSchema = z.object({
     model: ModelModeSchema
+})
+
+const reasoningEffortSchema = z.object({
+    effort: ReasoningEffortSchema
 })
 
 const renameSessionSchema = z.object({
@@ -294,8 +304,8 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
         }
 
         try {
-            await engine.applySessionConfig(sessionResult.sessionId, { permissionMode: mode })
-            return c.json({ ok: true })
+            const applied = await engine.applySessionConfig(sessionResult.sessionId, { permissionMode: mode })
+            return c.json({ ok: true, applied })
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to apply permission mode'
             return c.json({ error: message }, 409)
@@ -325,10 +335,41 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
         }
 
         try {
-            await engine.applySessionConfig(sessionResult.sessionId, { modelMode: parsed.data.model })
-            return c.json({ ok: true })
+            const applied = await engine.applySessionConfig(sessionResult.sessionId, { modelMode: parsed.data.model })
+            return c.json({ ok: true, applied })
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to apply model mode'
+            return c.json({ error: message }, 409)
+        }
+    })
+
+    app.post('/sessions/:id/reasoning-effort', async (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) {
+            return engine
+        }
+
+        const sessionResult = requireSessionFromParam(c, engine, { requireActive: true })
+        if (sessionResult instanceof Response) {
+            return sessionResult
+        }
+
+        const body = await c.req.json().catch(() => null)
+        const parsed = reasoningEffortSchema.safeParse(body)
+        if (!parsed.success) {
+            return c.json({ error: 'Invalid body' }, 400)
+        }
+
+        const flavor = sessionResult.session.metadata?.flavor ?? 'claude'
+        if (!isReasoningEffortAllowedForFlavor(parsed.data.effort, flavor)) {
+            return c.json({ error: 'Reasoning effort is only supported for Codex sessions' }, 400)
+        }
+
+        try {
+            const applied = await engine.applySessionConfig(sessionResult.sessionId, { reasoningEffort: parsed.data.effort })
+            return c.json({ ok: true, applied })
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to apply reasoning effort'
             return c.json({ error: message }, 409)
         }
     })

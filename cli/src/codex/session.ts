@@ -4,6 +4,7 @@ import { AgentSessionBase } from '@/agent/sessionBase';
 import type { EnhancedMode, PermissionMode } from './loop';
 import type { CodexCliOverrides } from './utils/codexCliOverrides';
 import type { LocalLaunchExitReason } from '@/agent/localLaunchPolicy';
+import type { SessionReasoningEffort } from '@/api/types';
 
 type LocalLaunchFailure = {
     message: string;
@@ -31,6 +32,7 @@ export class CodexSession extends AgentSessionBase<EnhancedMode> {
         codexArgs?: string[];
         codexCliOverrides?: CodexCliOverrides;
         permissionMode?: PermissionMode;
+        reasoningEffort?: SessionReasoningEffort;
     }) {
         super({
             api: opts.api,
@@ -47,7 +49,8 @@ export class CodexSession extends AgentSessionBase<EnhancedMode> {
                 ...metadata,
                 codexSessionId: sessionId
             }),
-            permissionMode: opts.permissionMode
+            permissionMode: opts.permissionMode,
+            reasoningEffort: opts.reasoningEffort
         });
 
         this.codexArgs = opts.codexArgs;
@@ -55,6 +58,7 @@ export class CodexSession extends AgentSessionBase<EnhancedMode> {
         this.startedBy = opts.startedBy;
         this.startingMode = opts.startingMode;
         this.permissionMode = opts.permissionMode;
+        this.reasoningEffort = opts.reasoningEffort;
     }
 
     setPermissionMode = (mode: PermissionMode): void => {

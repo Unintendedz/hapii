@@ -1,6 +1,6 @@
 import { ApiClient, ApiSessionClient } from '@/lib';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
-import type { Metadata, SessionModelMode, SessionPermissionMode } from '@/api/types';
+import type { Metadata, SessionModelMode, SessionPermissionMode, SessionReasoningEffort } from '@/api/types';
 import { logger } from '@/ui/logger';
 
 export type AgentSessionBaseOptions<Mode> = {
@@ -17,6 +17,8 @@ export type AgentSessionBaseOptions<Mode> = {
     applySessionIdToMetadata: (metadata: Metadata, sessionId: string) => Metadata;
     permissionMode?: SessionPermissionMode;
     modelMode?: SessionModelMode;
+    reasoningEffort?: SessionReasoningEffort;
+    runtimeConfigVersion?: number;
 };
 
 export class AgentSessionBase<Mode> {
@@ -39,6 +41,8 @@ export class AgentSessionBase<Mode> {
     private keepAliveInterval: NodeJS.Timeout | null = null;
     protected permissionMode?: SessionPermissionMode;
     protected modelMode?: SessionModelMode;
+    protected reasoningEffort?: SessionReasoningEffort;
+    protected runtimeConfigVersion?: number;
 
     constructor(opts: AgentSessionBaseOptions<Mode>) {
         this.path = opts.path;
@@ -54,6 +58,8 @@ export class AgentSessionBase<Mode> {
         this.mode = opts.mode ?? 'local';
         this.permissionMode = opts.permissionMode;
         this.modelMode = opts.modelMode;
+        this.reasoningEffort = opts.reasoningEffort;
+        this.runtimeConfigVersion = opts.runtimeConfigVersion;
 
         this.client.keepAlive(this.thinking, this.mode, this.getKeepAliveRuntime(), this.thinkingSince);
         this.keepAliveInterval = setInterval(() => {
@@ -78,7 +84,8 @@ export class AgentSessionBase<Mode> {
         this.client.keepAlive(this.thinking, mode, this.getKeepAliveRuntime(), this.thinkingSince);
         const permissionLabel = this.permissionMode ?? 'unset';
         const modelLabel = this.modelMode ?? 'unset';
-        logger.debug(`[${this.sessionLabel}] Mode switched to ${mode} (permissionMode=${permissionLabel}, modelMode=${modelLabel})`);
+        const reasoningEffortLabel = this.reasoningEffort ?? 'unset';
+        logger.debug(`[${this.sessionLabel}] Mode switched to ${mode} (permissionMode=${permissionLabel}, modelMode=${modelLabel}, reasoningEffort=${reasoningEffortLabel})`);
         this._onModeChange(mode);
     };
 
@@ -110,13 +117,25 @@ export class AgentSessionBase<Mode> {
         }
     };
 
-    protected getKeepAliveRuntime(): { permissionMode?: SessionPermissionMode; modelMode?: SessionModelMode } | undefined {
-        if (this.permissionMode === undefined && this.modelMode === undefined) {
+    protected getKeepAliveRuntime(): {
+        runtimeConfigVersion?: number;
+        permissionMode?: SessionPermissionMode;
+        modelMode?: SessionModelMode;
+        reasoningEffort?: SessionReasoningEffort;
+    } | undefined {
+        if (
+            this.runtimeConfigVersion === undefined
+            && this.permissionMode === undefined
+            && this.modelMode === undefined
+            && this.reasoningEffort === undefined
+        ) {
             return undefined;
         }
         return {
+            runtimeConfigVersion: this.runtimeConfigVersion,
             permissionMode: this.permissionMode,
-            modelMode: this.modelMode
+            modelMode: this.modelMode,
+            reasoningEffort: this.reasoningEffort
         };
     }
 
@@ -126,5 +145,21 @@ export class AgentSessionBase<Mode> {
 
     getModelMode(): SessionModelMode | undefined {
         return this.modelMode;
+    }
+
+    getReasoningEffort(): SessionReasoningEffort | undefined {
+        return this.reasoningEffort;
+    }
+
+    setReasoningEffort(effort: SessionReasoningEffort | undefined): void {
+        this.reasoningEffort = effort;
+    }
+
+    setRuntimeConfigVersion(version: number): void {
+        this.runtimeConfigVersion = version;
+    }
+
+    getRuntimeConfigVersion(): number | undefined {
+        return this.runtimeConfigVersion;
     }
 }

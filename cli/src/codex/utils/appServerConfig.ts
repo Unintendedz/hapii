@@ -147,5 +147,10 @@ export function buildTurnStartParams(args: {
         params.model = model;
     }
 
+    const effort = args.mode?.reasoningEffort;
+    if (effort && effort !== 'auto') {
+        params.effort = effort;
+    }
+
     return params;
 }

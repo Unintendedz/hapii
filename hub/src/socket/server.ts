@@ -12,6 +12,7 @@ import { RpcRegistry } from './rpcRegistry'
 import type { SyncEvent } from '../sync/syncEngine'
 import { TerminalRegistry } from './terminalRegistry'
 import type { CliSocketWithData, SocketData, SocketServer } from './socketTypes'
+import type { ModelMode, PermissionMode, ReasoningEffort } from '@hapi/protocol/types'
 
 const jwtPayloadSchema = z.object({
     uid: z.number(),
@@ -36,7 +37,17 @@ export type SocketServerDeps = {
     corsOrigins?: string[]
     getSession?: (sessionId: string) => { active: boolean; namespace: string } | null
     onWebappEvent?: (event: SyncEvent) => void
-    onSessionAlive?: (payload: { sid: string; time: number; thinking?: boolean; mode?: 'local' | 'remote' }) => void
+    onSessionAlive?: (payload: {
+        sid: string
+        time: number
+        thinking?: boolean
+        thinkingSince?: number | null
+        mode?: 'local' | 'remote'
+        runtimeConfigVersion?: number
+        permissionMode?: PermissionMode
+        modelMode?: ModelMode
+        reasoningEffort?: ReasoningEffort
+    }) => void
     onSessionEnd?: (payload: { sid: string; time: number }) => void
     onMachineAlive?: (payload: { machineId: string; time: number }) => void
 }

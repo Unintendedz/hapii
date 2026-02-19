@@ -148,6 +148,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
     // Forward messages to the queue
     let currentPermissionMode: PermissionMode = options.permissionMode ?? 'default';
     let currentModelMode: SessionModelMode = options.model === 'sonnet' || options.model === 'opus' ? options.model : 'default';
+    let currentRuntimeConfigVersion = 0;
     let currentFallbackModel: string | undefined = undefined; // Track current fallback model
     let currentCustomSystemPrompt: string | undefined = undefined; // Track current custom system prompt
     let currentAppendSystemPrompt: string | undefined = undefined; // Track current append system prompt
@@ -161,7 +162,8 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         }
         sessionInstance.setPermissionMode(currentPermissionMode);
         sessionInstance.setModelMode(currentModelMode);
-        logger.debug(`[loop] Synced session modes for keepalive: permissionMode=${currentPermissionMode}, modelMode=${currentModelMode}`);
+        sessionInstance.setRuntimeConfigVersion(currentRuntimeConfigVersion);
+        logger.debug(`[loop] Synced session modes for keepalive: runtimeConfigVersion=${currentRuntimeConfigVersion}, permissionMode=${currentPermissionMode}, modelMode=${currentModelMode}`);
     };
     session.onUserMessage((message) => {
         const sessionPermissionMode = currentSessionRef.current?.getPermissionMode();
@@ -298,7 +300,18 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         if (!payload || typeof payload !== 'object') {
             throw new Error('Invalid session config payload');
         }
-        const config = payload as { permissionMode?: unknown; modelMode?: unknown };
+        const config = payload as { permissionMode?: unknown; modelMode?: unknown; runtimeConfigVersion?: unknown };
+
+        if (config.runtimeConfigVersion !== undefined) {
+            const version = config.runtimeConfigVersion;
+            if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) {
+                throw new Error('Invalid runtime config version');
+            }
+            if (version < currentRuntimeConfigVersion) {
+                throw new Error('Stale runtime config version');
+            }
+            currentRuntimeConfigVersion = version;
+        }
 
         if (config.permissionMode !== undefined) {
             currentPermissionMode = resolvePermissionMode(config.permissionMode);
@@ -310,7 +323,13 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         }
 
         syncSessionModes();
-        return { applied: { permissionMode: currentPermissionMode, modelMode: currentModelMode } };
+        return {
+            applied: {
+                runtimeConfigVersion: currentRuntimeConfigVersion,
+                permissionMode: currentPermissionMode,
+                modelMode: currentModelMode
+            }
+        };
     });
 
     let loopError: unknown = null;

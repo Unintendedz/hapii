@@ -1,7 +1,12 @@
-import { getPermissionModeLabel, getPermissionModeTone, isPermissionModeAllowedForFlavor } from '@hapi/protocol'
+import {
+    getPermissionModeLabel,
+    getPermissionModeTone,
+    isPermissionModeAllowedForFlavor,
+    isReasoningEffortAllowedForFlavor
+} from '@hapi/protocol'
 import type { PermissionModeTone } from '@hapi/protocol'
 import { useMemo } from 'react'
-import type { AgentState, ModelMode, PermissionMode } from '@/types/api'
+import type { AgentState, ModelMode, PermissionMode, ReasoningEffort } from '@/types/api'
 import type { ConversationStatus } from '@/realtime/types'
 import { getContextBudgetTokens } from '@/chat/modelConfig'
 import { useTranslation } from '@/lib/use-translation'
@@ -108,6 +113,7 @@ export function StatusBar(props: {
     contextSize?: number
     modelMode?: ModelMode
     permissionMode?: PermissionMode
+    reasoningEffort?: ReasoningEffort
     agentFlavor?: string | null
     voiceStatus?: ConversationStatus
 }) {
@@ -137,6 +143,9 @@ export function StatusBar(props: {
     const permissionModeLabel = displayPermissionMode ? getPermissionModeLabel(displayPermissionMode) : null
     const permissionModeTone = displayPermissionMode ? getPermissionModeTone(displayPermissionMode) : null
     const permissionModeColor = permissionModeTone ? PERMISSION_TONE_CLASSES[permissionModeTone] : 'text-[var(--app-hint)]'
+    const reasoningEffort = props.reasoningEffort ?? 'auto'
+    const displayReasoningEffort = isReasoningEffortAllowedForFlavor(reasoningEffort, props.agentFlavor)
+    const reasoningEffortLabel = displayReasoningEffort ? `${t('misc.reasoning')}: ${t(`mode.reasoning.${reasoningEffort}`)}` : null
 
     return (
         <div className="flex items-center justify-between px-2 pb-1">
@@ -156,11 +165,18 @@ export function StatusBar(props: {
                 ) : null}
             </div>
 
-            {displayPermissionMode ? (
-                <span className={`text-xs ${permissionModeColor}`}>
-                    {permissionModeLabel}
-                </span>
-            ) : null}
+            <div className="flex items-center gap-2">
+                {displayPermissionMode ? (
+                    <span className={`text-xs ${permissionModeColor}`}>
+                        {permissionModeLabel}
+                    </span>
+                ) : null}
+                {reasoningEffortLabel ? (
+                    <span className="text-xs text-[var(--app-hint)]">
+                        {reasoningEffortLabel}
+                    </span>
+                ) : null}
+            </div>
         </div>
     )
 }

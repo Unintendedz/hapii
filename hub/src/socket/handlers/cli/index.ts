@@ -1,4 +1,4 @@
-import type { ModelMode, PermissionMode } from '@hapi/protocol/types'
+import type { ModelMode, PermissionMode, ReasoningEffort } from '@hapi/protocol/types'
 import type { Store, StoredMachine, StoredSession } from '../../../store'
 import type { RpcRegistry } from '../../rpcRegistry'
 import type { SyncEvent } from '../../../sync/syncEngine'
@@ -14,9 +14,12 @@ type SessionAlivePayload = {
     sid: string
     time: number
     thinking?: boolean
+    thinkingSince?: number | null
     mode?: 'local' | 'remote'
+    runtimeConfigVersion?: number
     permissionMode?: PermissionMode
     modelMode?: ModelMode
+    reasoningEffort?: ReasoningEffort
 }
 
 type SessionEndPayload = {

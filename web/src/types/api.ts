@@ -11,6 +11,7 @@ export type {
     AttachmentMetadata,
     ModelMode,
     PermissionMode,
+    ReasoningEffort,
     Session,
     SessionSummary,
     SessionSummaryMetadata,

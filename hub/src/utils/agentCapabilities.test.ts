@@ -41,14 +41,15 @@ describe('agentCapabilities', () => {
     it('exposes explicit capabilities for claude', () => {
         const caps = getAgentCapabilities('claude')
         expect(caps.supportsModelMode).toBe(true)
+        expect(caps.supportsReasoningEffort).toBe(false)
         expect(caps.supportsPlugins).toBe(true)
     })
 
     it('exposes explicit capabilities for codex family', () => {
         const caps = getAgentCapabilities('codex')
         expect(caps.supportsModelMode).toBe(false)
+        expect(caps.supportsReasoningEffort).toBe(true)
         expect(caps.supportsPlugins).toBe(false)
         expect(caps.codexFamily).toBe(true)
     })
 })
-

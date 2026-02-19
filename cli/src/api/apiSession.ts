@@ -24,6 +24,7 @@ import type {
     Session,
     SessionModelMode,
     SessionPermissionMode,
+    SessionReasoningEffort,
     UserMessage
 } from './types'
 import { AgentStateSchema, CliMessagesResponseSchema, MetadataSchema, UserMessageSchema } from './types'
@@ -438,7 +439,12 @@ export class ApiSessionClient extends EventEmitter {
     keepAlive(
         thinking: boolean,
         mode: 'local' | 'remote',
-        runtime?: { permissionMode?: SessionPermissionMode; modelMode?: SessionModelMode },
+        runtime?: {
+            runtimeConfigVersion?: number;
+            permissionMode?: SessionPermissionMode;
+            modelMode?: SessionModelMode;
+            reasoningEffort?: SessionReasoningEffort;
+        },
         thinkingSince?: number | null
     ): void {
         this.socket.volatile.emit('session-alive', {

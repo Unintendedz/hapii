@@ -18,6 +18,7 @@ export type AgentCapabilities = {
     flavor: AgentFlavor
     codexFamily: boolean
     supportsModelMode: boolean
+    supportsReasoningEffort: boolean
     supportsPlugins: boolean
     supportsProjectSlashCommands: boolean
     resumeTokenField: ResumeTokenField
@@ -76,6 +77,7 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         flavor: 'claude',
         codexFamily: false,
         supportsModelMode: true,
+        supportsReasoningEffort: false,
         supportsPlugins: true,
         supportsProjectSlashCommands: true,
         resumeTokenField: 'claudeSessionId',
@@ -94,6 +96,7 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         flavor: 'codex',
         codexFamily: true,
         supportsModelMode: false,
+        supportsReasoningEffort: true,
         supportsPlugins: false,
         supportsProjectSlashCommands: true,
         resumeTokenField: 'codexSessionId',
@@ -110,6 +113,7 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         flavor: 'gemini',
         codexFamily: true,
         supportsModelMode: false,
+        supportsReasoningEffort: false,
         supportsPlugins: false,
         supportsProjectSlashCommands: false,
         resumeTokenField: 'geminiSessionId',
@@ -124,6 +128,7 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
         flavor: 'opencode',
         codexFamily: true,
         supportsModelMode: false,
+        supportsReasoningEffort: false,
         supportsPlugins: false,
         supportsProjectSlashCommands: false,
         resumeTokenField: 'opencodeSessionId',

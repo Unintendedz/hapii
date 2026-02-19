@@ -38,7 +38,7 @@ describe('appServerConfig', () => {
         const params = buildTurnStartParams({
             threadId: 'thread-1',
             message: 'hello',
-            mode: { permissionMode: 'read-only', model: 'o3' }
+            mode: { permissionMode: 'read-only', model: 'o3', reasoningEffort: 'high' }
         });
 
         expect(params.threadId).toBe('thread-1');
@@ -46,6 +46,27 @@ describe('appServerConfig', () => {
         expect(params.approvalPolicy).toBe('never');
         expect(params.sandboxPolicy).toEqual({ type: 'readOnly' });
         expect(params.model).toBe('o3');
+        expect(params.effort).toBe('high');
+    });
+
+    it('omits reasoning effort when set to auto', () => {
+        const params = buildTurnStartParams({
+            threadId: 'thread-1',
+            message: 'hello',
+            mode: { permissionMode: 'default', reasoningEffort: 'auto' }
+        });
+
+        expect(params.effort).toBeUndefined();
+    });
+
+    it('passes through xhigh reasoning effort', () => {
+        const params = buildTurnStartParams({
+            threadId: 'thread-1',
+            message: 'hello',
+            mode: { permissionMode: 'default', reasoningEffort: 'xhigh' }
+        });
+
+        expect(params.effort).toBe('xhigh');
     });
 
     it('puts collaboration mode in turn params with model settings', () => {

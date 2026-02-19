@@ -1,5 +1,5 @@
 import { AgentStateSchema, MetadataSchema } from '@hapi/protocol/schemas'
-import type { ModelMode, PermissionMode, Session } from '@hapi/protocol/types'
+import type { ModelMode, PermissionMode, ReasoningEffort, Session } from '@hapi/protocol/types'
 import type { Store } from '../store'
 import { clampAliveTime } from './aliveTime'
 import { EventPublisher } from './eventPublisher'
@@ -12,6 +12,13 @@ function clampWorkStartTime(t: number, now: number): number | null {
     const maxAgeMs = 1000 * 60 * 60 * 24 * 7 // 7 days
     if (t < now - maxAgeMs) return null
     return t
+}
+
+function normalizeRuntimeConfigVersion(value: unknown): number | null {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+        return null
+    }
+    return value
 }
 
 export class SessionCache {
@@ -129,8 +136,10 @@ export class SessionCache {
             thinkingAt: existing?.thinkingAt ?? 0,
             work: existing?.work ?? { current: null, last: null },
             todos,
+            runtimeConfigVersion: existing?.runtimeConfigVersion ?? 0,
             permissionMode: existing?.permissionMode,
-            modelMode: existing?.modelMode
+            modelMode: existing?.modelMode,
+            reasoningEffort: existing?.reasoningEffort
         }
 
         this.sessions.set(sessionId, session)
@@ -151,8 +160,10 @@ export class SessionCache {
         thinking?: boolean
         thinkingSince?: number | null
         mode?: 'local' | 'remote'
+        runtimeConfigVersion?: number
         permissionMode?: PermissionMode
         modelMode?: ModelMode
+        reasoningEffort?: ReasoningEffort
     }): void {
         const t = clampAliveTime(payload.time)
         if (!t) return
@@ -168,6 +179,8 @@ export class SessionCache {
         const wasThinking = session.thinking
         const previousPermissionMode = session.permissionMode
         const previousModelMode = session.modelMode
+        const previousReasoningEffort = session.reasoningEffort
+        const previousRuntimeConfigVersion = session.runtimeConfigVersion ?? 0
 
         const nextThinking = Boolean(payload.thinking)
         if (nextThinking) {
@@ -196,15 +209,30 @@ export class SessionCache {
         session.activeAt = Math.max(session.activeAt, t)
         session.thinking = nextThinking
         session.thinkingAt = t
-        if (payload.permissionMode !== undefined) {
-            session.permissionMode = payload.permissionMode
-        }
-        if (payload.modelMode !== undefined) {
-            session.modelMode = payload.modelMode
+        const payloadRuntimeConfigVersion = normalizeRuntimeConfigVersion(payload.runtimeConfigVersion)
+        const canApplyRuntimeFromAlive = payloadRuntimeConfigVersion !== null
+            ? payloadRuntimeConfigVersion >= previousRuntimeConfigVersion
+            : previousRuntimeConfigVersion === 0
+
+        if (canApplyRuntimeFromAlive) {
+            if (payloadRuntimeConfigVersion !== null) {
+                session.runtimeConfigVersion = payloadRuntimeConfigVersion
+            }
+            if (payload.permissionMode !== undefined) {
+                session.permissionMode = payload.permissionMode
+            }
+            if (payload.modelMode !== undefined) {
+                session.modelMode = payload.modelMode
+            }
+            if (payload.reasoningEffort !== undefined) {
+                session.reasoningEffort = payload.reasoningEffort
+            }
         }
 
         const lastBroadcastAt = this.lastBroadcastAtBySessionId.get(session.id) ?? 0
-        const modeChanged = previousPermissionMode !== session.permissionMode || previousModelMode !== session.modelMode
+        const modeChanged = previousPermissionMode !== session.permissionMode
+            || previousModelMode !== session.modelMode
+            || previousReasoningEffort !== session.reasoningEffort
         const shouldBroadcast = (!wasActive && session.active)
             || (wasThinking !== session.thinking)
             || modeChanged
@@ -218,8 +246,10 @@ export class SessionCache {
                 data: {
                     activeAt: session.activeAt,
                     thinking: session.thinking,
+                    runtimeConfigVersion: session.runtimeConfigVersion,
                     permissionMode: session.permissionMode,
-                    modelMode: session.modelMode
+                    modelMode: session.modelMode,
+                    reasoningEffort: session.reasoningEffort
                 }
             })
         }
@@ -279,17 +309,43 @@ export class SessionCache {
         }
     }
 
-    applySessionConfig(sessionId: string, config: { permissionMode?: PermissionMode; modelMode?: ModelMode }): void {
+    nextRuntimeConfigVersion(sessionId: string): number {
+        const session = this.sessions.get(sessionId) ?? this.refreshSession(sessionId)
+        if (!session) {
+            throw new Error('Session not found')
+        }
+        const current = session.runtimeConfigVersion ?? 0
+        const next = current + 1
+        // Reserve immediately to keep version monotonic under concurrent updates.
+        session.runtimeConfigVersion = next
+        return next
+    }
+
+    applySessionConfig(
+        sessionId: string,
+        config: { runtimeConfigVersion?: number; permissionMode?: PermissionMode; modelMode?: ModelMode; reasoningEffort?: ReasoningEffort }
+    ): void {
         const session = this.sessions.get(sessionId) ?? this.refreshSession(sessionId)
         if (!session) {
             return
         }
+
+        const incomingRuntimeConfigVersion = normalizeRuntimeConfigVersion(config.runtimeConfigVersion)
+        const currentRuntimeConfigVersion = session.runtimeConfigVersion ?? 0
+        const nextRuntimeConfigVersion = incomingRuntimeConfigVersion ?? (currentRuntimeConfigVersion + 1)
+        if (nextRuntimeConfigVersion < currentRuntimeConfigVersion) {
+            return
+        }
+        session.runtimeConfigVersion = nextRuntimeConfigVersion
 
         if (config.permissionMode !== undefined) {
             session.permissionMode = config.permissionMode
         }
         if (config.modelMode !== undefined) {
             session.modelMode = config.modelMode
+        }
+        if (config.reasoningEffort !== undefined) {
+            session.reasoningEffort = config.reasoningEffort
         }
 
         this.publisher.emit({ type: 'session-updated', sessionId, data: session })

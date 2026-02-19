@@ -24,6 +24,9 @@ export type PermissionMode = typeof PERMISSION_MODES[number]
 export const MODEL_MODES = ['default', 'sonnet', 'opus'] as const
 export type ModelMode = typeof MODEL_MODES[number]
 
+export const REASONING_EFFORTS = ['auto', 'low', 'medium', 'high', 'xhigh'] as const
+export type ReasoningEffort = typeof REASONING_EFFORTS[number]
+
 export type AgentFlavor = 'claude' | 'codex' | 'gemini' | 'opencode'
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -58,6 +61,14 @@ export const MODEL_MODE_LABELS: Record<ModelMode, string> = {
     default: 'Default',
     sonnet: 'Sonnet',
     opus: 'Opus'
+}
+
+export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
+    auto: 'Auto',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    xhigh: 'XHigh'
 }
 
 export function getPermissionModeLabel(mode: PermissionMode): string {
@@ -102,4 +113,19 @@ export function getModelModesForFlavor(flavor?: string | null): readonly ModelMo
 
 export function isModelModeAllowedForFlavor(mode: ModelMode, flavor?: string | null): boolean {
     return getModelModesForFlavor(flavor).includes(mode)
+}
+
+export function getReasoningEffortsForFlavor(flavor?: string | null): readonly ReasoningEffort[] {
+    if (flavor === 'codex') {
+        return REASONING_EFFORTS
+    }
+    return []
+}
+
+export function isReasoningEffortAllowedForFlavor(effort: ReasoningEffort, flavor?: string | null): boolean {
+    return getReasoningEffortsForFlavor(flavor).includes(effort)
+}
+
+export function getReasoningEffortLabel(effort: ReasoningEffort): string {
+    return REASONING_EFFORT_LABELS[effort]
 }

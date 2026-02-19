@@ -9,9 +9,10 @@ import { parseCodexCliOverrides } from './utils/codexCliOverrides';
 import { bootstrapSession } from '@/agent/sessionFactory';
 import { createModeChangeHandler, createRunnerLifecycle, setControlledByUser } from '@/agent/runnerLifecycle';
 import { isPermissionModeAllowedForFlavor } from '@hapi/protocol';
-import { PermissionModeSchema } from '@hapi/protocol/schemas';
+import { PermissionModeSchema, ReasoningEffortSchema } from '@hapi/protocol/schemas';
 import { formatMessageWithAttachments } from '@/utils/attachmentFormatter';
 import { parseCodexNewCommand } from './utils/codexSlashCommands';
+import type { ReasoningEffort } from '@hapi/protocol/types';
 
 export { emitReadyIfIdle } from './utils/emitReadyIfIdle';
 
@@ -70,7 +71,8 @@ export async function runCodex(opts: {
     const messageQueue = new MessageQueue2<EnhancedMode>((mode) => hashObject({
         permissionMode: mode.permissionMode,
         model: mode.model,
-        collaborationMode: mode.collaborationMode
+        collaborationMode: mode.collaborationMode,
+        reasoningEffort: mode.reasoningEffort
     }));
 
     const codexCliOverrides = parseCodexCliOverrides(opts.codexArgs);
@@ -78,6 +80,7 @@ export async function runCodex(opts: {
 
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
     let currentRuntimeConfigVersion = 0;
+    let currentReasoningEffort: ReasoningEffort = 'auto';
     const currentModel = opts.model;
     session.updateMetadata((m) => ({ ...m, resolvedModel: currentModel ?? 'auto' }));
     let currentCollaborationMode: EnhancedMode['collaborationMode'];
@@ -97,8 +100,9 @@ export async function runCodex(opts: {
             return;
         }
         sessionInstance.setPermissionMode(currentPermissionMode);
+        sessionInstance.setReasoningEffort(currentReasoningEffort);
         sessionInstance.setRuntimeConfigVersion(currentRuntimeConfigVersion);
-        logger.debug(`[Codex] Synced session mode for keepalive: runtimeConfigVersion=${currentRuntimeConfigVersion}, permissionMode=${currentPermissionMode}`);
+        logger.debug(`[Codex] Synced session mode for keepalive: runtimeConfigVersion=${currentRuntimeConfigVersion}, permissionMode=${currentPermissionMode}, reasoningEffort=${currentReasoningEffort}`);
     };
 
     session.onUserMessage((message) => {
@@ -108,7 +112,8 @@ export async function runCodex(opts: {
         const enhancedMode: EnhancedMode = {
             permissionMode: messagePermissionMode ?? 'default',
             model: currentModel,
-            collaborationMode: currentCollaborationMode
+            collaborationMode: currentCollaborationMode,
+            reasoningEffort: currentReasoningEffort
         };
         const rawText = message.content.text;
         const formattedText = formatMessageWithAttachments(rawText, message.content.attachments);
@@ -151,11 +156,24 @@ export async function runCodex(opts: {
         return trimmed as EnhancedMode['collaborationMode'];
     };
 
+    const resolveReasoningEffort = (value: unknown): ReasoningEffort => {
+        const parsed = ReasoningEffortSchema.safeParse(value);
+        if (!parsed.success) {
+            throw new Error('Invalid reasoning effort');
+        }
+        return parsed.data;
+    };
+
     session.rpcHandlerManager.registerHandler('set-session-config', async (payload: unknown) => {
         if (!payload || typeof payload !== 'object') {
             throw new Error('Invalid session config payload');
         }
-        const config = payload as { permissionMode?: unknown; collaborationMode?: unknown; runtimeConfigVersion?: unknown };
+        const config = payload as {
+            permissionMode?: unknown;
+            collaborationMode?: unknown;
+            reasoningEffort?: unknown;
+            runtimeConfigVersion?: unknown;
+        };
 
         if (config.runtimeConfigVersion !== undefined) {
             const version = config.runtimeConfigVersion;
@@ -176,12 +194,17 @@ export async function runCodex(opts: {
             currentCollaborationMode = resolveCollaborationMode(config.collaborationMode);
         }
 
+        if (config.reasoningEffort !== undefined) {
+            currentReasoningEffort = resolveReasoningEffort(config.reasoningEffort);
+        }
+
         syncSessionMode();
         return {
             applied: {
                 runtimeConfigVersion: currentRuntimeConfigVersion,
                 permissionMode: currentPermissionMode,
-                collaborationMode: currentCollaborationMode
+                collaborationMode: currentCollaborationMode,
+                reasoningEffort: currentReasoningEffort
             }
         };
     });
@@ -202,6 +225,7 @@ export async function runCodex(opts: {
             codexCliOverrides,
             startedBy,
             permissionMode: currentPermissionMode,
+            reasoningEffort: currentReasoningEffort,
             resumeSessionId: opts.resumeSessionId,
             onModeChange: createModeChangeHandler(session),
             onSessionReady: (instance) => {

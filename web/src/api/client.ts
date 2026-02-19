@@ -12,6 +12,7 @@ import type {
     MessagesResponse,
     ModelMode,
     PermissionMode,
+    ReasoningEffort,
     PushSubscriptionPayload,
     PushUnsubscribePayload,
     PushVapidPublicKeyResponse,
@@ -352,6 +353,13 @@ export class ApiClient {
         await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/model`, {
             method: 'POST',
             body: JSON.stringify({ model })
+        })
+    }
+
+    async setReasoningEffort(sessionId: string, effort: ReasoningEffort): Promise<void> {
+        await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/reasoning-effort`, {
+            method: 'POST',
+            body: JSON.stringify({ effort })
         })
     }
 
