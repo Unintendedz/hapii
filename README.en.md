@@ -10,6 +10,18 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-19
+
+`11:08:52` &ensp; [`76aadbf`](https://github.com/Unintendedz/hapii/commit/76aadbf) — Harden clipboard copy and terminal paste flows with clearer fallback handling and user feedback
+
+`13:17:42` &ensp; [`e3da179`](https://github.com/Unintendedz/hapii/commit/e3da179) — Add `HAPI_RUNNER_EXTRA_PATH` so runner-spawned sessions can prepend PATH entries (useful for minimal environments like launchd)
+
+`13:17:50` &ensp; [`2aa20ee`](https://github.com/Unintendedz/hapii/commit/2aa20ee) — Improve Claude remote abort handling and permission-mode synchronization after interruptions
+
+`13:18:04` &ensp; [`c23599d`](https://github.com/Unintendedz/hapii/commit/c23599d) — Make the PWA update action force a hard reload after apply; add unit + E2E coverage
+
+`13:18:25` &ensp; [`fda1889`](https://github.com/Unintendedz/hapii/commit/fda1889) — Version session runtime config updates; add Codex reasoning-effort control and status display
+
 ### 2026-02-18
 
 `15:22:00` &ensp; [`c4ec772`](https://github.com/Unintendedz/hapii/commit/c4ec772) — Fix Codex sessions always showing "default"; now shows "auto" for auto mode or the actual model ID when explicitly selected

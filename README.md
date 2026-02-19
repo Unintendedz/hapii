@@ -10,6 +10,18 @@
 
 ## 更新日志
 
+### 2026-02-19
+
+`11:08:52` &ensp; [`76aadbf`](https://github.com/Unintendedz/hapii/commit/76aadbf) — 加固复制与终端粘贴流程：统一剪贴板容错与反馈，减少复制/粘贴失败时的误操作
+
+`13:17:42` &ensp; [`e3da179`](https://github.com/Unintendedz/hapii/commit/e3da179) — Runner 新增 `HAPI_RUNNER_EXTRA_PATH`，可为子会话进程前置 PATH 条目（适配 launchd 等最小环境）
+
+`13:17:50` &ensp; [`2aa20ee`](https://github.com/Unintendedz/hapii/commit/2aa20ee) — 改进 Claude 远程中止与权限判定同步，减少中断后状态不同步
+
+`13:18:04` &ensp; [`c23599d`](https://github.com/Unintendedz/hapii/commit/c23599d) — PWA 更新按钮改为“应用更新后强制重载”，并补充对应单测/E2E 覆盖
+
+`13:18:25` &ensp; [`fda1889`](https://github.com/Unintendedz/hapii/commit/fda1889) — 会话运行时配置改为版本化同步；新增 Codex 推理级别（Reasoning Effort）设置与状态展示
+
 ### 2026-02-18
 
 `15:22:00` &ensp; [`c4ec772`](https://github.com/Unintendedz/hapii/commit/c4ec772) — 修复 Codex 会话始终显示 "default" 的问题，auto 模式下显示 "auto"，有明确型号时显示实际型号
