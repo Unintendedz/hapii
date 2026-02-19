@@ -94,6 +94,7 @@ export default {
   'button.close': 'Close',
   'button.dismiss': 'Dismiss',
   'button.copy': 'Copy',
+  'button.paste': 'Paste',
 
   // New session form
   'newSession.machine': 'Machine',
@@ -142,6 +143,9 @@ export default {
   'terminal.commandArgs': 'Command args',
   'terminal.stdout': 'Stdout',
   'terminal.stderr': 'Stderr',
+  'terminal.paste.fallbackTitle': 'Paste input',
+  'terminal.paste.fallbackDescription': 'Clipboard read is unavailable. Paste your text below.',
+  'terminal.paste.placeholder': 'Paste terminal input here…',
 
   // Message actions
   'message.action.copy': 'Copy message',

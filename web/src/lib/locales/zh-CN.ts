@@ -96,6 +96,7 @@ export default {
   'button.close': '关闭',
   'button.dismiss': '忽略',
   'button.copy': '复制',
+  'button.paste': '粘贴',
 
   // New session form
   'newSession.machine': '机器',
@@ -144,6 +145,9 @@ export default {
   'terminal.commandArgs': '命令参数',
   'terminal.stdout': '标准输出',
   'terminal.stderr': '标准错误',
+  'terminal.paste.fallbackTitle': '粘贴输入',
+  'terminal.paste.fallbackDescription': '无法读取剪贴板，请在下方粘贴文本。',
+  'terminal.paste.placeholder': '在此粘贴终端输入…',
 
   // Message actions
   'message.action.copy': '复制消息',
