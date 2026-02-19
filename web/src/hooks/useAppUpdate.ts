@@ -44,7 +44,7 @@ export function useAppUpdate() {
     }, [])
 
     const doUpdate = useCallback(() => {
-        applyUpdate()
+        void applyUpdate()
     }, [])
 
     return {

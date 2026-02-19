@@ -38,6 +38,7 @@ import FilePage from '@/routes/sessions/file'
 import TerminalPage from '@/routes/sessions/terminal'
 import SettingsPage from '@/routes/settings'
 import E2EScrollPrependPage from '@/routes/__e2e__/scroll-prepend'
+import E2EUpdateBannerPage from '@/routes/__e2e__/update-banner'
 
 function BackIcon(props: { className?: string }) {
     return (
@@ -644,6 +645,12 @@ const e2eScrollPrependRoute = createRoute({
     component: E2EScrollPrependPage,
 })
 
+const e2eUpdateBannerRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/__e2e__/update-banner',
+    component: E2EUpdateBannerPage,
+})
+
 export const routeTree = rootRoute.addChildren([
     indexRoute,
     sessionsRoute.addChildren([
@@ -656,7 +663,7 @@ export const routeTree = rootRoute.addChildren([
         ]),
     ]),
     settingsRoute,
-    ...(import.meta.env.DEV ? [e2eScrollPrependRoute] : []),
+    ...(import.meta.env.DEV ? [e2eScrollPrependRoute, e2eUpdateBannerRoute] : []),
 ])
 
 type RouterHistory = Parameters<typeof createRouter>[0]['history']
