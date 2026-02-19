@@ -158,6 +158,22 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
         this.onPermissionRequestCallback = callback;
     }
 
+    private getEffectivePermissionMode(): PermissionMode {
+        const runtimeMode = this.session.getPermissionMode();
+        if (
+            runtimeMode === 'default'
+            || runtimeMode === 'acceptEdits'
+            || runtimeMode === 'bypassPermissions'
+            || runtimeMode === 'plan'
+        ) {
+            if (runtimeMode !== this.permissionMode) {
+                logger.debug(`[PermissionHandler] Sync runtime permission mode ${this.permissionMode} -> ${runtimeMode}`);
+                this.permissionMode = runtimeMode;
+            }
+        }
+        return this.permissionMode;
+    }
+
     handleModeChange(mode: PermissionMode) {
         this.permissionMode = mode;
         this.session.setPermissionMode(mode);
@@ -262,6 +278,7 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
      */
     handleToolCall = async (toolName: string, input: unknown, mode: EnhancedMode, options: { signal: AbortSignal }): Promise<PermissionResult> => {
         const isQuestionTool = isQuestionToolName(toolName);
+        const permissionMode = this.getEffectivePermissionMode();
 
         // Check if tool is explicitly allowed
         if (!isQuestionTool && toolName === 'Bash') {
@@ -269,16 +286,19 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
             if (inputObj?.command) {
                 // Check literal matches
                 if (this.allowedBashLiterals.has(inputObj.command)) {
+                    logger.debug(`[PermissionHandler] Auto-approved via allowTools: tool=${toolName}, mode=${permissionMode}, reason=bash-literal`);
                     return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
                 }
                 // Check prefix matches
                 for (const prefix of this.allowedBashPrefixes) {
                     if (inputObj.command.startsWith(prefix)) {
+                        logger.debug(`[PermissionHandler] Auto-approved via allowTools: tool=${toolName}, mode=${permissionMode}, reason=bash-prefix`);
                         return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
                     }
                 }
             }
         } else if (!isQuestionTool && this.allowedTools.has(toolName)) {
+            logger.debug(`[PermissionHandler] Auto-approved via allowTools: tool=${toolName}, mode=${permissionMode}, reason=tool-allowlist`);
             return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
         }
 
@@ -289,11 +309,13 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
         // Handle special cases
         //
 
-        if (!isQuestionTool && this.permissionMode === 'bypassPermissions') {
+        if (!isQuestionTool && permissionMode === 'bypassPermissions') {
+            logger.debug(`[PermissionHandler] Auto-approved by mode: tool=${toolName}, mode=${permissionMode}, reason=bypassPermissions`);
             return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
         }
 
-        if (!isQuestionTool && this.permissionMode === 'acceptEdits' && descriptor.edit) {
+        if (!isQuestionTool && permissionMode === 'acceptEdits' && descriptor.edit) {
+            logger.debug(`[PermissionHandler] Auto-approved by mode: tool=${toolName}, mode=${permissionMode}, reason=acceptEdits-edit-tool`);
             return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
         }
 
@@ -309,6 +331,7 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
                 throw new Error(`Could not resolve tool call ID for ${toolName}`);
             }
         }
+        logger.debug(`[PermissionHandler] Awaiting user decision: tool=${toolName}, id=${toolCallId}, mode=${permissionMode}`);
         return this.handlePermissionRequest(toolCallId, toolName, input, options.signal);
     }
 
@@ -477,7 +500,7 @@ export class PermissionHandler extends BasePermissionHandler<PermissionResponse,
     }
 
     protected onResponseReceived(response: PermissionResponse): void {
-        logger.debug(`Permission response: ${JSON.stringify(response)}`);
+        logger.debug(`[PermissionHandler] Permission response received: id=${response.id}, approved=${response.approved}, mode=${response.mode ?? 'none'}, decision=${response.approved ? 'approved' : 'denied'}`);
         this.responses.set(response.id, { ...response, receivedAt: Date.now() });
     }
 

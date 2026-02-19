@@ -3,7 +3,6 @@ import { Session } from "./session";
 import { RemoteModeDisplay } from "@/ui/ink/RemoteModeDisplay";
 import { claudeRemote } from "./claudeRemote";
 import { PermissionHandler } from "./utils/permissionHandler";
-import { Future } from "@/utils/future";
 import { SDKAssistantMessage, SDKMessage, SDKUserMessage } from "./sdk";
 import { formatClaudeMessageForInk } from "@/ui/messageFormatterInk";
 import { logger } from "@/ui/logger";
@@ -28,7 +27,6 @@ interface PermissionsField {
 class ClaudeRemoteLauncher extends RemoteLauncherBase {
     private readonly session: Session;
     private abortController: AbortController | null = null;
-    private abortFuture: Future<void> | null = null;
     private permissionHandler: PermissionHandler | null = null;
     private handleSessionFound: ((sessionId: string) => void) | null = null;
 
@@ -41,29 +39,29 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
         return React.createElement(RemoteModeDisplay, context);
     }
 
-    private async abort(): Promise<void> {
+    private abort(): void {
         if (this.abortController && !this.abortController.signal.aborted) {
             this.abortController.abort();
         }
-        await this.abortFuture?.promise;
     }
 
     private async handleAbortRequest(): Promise<void> {
         logger.debug('[remote]: doAbort');
-        await this.abort();
+        this.abort();
+        this.session.onThinkingChange(false);
     }
 
     private async handleSwitchRequest(): Promise<void> {
         logger.debug('[remote]: doSwitch');
         await this.requestExit('switch', async () => {
-            await this.abort();
+            this.abort();
         });
     }
 
     private async handleExitFromUi(): Promise<void> {
         logger.debug('[remote]: Exiting client via Ctrl-C');
         await this.requestExit('exit', async () => {
-            await this.abort();
+            this.abort();
         });
     }
 
@@ -291,7 +289,6 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                 previousSessionId = session.sessionId;
                 const controller = new AbortController();
                 this.abortController = controller;
-                this.abortFuture = new Future<void>();
                 let modeHash: string | null = null;
                 let mode: EnhancedMode | null = null;
                 try {
@@ -391,8 +388,6 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                     logger.debug('[remote]: message queue flushed');
 
                     this.abortController = null;
-                    this.abortFuture?.resolve(undefined);
-                    this.abortFuture = null;
                     logger.debug('[remote]: launch done');
                     permissionHandler.reset();
                     modeHash = null;
@@ -418,9 +413,6 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
             this.permissionHandler.reset();
         }
 
-        if (this.abortFuture) {
-            this.abortFuture.resolve(undefined);
-        }
     }
 }
 

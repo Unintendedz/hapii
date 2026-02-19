@@ -403,31 +403,52 @@ export function query(config: {
     config.options?.abort?.addEventListener('abort', cleanup)
     process.on('exit', cleanup)
 
+    let resolveProcessExit: (() => void) | null = null
+    let processExitSettled = false
+    const completeProcessExit = () => {
+        if (processExitSettled) {
+            return
+        }
+        processExitSettled = true
+        resolveProcessExit?.()
+    }
+
+    let query: Query | null = null
+    let hasReportedQueryError = false
+    const reportQueryError = (error: Error): void => {
+        if (hasReportedQueryError) {
+            return
+        }
+        hasReportedQueryError = true
+        query?.setError(error)
+    }
+
     // Handle process exit
     const processExitPromise = new Promise<void>((resolve) => {
+        resolveProcessExit = resolve
         child.on('close', (code) => {
             if (config.options?.abort?.aborted) {
-                query.setError(new AbortError('Claude Code process aborted by user'))
+                reportQueryError(new AbortError('Claude Code process aborted by user'))
+            } else if (code !== 0) {
+                reportQueryError(new Error(`Claude Code process exited with code ${code}`))
             }
-            if (code !== 0) {
-                query.setError(new Error(`Claude Code process exited with code ${code}`))
-            } else {
-                resolve()
-            }
+            completeProcessExit()
         })
     })
 
     // Create query instance
-    const query = new Query(childStdin, child.stdout, processExitPromise, canCallTool)
+    const createdQuery = new Query(childStdin, child.stdout, processExitPromise, canCallTool)
+    query = createdQuery
 
     // Handle process errors
     child.on('error', (error) => {
         cleanupMcpConfig?.()
         if (config.options?.abort?.aborted) {
-            query.setError(new AbortError('Claude Code process aborted by user'))
+            reportQueryError(new AbortError('Claude Code process aborted by user'))
         } else {
-            query.setError(new Error(`Failed to spawn Claude Code process: ${error.message}`))
+            reportQueryError(new Error(`Failed to spawn Claude Code process: ${error.message}`))
         }
+        completeProcessExit()
     })
 
     // Cleanup on exit
@@ -440,5 +461,5 @@ export function query(config: {
         cleanupMcpConfig?.()
     })
 
-    return query
+    return createdQuery
 }
