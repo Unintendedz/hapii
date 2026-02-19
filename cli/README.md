@@ -83,6 +83,7 @@ See `src/configuration.ts` for all options.
 
 - `HAPI_RUNNER_HEARTBEAT_INTERVAL` - Heartbeat interval in ms (default: 60000).
 - `HAPI_RUNNER_HTTP_TIMEOUT` - HTTP timeout for runner control in ms (default: 10000).
+- `HAPI_RUNNER_EXTRA_PATH` - Extra PATH entries prepended for runner-spawned sessions (use platform delimiter: `:` on macOS/Linux, `;` on Windows).
 
 ### Worktree (set by runner)
 

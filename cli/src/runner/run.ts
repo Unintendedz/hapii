@@ -18,6 +18,7 @@ import { isRetryableConnectionError } from '@/utils/errorUtils';
 import { cleanupRunnerState, getInstalledCliMtimeMs, isRunnerRunningCurrentlyInstalledHappyVersion, stopRunner } from './controlClient';
 import { startRunnerControlServer } from './controlServer';
 import { createWorktree, removeWorktree, type WorktreeInfo } from './worktree';
+import { buildRunnerSpawnEnv } from './spawnEnv';
 import { join } from 'path';
 import { buildMachineMetadata } from '@/agent/sessionFactory';
 
@@ -380,14 +381,18 @@ export async function startRunner(): Promise<void> {
           logger.debug('[RUNNER RUN] Child stderr tail', trimmed);
         };
 
+        const spawnEnv = buildRunnerSpawnEnv(process.env, extraEnv);
+        if (spawnEnv.prependedPathEntries.length > 0) {
+          logger.debug('[RUNNER RUN] Applied HAPI_RUNNER_EXTRA_PATH for child session', {
+            prependedPathEntries: spawnEnv.prependedPathEntries
+          });
+        }
+
         happyProcess = spawnHappyCLI(args, {
           cwd: spawnDirectory,
           detached: true,  // Sessions stay alive when runner stops
           stdio: ['ignore', 'pipe', 'pipe'],  // Capture stdout/stderr for debugging
-          env: {
-            ...process.env,
-            ...extraEnv
-          }
+          env: spawnEnv.env
         });
 
         happyProcess.stderr?.on('data', (data) => {
