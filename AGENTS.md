@@ -95,6 +95,14 @@ bun run redeploy:fast    # Same but skip typecheck/test (trusted changes only)
 
 Goal: small diffs; predictable rollout; no “it works on my machine”.
 
+### Authority gate (chat agents)
+
+Workflow below = expected engineering order once change is approved.
+Execution permission still explicit:
+
+- Do not run `git commit`, `git push`, redeploy/restart, or other submit/publish actions unless user explicitly asks in current chat.
+- If user explicitly asks (e.g. “先提交”, “现在 push”), execute directly; no extra confirmation needed.
+
 Order (every change):
 
 1. Stage by feature; commit immediately (no big mixed commits).
