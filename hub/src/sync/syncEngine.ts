@@ -43,6 +43,12 @@ export type ResumeSessionResult =
     | { type: 'success'; sessionId: string }
     | { type: 'error'; message: string; code: 'session_not_found' | 'access_denied' | 'no_machine_online' | 'resume_unavailable' | 'resume_failed' }
 
+type RestorableSessionConfig = {
+    permissionMode?: Session['permissionMode']
+    modelMode?: Session['modelMode']
+    reasoningEffort?: Session['reasoningEffort']
+}
+
 export class SyncEngine {
     private readonly eventPublisher: EventPublisher
     private readonly sessionCache: SessionCache
@@ -416,6 +422,17 @@ export class SyncEngine {
             return { type: 'error', message: 'Session failed to become active', code: 'resume_failed' }
         }
 
+        try {
+            await this.restoreSessionConfigOnResume(session, spawnResult.sessionId)
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : 'unknown error'
+            return {
+                type: 'error',
+                message: `Failed to restore session config on resume: ${detail}`,
+                code: 'resume_failed'
+            }
+        }
+
         if (spawnResult.sessionId !== access.sessionId) {
             try {
                 await this.sessionCache.mergeSessions(access.sessionId, spawnResult.sessionId, namespace)
@@ -426,6 +443,37 @@ export class SyncEngine {
         }
 
         return { type: 'success', sessionId: spawnResult.sessionId }
+    }
+
+    private getRestorableSessionConfig(session: Session): RestorableSessionConfig | null {
+        const config: RestorableSessionConfig = {
+            permissionMode: session.permissionMode,
+            modelMode: session.modelMode,
+            reasoningEffort: session.reasoningEffort
+        }
+
+        if (
+            config.permissionMode === undefined
+            && config.modelMode === undefined
+            && config.reasoningEffort === undefined
+        ) {
+            return null
+        }
+
+        return config
+    }
+
+    private async restoreSessionConfigOnResume(sourceSession: Session, resumedSessionId: string): Promise<void> {
+        if (resumedSessionId === sourceSession.id) {
+            return
+        }
+
+        const config = this.getRestorableSessionConfig(sourceSession)
+        if (!config) {
+            return
+        }
+
+        await this.applySessionConfig(resumedSessionId, config)
     }
 
     async waitForSessionActive(sessionId: string, timeoutMs: number = 15_000): Promise<boolean> {
