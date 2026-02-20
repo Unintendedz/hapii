@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-20
+
+`22:32:16` &ensp; [`4f4dd22`](https://github.com/Unintendedz/hapii/commit/4f4dd22) — Preserve runtime session config when resuming archived sessions so permission mode (e.g. Yolo) is retained
+
 ### 2026-02-19
 
 `11:08:52` &ensp; [`76aadbf`](https://github.com/Unintendedz/hapii/commit/76aadbf) — Harden clipboard copy and terminal paste flows with clearer fallback handling and user feedback

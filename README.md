@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-20
+
+`22:32:16` &ensp; [`4f4dd22`](https://github.com/Unintendedz/hapii/commit/4f4dd22) — 修复归档会话恢复后运行时权限配置丢失，保留原有权限模式（如 Yolo）
+
 ### 2026-02-19
 
 `11:08:52` &ensp; [`76aadbf`](https://github.com/Unintendedz/hapii/commit/76aadbf) — 加固复制与终端粘贴流程：统一剪贴板容错与反馈，减少复制/粘贴失败时的误操作
