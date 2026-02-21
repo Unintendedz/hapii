@@ -12,6 +12,8 @@
 
 ### 2026-02-21
 
+`10:44:50` &ensp; [`ba06fc1`](https://github.com/Unintendedz/hapii/commit/ba06fc1) — 会话消息中的链接统一改为新窗口打开，避免点击后覆盖当前页面
+
 `10:03:34` &ensp; [`747203a`](https://github.com/Unintendedz/hapii/commit/747203a) — 持久化会话运行时配置；归档会话恢复后继续保留原权限模式/推理级别，不再回落到 default
 
 ### 2026-02-20

@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-21
 
+`10:44:50` &ensp; [`ba06fc1`](https://github.com/Unintendedz/hapii/commit/ba06fc1) — Open session-message links in a new tab so clicks no longer replace the current page
+
 `10:03:34` &ensp; [`747203a`](https://github.com/Unintendedz/hapii/commit/747203a) — Persist session runtime config so archived-session resume keeps the original permission mode/reasoning effort instead of falling back to default
 
 ### 2026-02-20
