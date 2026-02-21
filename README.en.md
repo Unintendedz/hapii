@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-21
+
+`10:03:34` &ensp; [`747203a`](https://github.com/Unintendedz/hapii/commit/747203a) — Persist session runtime config so archived-session resume keeps the original permission mode/reasoning effort instead of falling back to default
+
 ### 2026-02-20
 
 `22:32:16` &ensp; [`4f4dd22`](https://github.com/Unintendedz/hapii/commit/4f4dd22) — Preserve runtime session config when resuming archived sessions so permission mode (e.g. Yolo) is retained

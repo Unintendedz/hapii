@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-21
+
+`10:03:34` &ensp; [`747203a`](https://github.com/Unintendedz/hapii/commit/747203a) — 持久化会话运行时配置；归档会话恢复后继续保留原权限模式/推理级别，不再回落到 default
+
 ### 2026-02-20
 
 `22:32:16` &ensp; [`4f4dd22`](https://github.com/Unintendedz/hapii/commit/4f4dd22) — 修复归档会话恢复后运行时权限配置丢失，保留原有权限模式（如 Yolo）
