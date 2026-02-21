@@ -13,6 +13,18 @@ import { CopyIcon, CheckIcon } from '@/components/icons'
 
 export const MARKDOWN_PLUGINS = [remarkGfm]
 
+export function getMarkdownAnchorRel(rel?: string): string {
+    const relTokens = new Set(
+        (rel ?? '')
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter(Boolean)
+    )
+    relTokens.add('noopener')
+    relTokens.add('noreferrer')
+    return Array.from(relTokens).join(' ')
+}
+
 function CodeHeader(props: CodeHeaderProps) {
     const { copied, copy } = useCopyToClipboard()
     const language = props.language && props.language !== 'unknown' ? props.language : ''
@@ -74,11 +86,12 @@ function Code(props: ComponentPropsWithoutRef<'code'>) {
 }
 
 function A(props: ComponentPropsWithoutRef<'a'>) {
-    const rel = props.target === '_blank' ? (props.rel ?? 'noreferrer') : props.rel
+    const rel = getMarkdownAnchorRel(props.rel)
 
     return (
         <a
             {...props}
+            target="_blank"
             rel={rel}
             className={cn('aui-md-a text-[var(--app-link)] underline', props.className)}
         />
