@@ -43,5 +43,8 @@ playwright-report/
 localdocs/
 execplan/
 
+# Codex local prompts / commands (project-local, do not commit)
+/.codex/
+
 # Generated npm bundle output (local)
 cli/npm/main/
