@@ -87,6 +87,8 @@ export class SessionCache {
         }
 
         const existing = this.sessions.get(sessionId)
+        const shouldUseExistingRuntimeConfig = existing !== undefined
+            && (existing.runtimeConfigVersion ?? 0) > stored.runtimeConfigVersion
 
         if (stored.todos === null && !this.todoBackfillAttemptedSessionIds.has(sessionId)) {
             this.todoBackfillAttemptedSessionIds.add(sessionId)
@@ -136,10 +138,18 @@ export class SessionCache {
             thinkingAt: existing?.thinkingAt ?? 0,
             work: existing?.work ?? { current: null, last: null },
             todos,
-            runtimeConfigVersion: existing?.runtimeConfigVersion ?? 0,
-            permissionMode: existing?.permissionMode,
-            modelMode: existing?.modelMode,
-            reasoningEffort: existing?.reasoningEffort
+            runtimeConfigVersion: shouldUseExistingRuntimeConfig
+                ? (existing?.runtimeConfigVersion ?? stored.runtimeConfigVersion)
+                : stored.runtimeConfigVersion,
+            permissionMode: shouldUseExistingRuntimeConfig
+                ? existing?.permissionMode
+                : (stored.permissionMode ?? undefined),
+            modelMode: shouldUseExistingRuntimeConfig
+                ? existing?.modelMode
+                : (stored.modelMode ?? undefined),
+            reasoningEffort: shouldUseExistingRuntimeConfig
+                ? existing?.reasoningEffort
+                : (stored.reasoningEffort ?? undefined)
         }
 
         this.sessions.set(sessionId, session)
@@ -229,6 +239,14 @@ export class SessionCache {
             }
         }
 
+        const runtimeConfigChanged = previousRuntimeConfigVersion !== (session.runtimeConfigVersion ?? 0)
+            || previousPermissionMode !== session.permissionMode
+            || previousModelMode !== session.modelMode
+            || previousReasoningEffort !== session.reasoningEffort
+        if (runtimeConfigChanged) {
+            this.persistRuntimeConfig(session)
+        }
+
         const lastBroadcastAt = this.lastBroadcastAtBySessionId.get(session.id) ?? 0
         const modeChanged = previousPermissionMode !== session.permissionMode
             || previousModelMode !== session.modelMode
@@ -280,6 +298,7 @@ export class SessionCache {
         session.active = false
         session.thinking = false
         session.thinkingAt = t
+        this.persistRuntimeConfig(session)
 
         this.publisher.emit({ type: 'session-updated', sessionId: session.id, data: { active: false, thinking: false } })
     }
@@ -347,6 +366,7 @@ export class SessionCache {
         if (config.reasoningEffort !== undefined) {
             session.reasoningEffort = config.reasoningEffort
         }
+        this.persistRuntimeConfig(session)
 
         this.publisher.emit({ type: 'session-updated', sessionId, data: session })
     }
@@ -501,5 +521,22 @@ export class SessionCache {
         }
 
         return changed ? merged : newMetadata
+    }
+
+    private persistRuntimeConfig(session: Session): void {
+        const updated = this.store.sessions.updateSessionRuntimeConfig(
+            session.id,
+            {
+                runtimeConfigVersion: session.runtimeConfigVersion ?? 0,
+                permissionMode: session.permissionMode ?? null,
+                modelMode: session.modelMode ?? null,
+                reasoningEffort: session.reasoningEffort ?? null
+            },
+            session.namespace
+        )
+
+        if (!updated) {
+            throw new Error(`Failed to persist runtime config for session ${session.id}`)
+        }
     }
 }

@@ -56,6 +56,17 @@ describe('SyncEngine resumeSession runtime config restore', () => {
 
         const oldSession = seedResumableSession(store, 'old-session', machineId)
         const newSession = seedResumableSession(store, 'new-session', machineId)
+        const persisted = store.sessions.updateSessionRuntimeConfig(
+            oldSession.id,
+            {
+                runtimeConfigVersion: 4,
+                permissionMode: 'yolo',
+                modelMode: null,
+                reasoningEffort: 'high'
+            },
+            'default'
+        )
+        expect(persisted).toBe(true)
 
         const engine = createEngine(store)
         try {
@@ -66,9 +77,9 @@ describe('SyncEngine resumeSession runtime config restore', () => {
             if (!sourceSession) {
                 throw new Error('Source session missing in cache')
             }
-            sourceSession.permissionMode = 'yolo'
-            sourceSession.reasoningEffort = 'high'
-            sourceSession.runtimeConfigVersion = 4
+            expect(sourceSession.permissionMode).toBe('yolo')
+            expect(sourceSession.reasoningEffort).toBe('high')
+            expect(sourceSession.runtimeConfigVersion).toBe(4)
 
             const requestSessionConfigCalls: Array<{
                 sessionId: string

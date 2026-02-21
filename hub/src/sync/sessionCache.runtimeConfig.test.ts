@@ -60,4 +60,60 @@ describe('SessionCache runtime config versioning', () => {
         const next = cache.nextRuntimeConfigVersion(session.id)
         expect(next).toBe(6)
     })
+
+    it('persists runtime config and reloads from store after cache restart', () => {
+        const { store, cache } = createSessionCacheForTest()
+        const session = cache.getOrCreateSession(
+            'tag-runtime-persist',
+            { path: '/tmp', host: 'test-host' },
+            {},
+            'default'
+        )
+
+        cache.applySessionConfig(session.id, {
+            runtimeConfigVersion: 3,
+            permissionMode: 'yolo',
+            reasoningEffort: 'high'
+        })
+
+        const publisher = new EventPublisher(
+            new SSEManager(0, new VisibilityTracker()),
+            () => 'default'
+        )
+        const reloadedCache = new SessionCache(store, publisher)
+        const reloaded = reloadedCache.getSession(session.id) ?? reloadedCache.refreshSession(session.id)
+
+        expect(reloaded?.runtimeConfigVersion).toBe(3)
+        expect(reloaded?.permissionMode).toBe('yolo')
+        expect(reloaded?.reasoningEffort).toBe('high')
+    })
+
+    it('persists keepalive runtime mode updates to store', () => {
+        const { store, cache } = createSessionCacheForTest()
+        const session = cache.getOrCreateSession(
+            'tag-runtime-keepalive-persist',
+            { path: '/tmp', host: 'test-host' },
+            {},
+            'default'
+        )
+
+        cache.handleSessionAlive({
+            sid: session.id,
+            time: Date.now(),
+            runtimeConfigVersion: 2,
+            permissionMode: 'yolo',
+            reasoningEffort: 'high'
+        })
+
+        const publisher = new EventPublisher(
+            new SSEManager(0, new VisibilityTracker()),
+            () => 'default'
+        )
+        const reloadedCache = new SessionCache(store, publisher)
+        const reloaded = reloadedCache.refreshSession(session.id)
+
+        expect(reloaded?.runtimeConfigVersion).toBe(2)
+        expect(reloaded?.permissionMode).toBe('yolo')
+        expect(reloaded?.reasoningEffort).toBe('high')
+    })
 })

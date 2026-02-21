@@ -22,7 +22,7 @@ export { PushStore } from './pushStore'
 export { SessionStore } from './sessionStore'
 export { UserStore } from './userStore'
 
-const SCHEMA_VERSION: number = 3
+const SCHEMA_VERSION: number = 4
 const REQUIRED_TABLES = [
     'sessions',
     'machines',
@@ -89,6 +89,8 @@ export class Store {
             if (this.hasAnyUserTables()) {
                 this.migrateLegacySchemaIfNeeded()
                 this.createSchema()
+                this.migrateFromV2ToV3()
+                this.migrateFromV3ToV4()
                 this.setUserVersion(SCHEMA_VERSION)
                 return
             }
@@ -104,8 +106,29 @@ export class Store {
             return
         }
 
+        if (currentVersion === 1 && SCHEMA_VERSION === 4) {
+            this.migrateFromV1ToV2()
+            this.migrateFromV2ToV3()
+            this.migrateFromV3ToV4()
+            this.setUserVersion(SCHEMA_VERSION)
+            return
+        }
+
         if (currentVersion === 2 && SCHEMA_VERSION === 3) {
             this.migrateFromV2ToV3()
+            this.setUserVersion(SCHEMA_VERSION)
+            return
+        }
+
+        if (currentVersion === 3 && SCHEMA_VERSION === 4) {
+            this.migrateFromV3ToV4()
+            this.setUserVersion(SCHEMA_VERSION)
+            return
+        }
+
+        if (currentVersion === 2 && SCHEMA_VERSION === 4) {
+            this.migrateFromV2ToV3()
+            this.migrateFromV3ToV4()
             this.setUserVersion(SCHEMA_VERSION)
             return
         }
@@ -134,7 +157,11 @@ export class Store {
                 todos_updated_at INTEGER,
                 active INTEGER DEFAULT 0,
                 active_at INTEGER,
-                seq INTEGER DEFAULT 0
+                seq INTEGER DEFAULT 0,
+                runtime_config_version INTEGER NOT NULL DEFAULT 0,
+                permission_mode TEXT,
+                model_mode TEXT,
+                reasoning_effort TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_tag ON sessions(tag);
             CREATE INDEX IF NOT EXISTS idx_sessions_tag_namespace ON sessions(tag, namespace);
@@ -280,8 +307,51 @@ export class Store {
         return
     }
 
+    private migrateFromV3ToV4(): void {
+        const columns = this.getSessionColumnNames()
+        if (columns.size === 0) {
+            throw new Error('SQLite schema missing sessions table for v3 to v4 migration.')
+        }
+
+        const statements: string[] = []
+
+        if (!columns.has('runtime_config_version')) {
+            statements.push('ALTER TABLE sessions ADD COLUMN runtime_config_version INTEGER NOT NULL DEFAULT 0')
+        }
+        if (!columns.has('permission_mode')) {
+            statements.push('ALTER TABLE sessions ADD COLUMN permission_mode TEXT')
+        }
+        if (!columns.has('model_mode')) {
+            statements.push('ALTER TABLE sessions ADD COLUMN model_mode TEXT')
+        }
+        if (!columns.has('reasoning_effort')) {
+            statements.push('ALTER TABLE sessions ADD COLUMN reasoning_effort TEXT')
+        }
+
+        if (statements.length === 0) {
+            return
+        }
+
+        try {
+            this.db.exec('BEGIN')
+            for (const statement of statements) {
+                this.db.exec(statement)
+            }
+            this.db.exec('COMMIT')
+        } catch (error) {
+            this.db.exec('ROLLBACK')
+            const message = error instanceof Error ? error.message : String(error)
+            throw new Error(`SQLite schema migration v3->v4 failed: ${message}`)
+        }
+    }
+
     private getMachineColumnNames(): Set<string> {
         const rows = this.db.prepare('PRAGMA table_info(machines)').all() as Array<{ name: string }>
+        return new Set(rows.map((row) => row.name))
+    }
+
+    private getSessionColumnNames(): Set<string> {
+        const rows = this.db.prepare('PRAGMA table_info(sessions)').all() as Array<{ name: string }>
         return new Set(rows.map((row) => row.name))
     }
 

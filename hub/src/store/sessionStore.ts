@@ -1,3 +1,4 @@
+import type { ModelMode, PermissionMode, ReasoningEffort } from '@hapi/protocol/types'
 import type { Database } from 'bun:sqlite'
 
 import type { StoredSession, VersionedUpdateResult } from './types'
@@ -9,6 +10,7 @@ import {
     getSessions,
     getSessionsByNamespace,
     setSessionTodos,
+    updateSessionRuntimeConfig,
     updateSessionAgentState,
     updateSessionMetadata
 } from './sessions'
@@ -45,6 +47,19 @@ export class SessionStore {
 
     setSessionTodos(id: string, todos: unknown, todosUpdatedAt: number, namespace: string): boolean {
         return setSessionTodos(this.db, id, todos, todosUpdatedAt, namespace)
+    }
+
+    updateSessionRuntimeConfig(
+        id: string,
+        config: {
+            runtimeConfigVersion: number
+            permissionMode: PermissionMode | null
+            modelMode: ModelMode | null
+            reasoningEffort: ReasoningEffort | null
+        },
+        namespace: string
+    ): boolean {
+        return updateSessionRuntimeConfig(this.db, id, config, namespace)
     }
 
     getSession(id: string): StoredSession | null {

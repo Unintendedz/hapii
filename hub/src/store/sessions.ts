@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite'
 import { randomUUID } from 'node:crypto'
 
+import type { ModelMode, PermissionMode, ReasoningEffort } from '@hapi/protocol/types'
 import type { StoredSession, VersionedUpdateResult } from './types'
 import { safeJsonParse } from './json'
 import { updateVersionedField } from './versionedUpdates'
@@ -21,6 +22,10 @@ type DbSessionRow = {
     active: number
     active_at: number | null
     seq: number
+    runtime_config_version: number
+    permission_mode: PermissionMode | null
+    model_mode: ModelMode | null
+    reasoning_effort: ReasoningEffort | null
 }
 
 function toStoredSession(row: DbSessionRow): StoredSession {
@@ -39,7 +44,11 @@ function toStoredSession(row: DbSessionRow): StoredSession {
         todosUpdatedAt: row.todos_updated_at,
         active: row.active === 1,
         activeAt: row.active_at,
-        seq: row.seq
+        seq: row.seq,
+        runtimeConfigVersion: row.runtime_config_version,
+        permissionMode: row.permission_mode,
+        modelMode: row.model_mode,
+        reasoningEffort: row.reasoning_effort
     }
 }
 
@@ -70,13 +79,15 @@ export function getOrCreateSession(
             metadata, metadata_version,
             agent_state, agent_state_version,
             todos, todos_updated_at,
-            active, active_at, seq
+            active, active_at, seq,
+            runtime_config_version, permission_mode, model_mode, reasoning_effort
         ) VALUES (
             @id, @tag, @namespace, NULL, @created_at, @updated_at,
             @metadata, 1,
             @agent_state, 1,
             NULL, NULL,
-            0, NULL, 0
+            0, NULL, 0,
+            0, NULL, NULL, NULL
         )
     `).run({
         id,
@@ -211,6 +222,39 @@ export function getSessionsByNamespace(db: Database, namespace: string): StoredS
         'SELECT * FROM sessions WHERE namespace = ? ORDER BY updated_at DESC'
     ).all(namespace) as DbSessionRow[]
     return rows.map(toStoredSession)
+}
+
+export function updateSessionRuntimeConfig(
+    db: Database,
+    id: string,
+    config: {
+        runtimeConfigVersion: number
+        permissionMode: PermissionMode | null
+        modelMode: ModelMode | null
+        reasoningEffort: ReasoningEffort | null
+    },
+    namespace: string
+): boolean {
+    const result = db.prepare(`
+        UPDATE sessions
+        SET runtime_config_version = @runtime_config_version,
+            permission_mode = @permission_mode,
+            model_mode = @model_mode,
+            reasoning_effort = @reasoning_effort,
+            seq = seq + 1
+        WHERE id = @id
+          AND namespace = @namespace
+          AND runtime_config_version <= @runtime_config_version
+    `).run({
+        id,
+        namespace,
+        runtime_config_version: config.runtimeConfigVersion,
+        permission_mode: config.permissionMode,
+        model_mode: config.modelMode,
+        reasoning_effort: config.reasoningEffort
+    })
+
+    return result.changes === 1
 }
 
 export function deleteSession(db: Database, id: string, namespace: string): boolean {
