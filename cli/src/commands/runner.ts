@@ -110,6 +110,7 @@ ${chalk.bold('Usage:')}
   hapi runner stop               Stop the runner (sessions stay alive)
   hapi runner status             Show runner status
   hapi runner list               List active sessions
+  hapi runner stop-session <id>  Stop one runner-tracked session
 
   If you want to kill all hapi related processes run 
   ${chalk.cyan('hapi doctor clean')}

@@ -40,11 +40,18 @@ fi
 step "Build single-exe (web + embedded assets + binary)"
 bun run build:single-exe
 
-# ---------- 3. Restart hub via launchctl ----------
+# ---------- 3. Clean runner/sessions ----------
+#
+# Why: runner restart intentionally keeps spawned sessions alive.
+# After CLI/web fixes, those old session processes can keep running stale logic.
+step "Clean runner and runner-spawned sessions"
+"$REPO_ROOT/cli/dist-exe/bun-darwin-arm64/hapi" doctor clean || true
+
+# ---------- 4. Restart hub via launchctl ----------
 step "Restart hub (launchctl kickstart)"
 launchctl kickstart -k "gui/$(id -u)/org.hapii.hub"
 
-# ---------- 4. Wait for hub ----------
+# ---------- 5. Wait for hub ----------
 step "Waiting for hub to come up"
 for i in $(seq 1 30); do
     if curl -fsS -o /dev/null http://127.0.0.1:3006/version.json 2>/dev/null; then
@@ -57,7 +64,7 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-# ---------- 5. Smoke check ----------
+# ---------- 6. Smoke check ----------
 step "Smoke check"
 
 BUILD=$(curl -fsS http://127.0.0.1:3006/version.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["build"])')
