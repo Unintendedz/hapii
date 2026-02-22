@@ -106,11 +106,14 @@ export class AppServerEventConverter {
     private readonly commandMeta = new Map<string, Record<string, unknown>>();
     private readonly fileChangeMeta = new Map<string, Record<string, unknown>>();
     private readonly fileChangeOutputBuffers = new Map<string, string>();
+    private readonly turnsWithAgentMessage = new Set<string>();
+    private hasWrappedCodexEvents = false;
 
     private handleCodexEventNotification(method: string, paramsRecord: Record<string, unknown>): ConvertedEvent[] | null {
         if (!method.startsWith('codex/event/')) {
             return null;
         }
+        this.hasWrappedCodexEvents = true;
 
         const msg = asRecord(paramsRecord.msg);
         if (!msg) {
@@ -128,7 +131,7 @@ export class AppServerEventConverter {
 
         if (eventType === 'task_complete') {
             const lastAgentMessage = asString(msg.last_agent_message ?? msg.lastAgentMessage);
-            if (lastAgentMessage) {
+            if (lastAgentMessage && (!turnId || !this.turnsWithAgentMessage.has(turnId))) {
                 events.push({ type: 'agent_message', message: lastAgentMessage });
             }
             events.push({ type: 'task_complete', ...(turnId ? { turn_id: turnId } : {}) });
@@ -147,6 +150,9 @@ export class AppServerEventConverter {
             const message = asString(msg.message);
             if (message) {
                 events.push({ type: 'agent_message', message });
+                if (turnId) {
+                    this.turnsWithAgentMessage.add(turnId);
+                }
             }
             return events;
         }
@@ -294,19 +300,8 @@ export class AppServerEventConverter {
         }
 
         if (eventType === 'item_started' || eventType === 'item_completed') {
-            const item = asRecord(msg.item);
-            if (!item) {
-                return events;
-            }
-            const mappedEvents = this.handleNotification(
-                eventType === 'item_started' ? 'item/started' : 'item/completed',
-                {
-                    item,
-                    threadId: msg.thread_id ?? msg.threadId,
-                    turnId: msg.turn_id ?? msg.turnId
-                }
-            );
-            events.push(...mappedEvents);
+            // In wrapped mode, codex/event already provides dedicated message/reasoning/tool events.
+            // Forwarding item lifecycle wrappers would duplicate direct item notifications.
             return events;
         }
 
@@ -336,6 +331,25 @@ export class AppServerEventConverter {
         const wrappedEvents = this.handleCodexEventNotification(method, paramsRecord);
         if (wrappedEvents) {
             return wrappedEvents;
+        }
+
+        if (this.hasWrappedCodexEvents) {
+            if (
+                method === 'turn/started'
+                || method === 'turn/completed'
+                || method === 'turn/diff/updated'
+                || method === 'thread/tokenUsage/updated'
+                || method === 'item/agentMessage/delta'
+                || method === 'item/reasoning/textDelta'
+                || method === 'item/reasoning/summaryTextDelta'
+                || method === 'item/reasoning/summaryPartAdded'
+                || method === 'item/commandExecution/outputDelta'
+                || method === 'item/fileChange/outputDelta'
+                || method === 'item/started'
+                || method === 'item/completed'
+            ) {
+                return events;
+            }
         }
 
         if (method === 'thread/started' || method === 'thread/resumed') {
@@ -580,5 +594,7 @@ export class AppServerEventConverter {
         this.commandMeta.clear();
         this.fileChangeMeta.clear();
         this.fileChangeOutputBuffers.clear();
+        this.turnsWithAgentMessage.clear();
+        this.hasWrappedCodexEvents = false;
     }
 }

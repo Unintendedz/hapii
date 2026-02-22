@@ -120,7 +120,7 @@ describe('AppServerEventConverter', () => {
         expect(events).toEqual([{ type: 'agent_message', message: 'hello' }]);
     });
 
-    it('maps wrapped codex message deltas via item lifecycle', () => {
+    it('ignores wrapped item lifecycle and uses wrapped agent_message as canonical output', () => {
         const converter = new AppServerEventConverter();
 
         converter.handleNotification('codex/event/agent_message_content_delta', {
@@ -138,23 +138,25 @@ describe('AppServerEventConverter', () => {
                 item: { type: 'AgentMessage', id: 'msg-1' }
             }
         });
+        expect(completed).toEqual([]);
 
-        expect(completed).toEqual([{ type: 'agent_message', message: 'Hello world' }]);
+        const wrappedMessage = converter.handleNotification('codex/event/agent_message', {
+            id: 'turn-1',
+            msg: { type: 'agent_message', message: 'Hello world' }
+        });
+        expect(wrappedMessage).toEqual([{ type: 'agent_message', message: 'Hello world' }]);
     });
 
-    it('maps wrapped codex item content arrays', () => {
+    it('maps direct item content arrays when wrapped stream is absent', () => {
         const converter = new AppServerEventConverter();
 
-        const completed = converter.handleNotification('codex/event/item_completed', {
-            id: 'turn-1',
-            msg: {
-                type: 'item_completed',
-                item: {
-                    type: 'AgentMessage',
-                    id: 'msg-1',
-                    content: [{ type: 'Text', text: 'hello' }]
-                }
-            }
+        const completed = converter.handleNotification('item/completed', {
+            item: {
+                type: 'agentMessage',
+                id: 'msg-1',
+                content: [{ type: 'Text', text: 'hello' }]
+            },
+            turnId: 'turn-1'
         });
 
         expect(completed).toEqual([{ type: 'agent_message', message: 'hello' }]);
@@ -168,5 +170,49 @@ describe('AppServerEventConverter', () => {
             msg: { type: 'error', message: 'boom' }
         });
         expect(events).toEqual([{ type: 'task_failed', turn_id: 'turn-1', error: 'boom' }]);
+    });
+
+    it('suppresses direct duplicate events after wrapped stream is detected', () => {
+        const converter = new AppServerEventConverter();
+
+        const wrapped = converter.handleNotification('codex/event/agent_message', {
+            id: 'turn-1',
+            msg: { type: 'agent_message', message: 'hello' }
+        });
+        expect(wrapped).toEqual([{ type: 'agent_message', message: 'hello' }]);
+
+        const directDuplicate = converter.handleNotification('item/completed', {
+            item: {
+                type: 'agentMessage',
+                id: 'msg-1',
+                content: [{ type: 'Text', text: 'hello' }]
+            },
+            turnId: 'turn-1'
+        });
+        expect(directDuplicate).toEqual([]);
+    });
+
+    it('uses task_complete last_agent_message only as fallback', () => {
+        const converter = new AppServerEventConverter();
+
+        converter.handleNotification('codex/event/agent_message', {
+            id: 'turn-1',
+            msg: { type: 'agent_message', message: 'hello' }
+        });
+
+        const completedWithDuplicate = converter.handleNotification('codex/event/task_complete', {
+            id: 'turn-1',
+            msg: { type: 'task_complete', turn_id: 'turn-1', last_agent_message: 'hello' }
+        });
+        expect(completedWithDuplicate).toEqual([{ type: 'task_complete', turn_id: 'turn-1' }]);
+
+        const fallbackOnly = converter.handleNotification('codex/event/task_complete', {
+            id: 'turn-2',
+            msg: { type: 'task_complete', turn_id: 'turn-2', last_agent_message: 'hi' }
+        });
+        expect(fallbackOnly).toEqual([
+            { type: 'agent_message', message: 'hi' },
+            { type: 'task_complete', turn_id: 'turn-2' }
+        ]);
     });
 });
