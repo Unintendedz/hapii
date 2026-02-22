@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-22
+
+`12:03:23` &ensp; [`822a0ff`](https://github.com/Unintendedz/hapii/commit/822a0ff) — Fix unrecognized system events (e.g. rate_limit_event) rendering as raw JSON blobs in the chat UI
+
 ### 2026-02-21
 
 `10:44:50` &ensp; [`ba06fc1`](https://github.com/Unintendedz/hapii/commit/ba06fc1) — Open session-message links in a new tab so clicks no longer replace the current page

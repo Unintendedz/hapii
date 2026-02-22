@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-22
+
+`12:03:23` &ensp; [`822a0ff`](https://github.com/Unintendedz/hapii/commit/822a0ff) — 修复未识别的系统消息（如 rate_limit_event）以原始 JSON 形式显示在聊天界面中的问题
+
 ### 2026-02-21
 
 `10:44:50` &ensp; [`ba06fc1`](https://github.com/Unintendedz/hapii/commit/ba06fc1) — 会话消息中的链接统一改为新窗口打开，避免点击后覆盖当前页面
