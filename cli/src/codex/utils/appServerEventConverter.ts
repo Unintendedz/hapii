@@ -106,7 +106,6 @@ export class AppServerEventConverter {
     private readonly commandMeta = new Map<string, Record<string, unknown>>();
     private readonly fileChangeMeta = new Map<string, Record<string, unknown>>();
     private readonly fileChangeOutputBuffers = new Map<string, string>();
-    private readonly turnsWithAgentMessage = new Set<string>();
     private hasWrappedCodexEvents = false;
 
     private handleCodexEventNotification(method: string, paramsRecord: Record<string, unknown>): ConvertedEvent[] | null {
@@ -130,10 +129,9 @@ export class AppServerEventConverter {
         }
 
         if (eventType === 'task_complete') {
-            const lastAgentMessage = asString(msg.last_agent_message ?? msg.lastAgentMessage);
-            if (lastAgentMessage && (!turnId || !this.turnsWithAgentMessage.has(turnId))) {
-                events.push({ type: 'agent_message', message: lastAgentMessage });
-            }
+            // Wrapped streams should rely on explicit `agent_message`/item events.
+            // `last_agent_message` in task_complete may reference a prior turn and
+            // causes one-turn-late/stale replies.
             events.push({ type: 'task_complete', ...(turnId ? { turn_id: turnId } : {}) });
             return events;
         }
@@ -150,9 +148,6 @@ export class AppServerEventConverter {
             const message = asString(msg.message);
             if (message) {
                 events.push({ type: 'agent_message', message });
-                if (turnId) {
-                    this.turnsWithAgentMessage.add(turnId);
-                }
             }
             return events;
         }
@@ -594,7 +589,6 @@ export class AppServerEventConverter {
         this.commandMeta.clear();
         this.fileChangeMeta.clear();
         this.fileChangeOutputBuffers.clear();
-        this.turnsWithAgentMessage.clear();
         this.hasWrappedCodexEvents = false;
     }
 }

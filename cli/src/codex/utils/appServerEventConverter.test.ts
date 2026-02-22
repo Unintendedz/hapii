@@ -192,7 +192,7 @@ describe('AppServerEventConverter', () => {
         expect(directDuplicate).toEqual([]);
     });
 
-    it('uses task_complete last_agent_message only as fallback', () => {
+    it('ignores task_complete last_agent_message in wrapped mode', () => {
         const converter = new AppServerEventConverter();
 
         converter.handleNotification('codex/event/agent_message', {
@@ -206,13 +206,10 @@ describe('AppServerEventConverter', () => {
         });
         expect(completedWithDuplicate).toEqual([{ type: 'task_complete', turn_id: 'turn-1' }]);
 
-        const fallbackOnly = converter.handleNotification('codex/event/task_complete', {
+        const staleFallback = converter.handleNotification('codex/event/task_complete', {
             id: 'turn-2',
             msg: { type: 'task_complete', turn_id: 'turn-2', last_agent_message: 'hi' }
         });
-        expect(fallbackOnly).toEqual([
-            { type: 'agent_message', message: 'hi' },
-            { type: 'task_complete', turn_id: 'turn-2' }
-        ]);
+        expect(staleFallback).toEqual([{ type: 'task_complete', turn_id: 'turn-2' }]);
     });
 });
