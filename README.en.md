@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-23
+
+`00:42:49` &ensp; [`fb27c57`](https://github.com/Unintendedz/hapii/commit/fb27c57) — Fix misaligned Claude replies caused by completion-text replay in remote sessions, and remove delayed tool-call assistant sends to prevent stale reply writeback
+
 ### 2026-02-22
 
 `23:46:09` &ensp; [`61d0d6f`](https://github.com/Unintendedz/hapii/commit/61d0d6f) — Fix delayed/misaligned Codex replies caused by replaying stale `task_complete.last_agent_message` in wrapped event streams

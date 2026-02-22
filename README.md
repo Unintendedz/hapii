@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-23
+
+`00:42:49` &ensp; [`fb27c57`](https://github.com/Unintendedz/hapii/commit/fb27c57) — 修复 Claude 远程会话中 completion 文本回放导致的回复错位，并取消 tool-call 助手消息延迟发送以避免旧回复滞后写入
+
 ### 2026-02-22
 
 `23:46:09` &ensp; [`61d0d6f`](https://github.com/Unintendedz/hapii/commit/61d0d6f) — 修复 Codex wrapped 事件流中 `task_complete.last_agent_message` 回灌旧回复导致的消息滞后错位
