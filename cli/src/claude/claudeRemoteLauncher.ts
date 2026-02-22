@@ -96,6 +96,12 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
             (logMessage) => session.client.sendClaudeSessionMessage(logMessage)
         );
 
+        const isLifecycleCompletionMessage = (message: string): boolean => (
+            message === 'Context was reset'
+            || message === 'Compaction started'
+            || message === 'Compaction completed'
+        );
+
         permissionHandler.setOnPermissionRequest((toolCallId: string) => {
             messageQueue.releaseToolCall(toolCallId);
         });
@@ -223,26 +229,14 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
 
                 if (logMessage.type === 'assistant' && message.type === 'assistant') {
                     const assistantMsg = message as SDKAssistantMessage;
-                    const toolCallIds: string[] = [];
-
-                    if (assistantMsg.message.content && Array.isArray(assistantMsg.message.content)) {
-                        for (const block of assistantMsg.message.content) {
-                            if (block.type === 'tool_use' && block.id) {
-                                toolCallIds.push(block.id);
-                            }
-                        }
-                    }
-
-                    if (toolCallIds.length > 0) {
-                        const isSidechain = assistantMsg.parent_tool_use_id !== undefined;
-
-                        if (!isSidechain) {
-                            messageQueue.enqueue(logMessage, {
-                                delay: 250,
-                                toolCallIds
-                            });
-                            return;
-                        }
+                    const hasToolUse = Array.isArray(assistantMsg.message.content)
+                        && assistantMsg.message.content.some((block) => block.type === 'tool_use');
+                    const isSidechain = assistantMsg.parent_tool_use_id !== undefined;
+                    if (hasToolUse && !isSidechain) {
+                        // Tool-call assistant messages must not be artificially delayed.
+                        // Delays can accumulate stale assistant outputs and cause one-turn-late replies.
+                        messageQueue.enqueue(logMessage);
+                        return;
                     }
                 }
 
@@ -341,7 +335,11 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         onMessage,
                         onCompletionEvent: (message: string) => {
                             logger.debug(`[remote]: Completion event: ${message}`);
-                            session.client.sendSessionEvent({ type: 'message', message });
+                            // `result.message` may duplicate or lag behind actual assistant output.
+                            // Only keep explicit lifecycle notices.
+                            if (isLifecycleCompletionMessage(message)) {
+                                session.client.sendSessionEvent({ type: 'message', message });
+                            }
                         },
                         onSessionReset: () => {
                             logger.debug('[remote]: Session reset');
