@@ -5,6 +5,7 @@
 # Usage:
 #   ./scripts/redeploy.sh              # full: typecheck + test + build + restart + smoke
 #   ./scripts/redeploy.sh --skip-test  # skip typecheck and test (faster, for trusted changes)
+#   ./scripts/redeploy.sh --clean-sessions  # destructive: kill runner + runner sessions before restart
 #
 # Prerequisites:
 #   - bun installed (~/.bun/bin/bun)
@@ -18,14 +19,17 @@ cd "$REPO_ROOT"
 export PATH="$HOME/.bun/bin:$PATH"
 
 SKIP_TEST=false
+CLEAN_SESSIONS=false
 for arg in "$@"; do
     case "$arg" in
         --skip-test) SKIP_TEST=true ;;
+        --clean-sessions) CLEAN_SESSIONS=true ;;
         *) echo "Unknown flag: $arg"; exit 1 ;;
     esac
 done
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
+HAPI_BIN="$REPO_ROOT/cli/dist-exe/bun-darwin-arm64/hapi"
 
 # ---------- 1. Typecheck + Test ----------
 if [ "$SKIP_TEST" = false ]; then
@@ -40,18 +44,22 @@ fi
 step "Build single-exe (web + embedded assets + binary)"
 bun run build:single-exe
 
-# ---------- 3. Clean runner/sessions ----------
-#
-# Why: runner restart intentionally keeps spawned sessions alive.
-# After CLI/web fixes, those old session processes can keep running stale logic.
-step "Clean runner and runner-spawned sessions"
-"$REPO_ROOT/cli/dist-exe/bun-darwin-arm64/hapi" doctor clean || true
+# ---------- 3. Ensure runner version ----------
+step "Ensure runner is on current CLI version (sessions preserved)"
+"$HAPI_BIN" runner start
 
-# ---------- 4. Restart hub via launchctl ----------
+# ---------- 4. Optional: clean runner sessions ----------
+if [ "$CLEAN_SESSIONS" = true ]; then
+    step "Clean runner and runner-spawned sessions (destructive)"
+    "$HAPI_BIN" doctor clean || true
+    "$HAPI_BIN" runner start
+fi
+
+# ---------- 5. Restart hub via launchctl ----------
 step "Restart hub (launchctl kickstart)"
 launchctl kickstart -k "gui/$(id -u)/org.hapii.hub"
 
-# ---------- 5. Wait for hub ----------
+# ---------- 6. Wait for hub ----------
 step "Waiting for hub to come up"
 for i in $(seq 1 30); do
     if curl -fsS -o /dev/null http://127.0.0.1:3006/version.json 2>/dev/null; then
@@ -64,7 +72,7 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-# ---------- 6. Smoke check ----------
+# ---------- 7. Smoke check ----------
 step "Smoke check"
 
 BUILD=$(curl -fsS http://127.0.0.1:3006/version.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["build"])')
