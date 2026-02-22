@@ -381,6 +381,19 @@ export class SyncEngine {
             return { type: 'error', message: 'Resume session ID unavailable', code: 'resume_unavailable' }
         }
 
+        // Idempotency: if another active session already uses the same resume token,
+        // reuse it instead of spawning a parallel duplicate.
+        const existingResumed = this.findActiveSessionByResumeToken(namespace, resumeToken, access.sessionId)
+        if (existingResumed) {
+            try {
+                await this.sessionCache.mergeSessions(access.sessionId, existingResumed.id, namespace)
+            } catch (error) {
+                const detail = error instanceof Error ? error.message : String(error)
+                console.warn(`[resumeSession] Failed to merge source ${access.sessionId} into existing ${existingResumed.id}: ${detail}`)
+            }
+            return { type: 'success', sessionId: existingResumed.id }
+        }
+
         const onlineMachines = this.machineCache.getOnlineMachinesByNamespace(namespace)
         if (onlineMachines.length === 0) {
             return { type: 'error', message: 'No machine online', code: 'no_machine_online' }
@@ -426,23 +439,33 @@ export class SyncEngine {
             await this.restoreSessionConfigOnResume(session, spawnResult.sessionId)
         } catch (error) {
             const detail = error instanceof Error ? error.message : 'unknown error'
-            return {
-                type: 'error',
-                message: `Failed to restore session config on resume: ${detail}`,
-                code: 'resume_failed'
-            }
+            console.warn(`[resumeSession] Failed to restore session config for ${spawnResult.sessionId}: ${detail}`)
         }
 
         if (spawnResult.sessionId !== access.sessionId) {
             try {
                 await this.sessionCache.mergeSessions(access.sessionId, spawnResult.sessionId, namespace)
             } catch (error) {
-                const message = error instanceof Error ? error.message : 'Failed to merge resumed session'
-                return { type: 'error', message, code: 'resume_failed' }
+                const detail = error instanceof Error ? error.message : String(error)
+                console.warn(`[resumeSession] Failed to merge ${access.sessionId} into ${spawnResult.sessionId}: ${detail}`)
             }
         }
 
         return { type: 'success', sessionId: spawnResult.sessionId }
+    }
+
+    private findActiveSessionByResumeToken(namespace: string, resumeToken: string, sourceSessionId: string): Session | null {
+        const sessions = this.getSessionsByNamespace(namespace)
+        for (const candidate of sessions) {
+            if (!candidate.active || candidate.id === sourceSessionId) {
+                continue
+            }
+            const candidateResumeToken = getResumeTokenFromMetadata(candidate.metadata)
+            if (candidateResumeToken === resumeToken) {
+                return candidate
+            }
+        }
+        return null
     }
 
     private getRestorableSessionConfig(session: Session): RestorableSessionConfig | null {

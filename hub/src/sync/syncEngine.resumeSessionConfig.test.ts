@@ -149,4 +149,76 @@ describe('SyncEngine resumeSession runtime config restore', () => {
             engine.stop()
         }
     })
+
+    it('reuses an existing active session with the same resume token instead of spawning a duplicate', async () => {
+        const store = new Store(':memory:')
+        const machineId = 'machine-3'
+        seedMachine(store, machineId)
+
+        const oldSession = seedResumableSession(store, 'old-session-duplicate-guard', machineId)
+        const existingActiveSession = seedResumableSession(store, 'existing-active-session', machineId)
+
+        const engine = createEngine(store)
+        try {
+            engine.handleMachineAlive({ machineId, time: Date.now() })
+            engine.handleSessionAlive({ sid: existingActiveSession.id, time: Date.now(), thinking: false })
+
+            let spawnCalled = false
+            ;(engine as any).rpcGateway = {
+                spawnSession: async () => {
+                    spawnCalled = true
+                    return { type: 'success', sessionId: 'unexpected-new-session' }
+                },
+                requestSessionConfig: async () => ({ applied: { runtimeConfigVersion: 1 } })
+            }
+
+            const result = await engine.resumeSession(oldSession.id, 'default')
+            expect(result).toEqual({ type: 'success', sessionId: existingActiveSession.id })
+            expect(spawnCalled).toBe(false)
+            expect(engine.getSession(oldSession.id)).toBeUndefined()
+            expect(engine.getSession(existingActiveSession.id)?.active).toBe(true)
+        } finally {
+            engine.stop()
+        }
+    })
+
+    it('keeps resume successful when runtime config restore fails', async () => {
+        const store = new Store(':memory:')
+        const machineId = 'machine-4'
+        seedMachine(store, machineId)
+
+        const oldSession = seedResumableSession(store, 'old-session-config-error', machineId)
+        const newSession = seedResumableSession(store, 'new-session-config-error', machineId)
+        const persisted = store.sessions.updateSessionRuntimeConfig(
+            oldSession.id,
+            {
+                runtimeConfigVersion: 2,
+                permissionMode: 'acceptEdits',
+                modelMode: null,
+                reasoningEffort: null
+            },
+            'default'
+        )
+        expect(persisted).toBe(true)
+
+        const engine = createEngine(store)
+        try {
+            engine.handleMachineAlive({ machineId, time: Date.now() })
+
+            ;(engine as any).rpcGateway = {
+                spawnSession: async () => ({ type: 'success', sessionId: newSession.id }),
+                requestSessionConfig: async () => {
+                    throw new Error('set-session-config unavailable')
+                }
+            }
+            ;(engine as any).waitForSessionActive = async () => true
+
+            const result = await engine.resumeSession(oldSession.id, 'default')
+            expect(result).toEqual({ type: 'success', sessionId: newSession.id })
+            expect(engine.getSession(oldSession.id)).toBeUndefined()
+            expect(engine.getSession(newSession.id)).toBeDefined()
+        } finally {
+            engine.stop()
+        }
+    })
 })
