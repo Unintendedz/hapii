@@ -305,12 +305,15 @@ export function seedMessageWindowFromSession(fromSessionId: string, toSessionId:
     const base = createState(toSessionId)
     const next = buildState(base, {
         messages: [...source.messages],
-        pending: [...source.pending],
-        pendingOverflowCount: source.pendingOverflowCount,
-        pendingOverflowVisibleCount: source.pendingOverflowVisibleCount,
+        // `pending`/`atBottom` are viewport-local ephemeral state.
+        // Do not carry them across resumed/replaced session IDs, or old buffered
+        // messages can leak into the new session and appear as "shifted replies".
+        pending: [],
+        pendingOverflowCount: 0,
+        pendingOverflowVisibleCount: 0,
         hasMore: source.hasMore,
-        warning: source.warning,
-        atBottom: source.atBottom,
+        warning: null,
+        atBottom: true,
         isLoading: false,
         isLoadingMore: false,
     })
