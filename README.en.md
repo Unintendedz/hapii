@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-22
 
+`23:46:09` &ensp; [`61d0d6f`](https://github.com/Unintendedz/hapii/commit/61d0d6f) — Fix delayed/misaligned Codex replies caused by replaying stale `task_complete.last_agent_message` in wrapped event streams
+
 `23:44:03` &ensp; [`85b4399`](https://github.com/Unintendedz/hapii/commit/85b4399) — Fix duplicate assistant replies when wrapped and direct Codex event streams arrive together
 
 `23:39:22` &ensp; [`a0f3aa5`](https://github.com/Unintendedz/hapii/commit/a0f3aa5) — Fix reply misalignment after resume/replacement sessions by preventing pending-buffer and scroll-state carryover; only visible messages are seeded and viewport-ephemeral state is reset

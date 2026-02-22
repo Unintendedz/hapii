@@ -12,6 +12,8 @@
 
 ### 2026-02-22
 
+`23:46:09` &ensp; [`61d0d6f`](https://github.com/Unintendedz/hapii/commit/61d0d6f) — 修复 Codex wrapped 事件流中 `task_complete.last_agent_message` 回灌旧回复导致的消息滞后错位
+
 `23:44:03` &ensp; [`85b4399`](https://github.com/Unintendedz/hapii/commit/85b4399) — 修复 Codex 在 wrapped/direct 双事件流同时到达时重复显示同一条回复的问题
 
 `23:39:22` &ensp; [`a0f3aa5`](https://github.com/Unintendedz/hapii/commit/a0f3aa5) — 修复恢复/替换会话时消息窗口错误继承 pending 缓冲与滚动状态导致的回复错位；仅迁移可见消息并重置临时视口状态
