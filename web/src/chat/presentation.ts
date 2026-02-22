@@ -66,11 +66,7 @@ export function getEventPresentation(event: AgentEvent): EventPresentation {
     if (event.type === 'compact') {
         return { icon: '📦', text: 'Conversation compacted' }
     }
-    try {
-        return { icon: null, text: JSON.stringify(event) }
-    } catch {
-        return { icon: null, text: String(event.type) }
-    }
+    return { icon: null, text: '' }
 }
 
 export function renderEventLabel(event: AgentEvent): string {

@@ -178,10 +178,6 @@ export function isSkippableAgentContent(content: unknown): boolean {
     return Boolean(data.isMeta) || Boolean(data.isCompactSummary)
 }
 
-export function isCodexContent(content: unknown): boolean {
-    return isObject(content) && content.type === 'codex'
-}
-
 export function normalizeAgentRecord(
     messageId: string,
     localId: string | null,
