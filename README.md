@@ -12,6 +12,8 @@
 
 ### 2026-02-23
 
+`00:52:55` &ensp; [`3de7b17`](https://github.com/Unintendedz/hapii/commit/3de7b17) — redeploy 流程增加 runner/会话进程清理，重建后不再让旧会话继续跑旧逻辑，避免“已修复但旧会话仍错位”的假象
+
 `00:42:49` &ensp; [`fb27c57`](https://github.com/Unintendedz/hapii/commit/fb27c57) — 修复 Claude 远程会话中 completion 文本回放导致的回复错位，并取消 tool-call 助手消息延迟发送以避免旧回复滞后写入
 
 ### 2026-02-22
