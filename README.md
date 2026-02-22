@@ -12,6 +12,8 @@
 
 ### 2026-02-23
 
+`01:05:39` &ensp; [`7f857a3`](https://github.com/Unintendedz/hapii/commit/7f857a3) — 调整 redeploy 为“默认保留活跃会话”；会话清理改为 `--clean-sessions` 显式开启，避免升级时误归档全部活跃会话
+
 `00:59:19` &ensp; [`4af319f`](https://github.com/Unintendedz/hapii/commit/4af319f) — 修复会话 resume 非幂等导致的重复拉起并行会话：优先复用同 resume token 的活跃会话，并将配置恢复/会话合并失败降级为告警，避免 500 与孤儿会话残留
 
 `00:52:55` &ensp; [`3de7b17`](https://github.com/Unintendedz/hapii/commit/3de7b17) — redeploy 流程增加 runner/会话进程清理，重建后不再让旧会话继续跑旧逻辑，避免“已修复但旧会话仍错位”的假象

@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-23
 
+`01:05:39` &ensp; [`7f857a3`](https://github.com/Unintendedz/hapii/commit/7f857a3) — Make redeploy preserve active sessions by default; require explicit `--clean-sessions` for destructive cleanup so upgrades no longer archive all active sessions
+
 `00:59:19` &ensp; [`4af319f`](https://github.com/Unintendedz/hapii/commit/4af319f) — Fix non-idempotent session resume spawning parallel duplicates: reuse an active session with the same resume token, and downgrade config-restore/merge failures to warnings to avoid 500s and orphan sessions
 
 `00:52:55` &ensp; [`3de7b17`](https://github.com/Unintendedz/hapii/commit/3de7b17) — Update redeploy to clean runner/session processes so rebuilt fixes are not masked by stale sessions still running old logic
