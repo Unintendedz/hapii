@@ -146,9 +146,17 @@ export function HappyThread(props: {
             const now = Date.now()
             const suppressTopLoad = now < suppressTopLoadUntilRef.current
 
+            // Detect intentional upward scrolling by the user (not auto-scroll jitter).
+            // When new content is appended, scrollHeight increases before auto-scroll
+            // updates scrollTop, creating a brief gap where distanceFromBottom exceeds
+            // the threshold.  We must not treat that gap as "user scrolled away" because
+            // it would route incoming SSE messages to the pending buffer instead of
+            // showing them immediately.
+            const userScrolledUp = prevScrollTop - viewport.scrollTop > 3
+
             if (isNearBottom) {
                 if (!autoScrollEnabledRef.current) setAutoScrollEnabled(true)
-            } else if (autoScrollEnabledRef.current) {
+            } else if (autoScrollEnabledRef.current && userScrolledUp) {
                 setAutoScrollEnabled(false)
             }
 
@@ -174,10 +182,16 @@ export function HappyThread(props: {
             lastScrollTopRef.current = viewport.scrollTop
 
             if (isNearBottom !== atBottomRef.current) {
-                atBottomRef.current = isNearBottom
-                onAtBottomChangeRef.current(isNearBottom)
-                if (isNearBottom) {
-                    onFlushPendingRef.current()
+                if (!isNearBottom && atBottomRef.current && !userScrolledUp) {
+                    // Auto-scroll gap: scrollHeight grew but scrollTop hasn't caught up.
+                    // Keep atBottom=true so incoming messages go straight to the visible
+                    // list instead of being buffered in pending.
+                } else {
+                    atBottomRef.current = isNearBottom
+                    onAtBottomChangeRef.current(isNearBottom)
+                    if (isNearBottom) {
+                        onFlushPendingRef.current()
+                    }
                 }
             }
         }
