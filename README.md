@@ -12,6 +12,8 @@
 
 ### 2026-02-22
 
+`23:33:31` &ensp; [`45ed653`](https://github.com/Unintendedz/hapii/commit/45ed653) — 修复 Codex app-server 新事件格式（`codex/event/*`）未被解析导致 Web 聊天中看不到助手回复的问题
+
 `22:31:25` &ensp; [`ce1148c`](https://github.com/Unintendedz/hapii/commit/ce1148c) — 修复 auto-scroll 竞态条件导致的消息积压 bug：新消息增加 scrollHeight 时，scrollTop 来不及跟上导致 atBottom 被误判为 false，后续 SSE 消息全部进入 pending 队列，每发一条消息才释放一条旧回复
 
 `14:51:08` &ensp; [`5986f96`](https://github.com/Unintendedz/hapii/commit/5986f96) — 设置页新增 Agent 消息气泡开关，可控制助手回复是否显示为气泡样式
