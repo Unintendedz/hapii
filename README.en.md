@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-22
 
+`23:39:22` &ensp; [`a0f3aa5`](https://github.com/Unintendedz/hapii/commit/a0f3aa5) — Fix reply misalignment after resume/replacement sessions by preventing pending-buffer and scroll-state carryover; only visible messages are seeded and viewport-ephemeral state is reset
+
 `23:33:31` &ensp; [`45ed653`](https://github.com/Unintendedz/hapii/commit/45ed653) — Fix missing assistant replies in Web chat when Codex app-server emits the new `codex/event/*` format
 
 `22:31:25` &ensp; [`ce1148c`](https://github.com/Unintendedz/hapii/commit/ce1148c) — Fix auto-scroll race condition that caused message queueing: when new content increased scrollHeight faster than scrollTop could follow, atBottom was falsely set to false, routing all subsequent SSE messages into the pending buffer
