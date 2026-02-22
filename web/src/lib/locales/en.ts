@@ -258,6 +258,8 @@ export default {
   'settings.language.label': 'Language',
   'settings.display.title': 'Display',
   'settings.display.fontSize': 'Font Size',
+  'settings.display.assistantBubble.title': 'Agent message bubbles',
+  'settings.display.assistantBubble.desc': 'Show agent replies in chat bubbles.',
   'settings.commits.title': 'Commits',
   'settings.commits.includeCoAuthoredBy.title': 'Include HAPI credits',
   'settings.commits.includeCoAuthoredBy.desc': 'Adds “via HAPI” and “Co-Authored-By: HAPI …” to AI-generated commit messages.',

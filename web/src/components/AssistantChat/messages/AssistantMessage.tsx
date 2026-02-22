@@ -5,6 +5,7 @@ import { Reasoning, ReasoningGroup } from '@/components/assistant-ui/reasoning'
 import { HappyToolMessage } from '@/components/AssistantChat/messages/ToolMessage'
 import { MessageActionMenu } from '@/components/AssistantChat/messages/MessageActionMenu'
 import { MessageSelectDialog } from '@/components/AssistantChat/messages/MessageSelectDialog'
+import { useHappyChatContext } from '@/components/AssistantChat/context'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { useLongPress } from '@/hooks/useLongPress'
 import { usePlatform } from '@/hooks/usePlatform'
@@ -22,6 +23,7 @@ const MESSAGE_PART_COMPONENTS = {
 } as const
 
 export function HappyAssistantMessage() {
+    const ctx = useHappyChatContext()
     const { haptic } = usePlatform()
     const [menuOpen, setMenuOpen] = useState(false)
     const [menuAnchorPoint, setMenuAnchorPoint] = useState({ x: 0, y: 0 })
@@ -60,9 +62,12 @@ export function HappyAssistantMessage() {
         threshold: 500
     })
 
+    const assistantBubbleClass = 'w-fit min-w-0 max-w-[92%] rounded-xl bg-[var(--app-subtle-bg)] px-3 py-2 text-[var(--app-fg)] shadow-sm overflow-x-hidden'
     const rootClass = toolOnly
         ? 'py-1 min-w-0 max-w-full overflow-x-hidden'
-        : 'px-1 min-w-0 max-w-full overflow-x-hidden'
+        : ctx.assistantBubbleEnabled
+            ? assistantBubbleClass
+            : 'px-1 min-w-0 max-w-full overflow-x-hidden'
 
     if (isCliOutput) {
         return (

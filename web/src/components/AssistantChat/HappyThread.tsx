@@ -79,6 +79,7 @@ export function HappyThread(props: {
     normalizedMessagesCount: number
     messagesVersion: number
     forceScrollToken: number
+    assistantBubbleEnabled: boolean
 }) {
     const { t } = useTranslation()
     const { isTouch } = usePlatform()
@@ -500,7 +501,8 @@ export function HappyThread(props: {
             metadata: props.metadata,
             disabled: props.disabled,
             onRefresh: props.onRefresh,
-            onRetryMessage: props.onRetryMessage
+            onRetryMessage: props.onRetryMessage,
+            assistantBubbleEnabled: props.assistantBubbleEnabled
         }}>
             <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col relative">
                 <ThreadPrimitive.Viewport asChild autoScroll={autoScrollEnabled}>

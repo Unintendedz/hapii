@@ -10,6 +10,7 @@ export type HappyChatContextValue = {
     disabled: boolean
     onRefresh: () => void
     onRetryMessage?: (localId: string) => void
+    assistantBubbleEnabled: boolean
 }
 
 const HappyChatContext = createContext<HappyChatContextValue | null>(null)

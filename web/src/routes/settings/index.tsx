@@ -4,6 +4,7 @@ import { useTranslation, type Locale } from '@/lib/use-translation'
 import { useAppGoBack } from '@/hooks/useAppGoBack'
 import { getElevenLabsSupportedLanguages, getLanguageDisplayName, type Language } from '@/lib/languages'
 import { getFontScaleOptions, useFontScale, type FontScale } from '@/hooks/useFontScale'
+import { useAssistantBubblePreference } from '@/hooks/useAssistantBubblePreference'
 import { PROTOCOL_VERSION } from '@hapi/protocol'
 import { useAppContext } from '@/lib/app-context'
 import { queryKeys } from '@/lib/query-keys'
@@ -84,6 +85,7 @@ export default function SettingsPage() {
     const fontContainerRef = useRef<HTMLDivElement>(null)
     const voiceContainerRef = useRef<HTMLDivElement>(null)
     const { fontScale, setFontScale } = useFontScale()
+    const { assistantBubbleEnabled, setAssistantBubbleEnabled } = useAssistantBubblePreference()
 
     const appSettingsQuery = useQuery({
         queryKey: queryKeys.appSettings,
@@ -142,6 +144,10 @@ export default function SettingsPage() {
             localStorage.setItem('hapi-voice-lang', language.code)
         }
         setIsVoiceOpen(false)
+    }
+
+    const handleAssistantBubbleChange = (enabled: boolean) => {
+        setAssistantBubbleEnabled(enabled)
     }
 
     const handleIncludeCoAuthoredByChange = async (value: boolean) => {
@@ -315,6 +321,26 @@ export default function SettingsPage() {
                                     })}
                                 </div>
                             )}
+                        </div>
+                        <div className="flex w-full items-center justify-between gap-3 px-3 py-3 border-t border-[var(--app-divider)]">
+                            <div className="flex flex-col">
+                                <span className="text-sm text-[var(--app-fg)]">
+                                    {t('settings.display.assistantBubble.title')}
+                                </span>
+                                <span className="text-xs text-[var(--app-hint)]">
+                                    {t('settings.display.assistantBubble.desc')}
+                                </span>
+                            </div>
+                            <label className="relative inline-flex h-5 w-9 items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={assistantBubbleEnabled}
+                                    onChange={(e) => handleAssistantBubbleChange(e.target.checked)}
+                                    className="peer sr-only"
+                                />
+                                <span className="absolute inset-0 rounded-full bg-[var(--app-border)] transition-colors peer-checked:bg-[var(--app-link)]" />
+                                <span className="absolute left-0.5 h-4 w-4 rounded-full bg-[var(--app-bg)] transition-transform peer-checked:translate-x-4" />
+                            </label>
                         </div>
                     </div>
 

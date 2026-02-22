@@ -260,6 +260,8 @@ export default {
   'settings.language.label': '语言',
   'settings.display.title': '显示',
   'settings.display.fontSize': '字体大小',
+  'settings.display.assistantBubble.title': 'Agent 消息气泡',
+  'settings.display.assistantBubble.desc': '将 Agent 回复显示为聊天气泡。',
   'settings.commits.title': '提交',
   'settings.commits.includeCoAuthoredBy.title': '添加 HAPI 署名',
   'settings.commits.includeCoAuthoredBy.desc': '在 AI 生成的 commit message 中附加 “via HAPI” 和 “Co-Authored-By: HAPI …”。',

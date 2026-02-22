@@ -20,6 +20,7 @@ import { useVoiceOptional } from '@/lib/voice-context'
 import { useTranslation } from '@/lib/use-translation'
 import { useToast } from '@/lib/toast-context'
 import { RealtimeVoiceSession, registerSessionStore, registerVoiceHooksStore, voiceHooks } from '@/realtime'
+import { useAssistantBubblePreference } from '@/hooks/useAssistantBubblePreference'
 
 export function SessionChat(props: {
     api: ApiClient
@@ -44,6 +45,7 @@ export function SessionChat(props: {
     const { haptic } = usePlatform()
     const { t } = useTranslation()
     const { addToast } = useToast()
+    const { assistantBubbleEnabled } = useAssistantBubblePreference()
     const navigate = useNavigate()
     const sessionInactive = !props.session.active
     const sessionStarting = sessionInactive && isStartingInactiveSession(props.session)
@@ -378,6 +380,7 @@ export function SessionChat(props: {
                         normalizedMessagesCount={normalizedMessages.length}
                         messagesVersion={props.messagesVersion}
                         forceScrollToken={forceScrollToken}
+                        assistantBubbleEnabled={assistantBubbleEnabled}
                     />
 
                     <HappyComposer

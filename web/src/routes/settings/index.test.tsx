@@ -119,6 +119,11 @@ describe('SettingsPage', () => {
         expect(screen.getAllByText(String(PROTOCOL_VERSION)).length).toBeGreaterThanOrEqual(1)
     })
 
+    it('renders assistant bubble display toggle', () => {
+        renderWithProviders(<SettingsPage />)
+        expect(screen.getAllByText('Agent message bubbles').length).toBeGreaterThanOrEqual(1)
+    })
+
     it('displays the website link with correct URL and security attributes', () => {
         renderWithProviders(<SettingsPage />)
         expect(screen.getAllByText('Website').length).toBeGreaterThanOrEqual(1)
