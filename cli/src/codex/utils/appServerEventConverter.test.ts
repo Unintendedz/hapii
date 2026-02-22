@@ -77,10 +77,96 @@ describe('AppServerEventConverter', () => {
         expect(events).toEqual([{ type: 'agent_reasoning_delta', delta: 'step' }]);
     });
 
+    it('maps summary reasoning deltas', () => {
+        const converter = new AppServerEventConverter();
+
+        const events = converter.handleNotification('item/reasoning/summaryTextDelta', {
+            itemId: 'r1',
+            delta: 'step'
+        });
+        expect(events).toEqual([{ type: 'agent_reasoning_delta', delta: 'step' }]);
+    });
+
     it('maps diff updates', () => {
         const converter = new AppServerEventConverter();
 
         const events = converter.handleNotification('turn/diff/updated', { diff: 'diff --git a b' });
         expect(events).toEqual([{ type: 'turn_diff', unified_diff: 'diff --git a b' }]);
+    });
+
+    it('maps wrapped codex events for task lifecycle', () => {
+        const converter = new AppServerEventConverter();
+
+        const started = converter.handleNotification('codex/event/task_started', {
+            id: 'turn-1',
+            msg: { type: 'task_started', turn_id: 'turn-1' }
+        });
+        expect(started).toEqual([{ type: 'task_started', turn_id: 'turn-1' }]);
+
+        const completed = converter.handleNotification('codex/event/task_complete', {
+            id: 'turn-1',
+            msg: { type: 'task_complete', turn_id: 'turn-1' }
+        });
+        expect(completed).toEqual([{ type: 'task_complete', turn_id: 'turn-1' }]);
+    });
+
+    it('maps wrapped codex agent message', () => {
+        const converter = new AppServerEventConverter();
+
+        const events = converter.handleNotification('codex/event/agent_message', {
+            id: 'turn-1',
+            msg: { type: 'agent_message', message: 'hello' }
+        });
+        expect(events).toEqual([{ type: 'agent_message', message: 'hello' }]);
+    });
+
+    it('maps wrapped codex message deltas via item lifecycle', () => {
+        const converter = new AppServerEventConverter();
+
+        converter.handleNotification('codex/event/agent_message_content_delta', {
+            id: 'turn-1',
+            msg: { type: 'agent_message_content_delta', item_id: 'msg-1', delta: 'Hello' }
+        });
+        converter.handleNotification('codex/event/agent_message_delta', {
+            id: 'turn-1',
+            msg: { type: 'agent_message_delta', item_id: 'msg-1', delta: ' world' }
+        });
+        const completed = converter.handleNotification('codex/event/item_completed', {
+            id: 'turn-1',
+            msg: {
+                type: 'item_completed',
+                item: { type: 'AgentMessage', id: 'msg-1' }
+            }
+        });
+
+        expect(completed).toEqual([{ type: 'agent_message', message: 'Hello world' }]);
+    });
+
+    it('maps wrapped codex item content arrays', () => {
+        const converter = new AppServerEventConverter();
+
+        const completed = converter.handleNotification('codex/event/item_completed', {
+            id: 'turn-1',
+            msg: {
+                type: 'item_completed',
+                item: {
+                    type: 'AgentMessage',
+                    id: 'msg-1',
+                    content: [{ type: 'Text', text: 'hello' }]
+                }
+            }
+        });
+
+        expect(completed).toEqual([{ type: 'agent_message', message: 'hello' }]);
+    });
+
+    it('maps wrapped codex error event', () => {
+        const converter = new AppServerEventConverter();
+
+        const events = converter.handleNotification('codex/event/error', {
+            id: 'turn-1',
+            msg: { type: 'error', message: 'boom' }
+        });
+        expect(events).toEqual([{ type: 'task_failed', turn_id: 'turn-1', error: 'boom' }]);
     });
 });

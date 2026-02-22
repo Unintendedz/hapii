@@ -76,16 +76,267 @@ function extractChanges(value: unknown): Record<string, unknown> | null {
     return null;
 }
 
+function extractTextFromContent(value: unknown): string | null {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        const parts: string[] = [];
+        for (const entry of value) {
+            const record = asRecord(entry);
+            if (!record) continue;
+            const text = asString(record.text ?? record.message ?? record.content);
+            if (text) {
+                parts.push(text);
+            }
+        }
+        return parts.length > 0 ? parts.join('') : null;
+    }
+
+    const record = asRecord(value);
+    if (!record) return null;
+    return asString(record.text ?? record.message ?? record.content);
+}
+
 export class AppServerEventConverter {
     private readonly agentMessageBuffers = new Map<string, string>();
     private readonly reasoningBuffers = new Map<string, string>();
     private readonly commandOutputBuffers = new Map<string, string>();
     private readonly commandMeta = new Map<string, Record<string, unknown>>();
     private readonly fileChangeMeta = new Map<string, Record<string, unknown>>();
+    private readonly fileChangeOutputBuffers = new Map<string, string>();
+
+    private handleCodexEventNotification(method: string, paramsRecord: Record<string, unknown>): ConvertedEvent[] | null {
+        if (!method.startsWith('codex/event/')) {
+            return null;
+        }
+
+        const msg = asRecord(paramsRecord.msg);
+        if (!msg) {
+            return [];
+        }
+
+        const eventType = asString(msg.type) ?? method.slice('codex/event/'.length);
+        const events: ConvertedEvent[] = [];
+        const turnId = asString(msg.turn_id ?? msg.turnId ?? paramsRecord.id);
+
+        if (eventType === 'task_started') {
+            events.push({ type: 'task_started', ...(turnId ? { turn_id: turnId } : {}) });
+            return events;
+        }
+
+        if (eventType === 'task_complete') {
+            const lastAgentMessage = asString(msg.last_agent_message ?? msg.lastAgentMessage);
+            if (lastAgentMessage) {
+                events.push({ type: 'agent_message', message: lastAgentMessage });
+            }
+            events.push({ type: 'task_complete', ...(turnId ? { turn_id: turnId } : {}) });
+            return events;
+        }
+
+        if (eventType === 'error') {
+            const message = asString(msg.message) ?? asString(asRecord(msg.error)?.message);
+            if (message) {
+                events.push({ type: 'task_failed', ...(turnId ? { turn_id: turnId } : {}), error: message });
+            }
+            return events;
+        }
+
+        if (eventType === 'agent_message') {
+            const message = asString(msg.message);
+            if (message) {
+                events.push({ type: 'agent_message', message });
+            }
+            return events;
+        }
+
+        if (eventType === 'agent_message_delta' || eventType === 'agent_message_content_delta') {
+            const itemId = asString(msg.item_id ?? msg.itemId);
+            const delta = asString(msg.delta ?? msg.text ?? msg.message);
+            if (itemId && delta) {
+                const prev = this.agentMessageBuffers.get(itemId) ?? '';
+                this.agentMessageBuffers.set(itemId, prev + delta);
+            }
+            return events;
+        }
+
+        if (eventType === 'agent_reasoning_section_break') {
+            events.push({ type: 'agent_reasoning_section_break' });
+            return events;
+        }
+
+        if (eventType === 'agent_reasoning_delta' || eventType === 'reasoning_content_delta') {
+            const itemId = asString(msg.item_id ?? msg.itemId) ?? 'reasoning';
+            const delta = asString(msg.delta ?? msg.text ?? msg.message);
+            if (delta) {
+                const prev = this.reasoningBuffers.get(itemId) ?? '';
+                this.reasoningBuffers.set(itemId, prev + delta);
+                events.push({ type: 'agent_reasoning_delta', delta });
+            }
+            return events;
+        }
+
+        if (eventType === 'agent_reasoning') {
+            const itemId = asString(msg.item_id ?? msg.itemId) ?? 'reasoning';
+            const text = asString(msg.text ?? msg.message) ?? this.reasoningBuffers.get(itemId);
+            if (text) {
+                events.push({ type: 'agent_reasoning', text });
+            }
+            this.reasoningBuffers.delete(itemId);
+            return events;
+        }
+
+        if (eventType === 'exec_command_begin') {
+            const callId = asString(msg.call_id ?? msg.callId ?? msg.item_id ?? msg.itemId);
+            if (!callId) {
+                return events;
+            }
+            const command = extractCommand(msg.command ?? msg.cmd ?? msg.args);
+            const cwd = asString(msg.cwd ?? msg.workingDirectory ?? msg.working_directory);
+            const autoApproved = asBoolean(msg.autoApproved ?? msg.auto_approved);
+            const meta: Record<string, unknown> = {};
+            if (command) meta.command = command;
+            if (cwd) meta.cwd = cwd;
+            if (autoApproved !== null) meta.auto_approved = autoApproved;
+            this.commandMeta.set(callId, meta);
+            events.push({ type: 'exec_command_begin', call_id: callId, ...meta });
+            return events;
+        }
+
+        if (eventType === 'exec_command_output_delta') {
+            const callId = asString(msg.call_id ?? msg.callId ?? msg.item_id ?? msg.itemId);
+            const delta = asString(msg.delta ?? msg.text ?? msg.output ?? msg.stdout);
+            if (callId && delta) {
+                const prev = this.commandOutputBuffers.get(callId) ?? '';
+                this.commandOutputBuffers.set(callId, prev + delta);
+            }
+            return events;
+        }
+
+        if (eventType === 'exec_command_end') {
+            const callId = asString(msg.call_id ?? msg.callId ?? msg.item_id ?? msg.itemId);
+            if (!callId) {
+                return events;
+            }
+            const meta = this.commandMeta.get(callId) ?? {};
+            const output = asString(msg.output ?? msg.result ?? msg.stdout) ?? this.commandOutputBuffers.get(callId);
+            const stderr = asString(msg.stderr);
+            const error = asString(msg.error);
+            const exitCode = asNumber(msg.exitCode ?? msg.exit_code ?? msg.exitcode);
+            const status = asString(msg.status);
+
+            events.push({
+                type: 'exec_command_end',
+                call_id: callId,
+                ...meta,
+                ...(output ? { output } : {}),
+                ...(stderr ? { stderr } : {}),
+                ...(error ? { error } : {}),
+                ...(exitCode !== null ? { exit_code: exitCode } : {}),
+                ...(status ? { status } : {})
+            });
+
+            this.commandMeta.delete(callId);
+            this.commandOutputBuffers.delete(callId);
+            return events;
+        }
+
+        if (eventType === 'patch_apply_begin') {
+            const callId = asString(msg.call_id ?? msg.callId ?? msg.item_id ?? msg.itemId);
+            if (!callId) {
+                return events;
+            }
+            const changes = extractChanges(msg.changes ?? msg.change ?? msg.diff);
+            const autoApproved = asBoolean(msg.autoApproved ?? msg.auto_approved);
+            const meta: Record<string, unknown> = {};
+            if (changes) meta.changes = changes;
+            if (autoApproved !== null) meta.auto_approved = autoApproved;
+            this.fileChangeMeta.set(callId, meta);
+            events.push({ type: 'patch_apply_begin', call_id: callId, ...meta });
+            return events;
+        }
+
+        if (eventType === 'patch_apply_end') {
+            const callId = asString(msg.call_id ?? msg.callId ?? msg.item_id ?? msg.itemId);
+            if (!callId) {
+                return events;
+            }
+            const meta = this.fileChangeMeta.get(callId) ?? {};
+            const stdout = asString(msg.stdout ?? msg.output) ?? this.fileChangeOutputBuffers.get(callId);
+            const stderr = asString(msg.stderr);
+            const success = asBoolean(msg.success ?? msg.ok ?? msg.applied ?? msg.status === 'completed');
+            events.push({
+                type: 'patch_apply_end',
+                call_id: callId,
+                ...meta,
+                ...(stdout ? { stdout } : {}),
+                ...(stderr ? { stderr } : {}),
+                success: success ?? false
+            });
+            this.fileChangeMeta.delete(callId);
+            this.fileChangeOutputBuffers.delete(callId);
+            return events;
+        }
+
+        if (eventType === 'turn_diff') {
+            const diff = asString(msg.unified_diff ?? msg.unifiedDiff ?? msg.diff);
+            if (diff) {
+                events.push({ type: 'turn_diff', unified_diff: diff });
+            }
+            return events;
+        }
+
+        if (eventType === 'token_count') {
+            const info = asRecord(msg.info) ?? {};
+            events.push({ type: 'token_count', info });
+            return events;
+        }
+
+        if (eventType === 'item_started' || eventType === 'item_completed') {
+            const item = asRecord(msg.item);
+            if (!item) {
+                return events;
+            }
+            const mappedEvents = this.handleNotification(
+                eventType === 'item_started' ? 'item/started' : 'item/completed',
+                {
+                    item,
+                    threadId: msg.thread_id ?? msg.threadId,
+                    turnId: msg.turn_id ?? msg.turnId
+                }
+            );
+            events.push(...mappedEvents);
+            return events;
+        }
+
+        if (
+            eventType === 'user_message'
+            || eventType === 'mcp_startup_update'
+            || eventType === 'mcp_startup_complete'
+            || eventType === 'mcp_tool_call_begin'
+            || eventType === 'mcp_tool_call_end'
+            || eventType === 'skills_update_available'
+            || eventType === 'web_search_begin'
+            || eventType === 'web_search_end'
+            || eventType === 'context_compacted'
+            || eventType === 'plan_update'
+            || eventType === 'terminal_interaction'
+        ) {
+            return events;
+        }
+
+        return null;
+    }
 
     handleNotification(method: string, params: unknown): ConvertedEvent[] {
         const events: ConvertedEvent[] = [];
         const paramsRecord = asRecord(params) ?? {};
+
+        const wrappedEvents = this.handleCodexEventNotification(method, paramsRecord);
+        if (wrappedEvents) {
+            return wrappedEvents;
+        }
 
         if (method === 'thread/started' || method === 'thread/resumed') {
             const thread = asRecord(paramsRecord.thread) ?? paramsRecord;
@@ -158,7 +409,7 @@ export class AppServerEventConverter {
             return events;
         }
 
-        if (method === 'item/reasoning/textDelta') {
+        if (method === 'item/reasoning/textDelta' || method === 'item/reasoning/summaryTextDelta') {
             const itemId = extractItemId(paramsRecord) ?? 'reasoning';
             const delta = asString(paramsRecord.delta ?? paramsRecord.text ?? paramsRecord.message);
             if (delta) {
@@ -184,6 +435,16 @@ export class AppServerEventConverter {
             return events;
         }
 
+        if (method === 'item/fileChange/outputDelta') {
+            const itemId = extractItemId(paramsRecord);
+            const delta = asString(paramsRecord.delta ?? paramsRecord.text ?? paramsRecord.output ?? paramsRecord.stdout);
+            if (itemId && delta) {
+                const prev = this.fileChangeOutputBuffers.get(itemId) ?? '';
+                this.fileChangeOutputBuffers.set(itemId, prev + delta);
+            }
+            return events;
+        }
+
         if (method === 'item/started' || method === 'item/completed') {
             const item = extractItem(paramsRecord);
             if (!item) return events;
@@ -195,9 +456,15 @@ export class AppServerEventConverter {
                 return events;
             }
 
+            if (itemType === 'usermessage') {
+                return events;
+            }
+
             if (itemType === 'agentmessage') {
                 if (method === 'item/completed') {
-                    const text = asString(item.text ?? item.message ?? item.content) ?? this.agentMessageBuffers.get(itemId);
+                    const text = asString(item.text ?? item.message)
+                        ?? extractTextFromContent(item.content)
+                        ?? this.agentMessageBuffers.get(itemId);
                     if (text) {
                         events.push({ type: 'agent_message', message: text });
                     }
@@ -208,7 +475,9 @@ export class AppServerEventConverter {
 
             if (itemType === 'reasoning') {
                 if (method === 'item/completed') {
-                    const text = asString(item.text ?? item.message ?? item.content) ?? this.reasoningBuffers.get(itemId);
+                    const text = asString(item.text ?? item.message)
+                        ?? extractTextFromContent(item.content)
+                        ?? this.reasoningBuffers.get(itemId);
                     if (text) {
                         events.push({ type: 'agent_reasoning', text });
                     }
@@ -279,7 +548,7 @@ export class AppServerEventConverter {
 
                 if (method === 'item/completed') {
                     const meta = this.fileChangeMeta.get(itemId) ?? {};
-                    const stdout = asString(item.stdout ?? item.output);
+                    const stdout = asString(item.stdout ?? item.output) ?? this.fileChangeOutputBuffers.get(itemId);
                     const stderr = asString(item.stderr);
                     const success = asBoolean(item.success ?? item.ok ?? item.applied ?? item.status === 'completed');
 
@@ -293,6 +562,7 @@ export class AppServerEventConverter {
                     });
 
                     this.fileChangeMeta.delete(itemId);
+                    this.fileChangeOutputBuffers.delete(itemId);
                 }
 
                 return events;
@@ -309,5 +579,6 @@ export class AppServerEventConverter {
         this.commandOutputBuffers.clear();
         this.commandMeta.clear();
         this.fileChangeMeta.clear();
+        this.fileChangeOutputBuffers.clear();
     }
 }
