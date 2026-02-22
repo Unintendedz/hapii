@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-23
 
+`00:59:19` &ensp; [`4af319f`](https://github.com/Unintendedz/hapii/commit/4af319f) — Fix non-idempotent session resume spawning parallel duplicates: reuse an active session with the same resume token, and downgrade config-restore/merge failures to warnings to avoid 500s and orphan sessions
+
 `00:52:55` &ensp; [`3de7b17`](https://github.com/Unintendedz/hapii/commit/3de7b17) — Update redeploy to clean runner/session processes so rebuilt fixes are not masked by stale sessions still running old logic
 
 `00:42:49` &ensp; [`fb27c57`](https://github.com/Unintendedz/hapii/commit/fb27c57) — Fix misaligned Claude replies caused by completion-text replay in remote sessions, and remove delayed tool-call assistant sends to prevent stale reply writeback

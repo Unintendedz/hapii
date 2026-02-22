@@ -12,6 +12,8 @@
 
 ### 2026-02-23
 
+`00:59:19` &ensp; [`4af319f`](https://github.com/Unintendedz/hapii/commit/4af319f) — 修复会话 resume 非幂等导致的重复拉起并行会话：优先复用同 resume token 的活跃会话，并将配置恢复/会话合并失败降级为告警，避免 500 与孤儿会话残留
+
 `00:52:55` &ensp; [`3de7b17`](https://github.com/Unintendedz/hapii/commit/3de7b17) — redeploy 流程增加 runner/会话进程清理，重建后不再让旧会话继续跑旧逻辑，避免“已修复但旧会话仍错位”的假象
 
 `00:42:49` &ensp; [`fb27c57`](https://github.com/Unintendedz/hapii/commit/fb27c57) — 修复 Claude 远程会话中 completion 文本回放导致的回复错位，并取消 tool-call 助手消息延迟发送以避免旧回复滞后写入
