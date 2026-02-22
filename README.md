@@ -12,6 +12,8 @@
 
 ### 2026-02-22
 
+`23:44:03` &ensp; [`85b4399`](https://github.com/Unintendedz/hapii/commit/85b4399) — 修复 Codex 在 wrapped/direct 双事件流同时到达时重复显示同一条回复的问题
+
 `23:39:22` &ensp; [`a0f3aa5`](https://github.com/Unintendedz/hapii/commit/a0f3aa5) — 修复恢复/替换会话时消息窗口错误继承 pending 缓冲与滚动状态导致的回复错位；仅迁移可见消息并重置临时视口状态
 
 `23:33:31` &ensp; [`45ed653`](https://github.com/Unintendedz/hapii/commit/45ed653) — 修复 Codex app-server 新事件格式（`codex/event/*`）未被解析导致 Web 聊天中看不到助手回复的问题
