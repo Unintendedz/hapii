@@ -390,10 +390,26 @@ export function ingestIncomingMessages(sessionId: string, incoming: DecryptedMes
     }
     updateState(sessionId, (prev) => {
         if (prev.atBottom) {
-            const merged = mergeMessages(prev.messages, incoming)
+            // Flush any accumulated pending messages alongside the new incoming ones.
+            // Without this, messages that entered pending (e.g. while atBottom briefly
+            // flipped to false due to scroll events) would stay stuck until an explicit
+            // flushPendingMessages call, causing a "queued responses" effect.
+            const allIncoming = prev.pending.length > 0
+                ? [...prev.pending, ...incoming]
+                : incoming
+            const merged = mergeMessages(prev.messages, allIncoming)
             const trimmed = trimVisible(merged, 'append')
-            const pending = filterPendingAgainstVisible(prev.pending, trimmed)
-            return buildState(prev, { messages: trimmed, pending })
+            if (prev.pending.length > 0) {
+                return buildState(prev, {
+                    messages: trimmed,
+                    pending: [],
+                    pendingOverflowCount: 0,
+                    pendingVisibleCount: 0,
+                    pendingOverflowVisibleCount: 0,
+                    warning: prev.pendingOverflowVisibleCount > 0 ? prev.warning : null,
+                })
+            }
+            return buildState(prev, { messages: trimmed, pending: [] })
         }
         const pendingResult = mergeIntoPending(prev, incoming)
         return buildState(prev, {
@@ -438,10 +454,26 @@ export function setAtBottom(sessionId: string, atBottom: boolean): void {
 
 export function appendOptimisticMessage(sessionId: string, message: DecryptedMessage): void {
     updateState(sessionId, (prev) => {
-        const merged = mergeMessages(prev.messages, [message])
+        // Flush any accumulated pending messages alongside the optimistic message.
+        // This ensures that when the user sends a new message (which sets atBottom=true),
+        // any buffered responses that arrived while scrolled away are also shown.
+        const allNew = prev.pending.length > 0
+            ? [...prev.pending, message]
+            : [message]
+        const merged = mergeMessages(prev.messages, allNew)
         const trimmed = trimVisible(merged, 'append')
-        const pending = filterPendingAgainstVisible(prev.pending, trimmed)
-        return buildState(prev, { messages: trimmed, pending, atBottom: true })
+        if (prev.pending.length > 0) {
+            return buildState(prev, {
+                messages: trimmed,
+                pending: [],
+                pendingOverflowCount: 0,
+                pendingVisibleCount: 0,
+                pendingOverflowVisibleCount: 0,
+                atBottom: true,
+                warning: prev.pendingOverflowVisibleCount > 0 ? prev.warning : null,
+            })
+        }
+        return buildState(prev, { messages: trimmed, pending: [], atBottom: true })
     })
 }
 
