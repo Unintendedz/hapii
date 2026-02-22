@@ -12,6 +12,8 @@
 
 ### 2026-02-22
 
+`14:51:08` &ensp; [`5986f96`](https://github.com/Unintendedz/hapii/commit/5986f96) — 设置页新增 Agent 消息气泡开关，可控制助手回复是否显示为气泡样式
+
 `12:03:23` &ensp; [`822a0ff`](https://github.com/Unintendedz/hapii/commit/822a0ff) — 修复未识别的系统消息（如 rate_limit_event）以原始 JSON 形式显示在聊天界面中的问题
 
 ### 2026-02-21

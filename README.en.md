@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-22
 
+`14:51:08` &ensp; [`5986f96`](https://github.com/Unintendedz/hapii/commit/5986f96) — Add a Settings toggle for Agent message bubbles to control whether assistant replies use bubble styling
+
 `12:03:23` &ensp; [`822a0ff`](https://github.com/Unintendedz/hapii/commit/822a0ff) — Fix unrecognized system events (e.g. rate_limit_event) rendering as raw JSON blobs in the chat UI
 
 ### 2026-02-21
