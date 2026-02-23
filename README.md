@@ -12,6 +12,8 @@
 
 ### 2026-02-23
 
+`11:05:42` &ensp; [`27ef787`](https://github.com/Unintendedz/hapii/commit/27ef787) — 修复 Codex wrapped 事件流未解析 `turn_aborted` 导致停止后界面持续转圈的问题
+
 `10:59:00` &ensp; [`3215e36`](https://github.com/Unintendedz/hapii/commit/3215e36) — 修复 Codex 远程会话停止按钮偶发失效：在 turnId 延迟可用时补发中断，确保点击停止能真正打断运行
 
 `01:05:39` &ensp; [`7f857a3`](https://github.com/Unintendedz/hapii/commit/7f857a3) — 调整 redeploy 为“默认保留活跃会话”；会话清理改为 `--clean-sessions` 显式开启，避免升级时误归档全部活跃会话

@@ -136,6 +136,11 @@ export class AppServerEventConverter {
             return events;
         }
 
+        if (eventType === 'turn_aborted' || eventType === 'task_aborted') {
+            events.push({ type: 'turn_aborted', ...(turnId ? { turn_id: turnId } : {}) });
+            return events;
+        }
+
         if (eventType === 'error') {
             const message = asString(msg.message) ?? asString(asRecord(msg.error)?.message);
             if (message) {

@@ -110,6 +110,16 @@ describe('AppServerEventConverter', () => {
         expect(completed).toEqual([{ type: 'task_complete', turn_id: 'turn-1' }]);
     });
 
+    it('maps wrapped codex turn_aborted events', () => {
+        const converter = new AppServerEventConverter();
+
+        const aborted = converter.handleNotification('codex/event/turn_aborted', {
+            id: 'turn-1',
+            msg: { type: 'turn_aborted', turn_id: 'turn-1', reason: 'interrupted' }
+        });
+        expect(aborted).toEqual([{ type: 'turn_aborted', turn_id: 'turn-1' }]);
+    });
+
     it('maps wrapped codex agent message', () => {
         const converter = new AppServerEventConverter();
 
