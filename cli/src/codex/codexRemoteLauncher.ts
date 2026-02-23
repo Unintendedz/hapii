@@ -44,6 +44,8 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
     private abortController: AbortController = new AbortController();
     private currentThreadId: string | null = null;
     private currentTurnId: string | null = null;
+    private abortRequested = false;
+    private interruptInFlightTurnKey: string | null = null;
 
     constructor(session: CodexSession) {
         super(process.env.DEBUG ? session.logPath : undefined);
@@ -57,22 +59,45 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
         return React.createElement(CodexDisplay, context);
     }
 
+    private async interruptCurrentTurn(trigger: string): Promise<void> {
+        if (!this.useAppServer || !this.appServerClient) {
+            return;
+        }
+        if (!this.currentThreadId || !this.currentTurnId) {
+            return;
+        }
+
+        const threadId = this.currentThreadId;
+        const turnId = this.currentTurnId;
+        const turnKey = `${threadId}:${turnId}`;
+        if (this.interruptInFlightTurnKey === turnKey) {
+            return;
+        }
+
+        this.interruptInFlightTurnKey = turnKey;
+        try {
+            await this.appServerClient.interruptTurn({
+                threadId,
+                turnId
+            });
+            logger.debug(`[Codex] Interrupt request sent (${trigger}) for turn ${turnId}`);
+        } catch (error) {
+            logger.debug(`[Codex] Error interrupting app-server turn (${trigger}):`, error);
+        } finally {
+            if (this.interruptInFlightTurnKey === turnKey) {
+                this.interruptInFlightTurnKey = null;
+            }
+        }
+    }
+
     private async handleAbort(): Promise<void> {
         logger.debug('[Codex] Abort requested - stopping current task');
         try {
             if (this.useAppServer && this.appServerClient) {
-                if (this.currentThreadId && this.currentTurnId) {
-                    try {
-                        await this.appServerClient.interruptTurn({
-                            threadId: this.currentThreadId,
-                            turnId: this.currentTurnId
-                        });
-                    } catch (error) {
-                        logger.debug('[Codex] Error interrupting app-server turn:', error);
-                    }
-                }
-
-                this.currentTurnId = null;
+                this.abortRequested = this.session.thinking;
+                await this.interruptCurrentTurn('user-abort');
+            } else {
+                this.abortRequested = false;
             }
 
             this.abortController.abort();
@@ -237,11 +262,16 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                 const turnId = asString(msg.turn_id ?? msg.turnId);
                 if (turnId) {
                     this.currentTurnId = turnId;
+                    if (useAppServer && this.abortRequested) {
+                        void this.interruptCurrentTurn('deferred-task-started');
+                    }
                 }
             }
 
             if (msgType === 'task_complete' || msgType === 'turn_aborted' || msgType === 'task_failed') {
                 this.currentTurnId = null;
+                this.abortRequested = false;
+                this.interruptInFlightTurnKey = null;
             }
 
             if (!useAppServer) {
@@ -546,18 +576,11 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                 session.sendSessionEvent({ type: 'message', message: 'Started a new chat (context cleared).' });
 
                 if (useAppServer && appServerClient) {
-                    if (this.currentThreadId && this.currentTurnId) {
-                        try {
-                            await appServerClient.interruptTurn({
-                                threadId: this.currentThreadId,
-                                turnId: this.currentTurnId
-                            });
-                        } catch (error) {
-                            logger.debug('[Codex] Error interrupting turn for /new:', error);
-                        }
-                    }
+                    await this.interruptCurrentTurn('/new');
                     this.currentTurnId = null;
                     this.currentThreadId = null;
+                    this.abortRequested = false;
+                    this.interruptInFlightTurnKey = null;
                 } else {
                     mcpClient?.clearSession();
                 }
@@ -657,6 +680,9 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                         const turnId = asString(turn?.id);
                         if (turnId) {
                             this.currentTurnId = turnId;
+                            if (this.abortRequested) {
+                                void this.interruptCurrentTurn('deferred-turn-start-response');
+                            }
                         }
                     } else if (mcpClient) {
                         const startConfig: CodexSessionConfig = buildCodexStartConfig({
@@ -696,6 +722,9 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     const turnId = asString(turn?.id);
                     if (turnId) {
                         this.currentTurnId = turnId;
+                        if (this.abortRequested) {
+                            void this.interruptCurrentTurn('deferred-turn-start-response');
+                        }
                     }
                 } else if (mcpClient) {
                     await mcpClient.continueSession(message.message, { signal: this.abortController.signal });
@@ -722,6 +751,8 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
                     if (useAppServer) {
                         this.currentTurnId = null;
                         this.currentThreadId = null;
+                        this.abortRequested = false;
+                        this.interruptInFlightTurnKey = null;
                         wasCreated = false;
                     }
                 }
