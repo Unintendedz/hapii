@@ -12,7 +12,7 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-23
 
-`10:59:00` &ensp; [`HASH_PLACEHOLDER`](https://github.com/Unintendedz/hapii/commit/HASH_PLACEHOLDER) — Fix intermittent no-op stop button in Codex remote sessions by deferring turn interruption until turnId is available, ensuring stop actually interrupts running turns
+`10:59:00` &ensp; [`3215e36`](https://github.com/Unintendedz/hapii/commit/3215e36) — Fix intermittent no-op stop button in Codex remote sessions by deferring turn interruption until turnId is available, ensuring stop actually interrupts running turns
 
 `01:05:39` &ensp; [`7f857a3`](https://github.com/Unintendedz/hapii/commit/7f857a3) — Make redeploy preserve active sessions by default; require explicit `--clean-sessions` for destructive cleanup so upgrades no longer archive all active sessions
 
