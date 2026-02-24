@@ -1,4 +1,5 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
     Navigate,
@@ -99,6 +100,73 @@ function SettingsIcon(props: { className?: string }) {
     )
 }
 
+function ChevronIcon(props: { className?: string; direction: 'left' | 'right' }) {
+    const points = props.direction === 'left'
+        ? '15 18 9 12 15 6'
+        : '9 18 15 12 9 6'
+
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={props.className}
+        >
+            <polyline points={points} />
+        </svg>
+    )
+}
+
+const SIDEBAR_WIDTH_STORAGE_KEY = 'hapi:sessions-sidebar-width'
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'hapi:sessions-sidebar-collapsed'
+const SIDEBAR_DEFAULT_WIDTH = 420
+const SIDEBAR_MIN_WIDTH = 300
+const SIDEBAR_MAX_WIDTH = 760
+const SIDEBAR_COLLAPSED_WIDTH = 56
+const SIDEBAR_WIDTH_CSS_VAR = '--sessions-sidebar-width'
+
+function resolveSidebarMaxWidth(viewportWidth: number): number {
+    const preferredMax = Math.floor(viewportWidth * 0.65)
+    return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, preferredMax))
+}
+
+function clampSidebarWidth(rawWidth: number, viewportWidth: number): number {
+    const minWidth = SIDEBAR_MIN_WIDTH
+    const maxWidth = resolveSidebarMaxWidth(viewportWidth)
+    return Math.min(Math.max(rawWidth, minWidth), maxWidth)
+}
+
+function readSidebarWidth(): number {
+    if (typeof window === 'undefined') {
+        return SIDEBAR_DEFAULT_WIDTH
+    }
+
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY)
+    if (raw === null) {
+        return clampSidebarWidth(SIDEBAR_DEFAULT_WIDTH, window.innerWidth)
+    }
+
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) {
+        return clampSidebarWidth(SIDEBAR_DEFAULT_WIDTH, window.innerWidth)
+    }
+
+    return clampSidebarWidth(parsed, window.innerWidth)
+}
+
+function readSidebarCollapsed(): boolean {
+    if (typeof window === 'undefined') {
+        return false
+    }
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+}
+
 function resolveQuickCreateAgent(flavor: string | null | undefined): 'claude' | 'codex' | 'gemini' | 'opencode' | undefined {
     if (flavor === 'claude' || flavor === 'codex' || flavor === 'gemini' || flavor === 'opencode') {
         return flavor
@@ -125,6 +193,11 @@ function SessionsPage() {
     const pathname = useLocation({ select: location => location.pathname })
     const matchRoute = useMatchRoute()
     const { t } = useTranslation()
+    const [sidebarWidth, setSidebarWidth] = useState<number>(() => readSidebarWidth())
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => readSidebarCollapsed())
+    const [isSidebarResizing, setIsSidebarResizing] = useState(false)
+    const sidebarResizeStartXRef = useRef(0)
+    const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH)
     const {
         activeSessions,
         archivedSessions,
@@ -162,61 +235,178 @@ function SessionsPage() {
     const sessionMatch = matchRoute({ to: '/sessions/$sessionId', fuzzy: true })
     const selectedSessionId = sessionMatch && sessionMatch.sessionId !== 'new' ? sessionMatch.sessionId : null
     const isSessionsIndex = pathname === '/sessions' || pathname === '/sessions/'
+    const sidebarStyle = {
+        [SIDEBAR_WIDTH_CSS_VAR]: `${isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth}px`,
+    } as CSSProperties
+
+    useEffect(() => {
+        window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
+    }, [sidebarWidth])
+
+    useEffect(() => {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, isSidebarCollapsed ? 'true' : 'false')
+    }, [isSidebarCollapsed])
+
+    useEffect(() => {
+        const handleWindowResize = () => {
+            setSidebarWidth(prev => clampSidebarWidth(prev, window.innerWidth))
+        }
+
+        window.addEventListener('resize', handleWindowResize)
+        return () => {
+            window.removeEventListener('resize', handleWindowResize)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!isSidebarResizing) {
+            return
+        }
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const delta = event.clientX - sidebarResizeStartXRef.current
+            const nextWidth = sidebarResizeStartWidthRef.current + delta
+            setSidebarWidth(clampSidebarWidth(nextWidth, window.innerWidth))
+        }
+
+        const stopResizing = () => {
+            setIsSidebarResizing(false)
+        }
+
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+
+        window.addEventListener('pointermove', handlePointerMove)
+        window.addEventListener('pointerup', stopResizing)
+        window.addEventListener('pointercancel', stopResizing)
+
+        return () => {
+            document.body.style.cursor = ''
+            document.body.style.userSelect = ''
+            window.removeEventListener('pointermove', handlePointerMove)
+            window.removeEventListener('pointerup', stopResizing)
+            window.removeEventListener('pointercancel', stopResizing)
+        }
+    }, [isSidebarResizing])
+
+    const handleSidebarResizeStart = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+        if (event.button !== 0) {
+            return
+        }
+
+        event.preventDefault()
+        sidebarResizeStartXRef.current = event.clientX
+        sidebarResizeStartWidthRef.current = sidebarWidth
+        setIsSidebarResizing(true)
+    }, [sidebarWidth])
+
+    const collapseSidebar = useCallback(() => {
+        setIsSidebarResizing(false)
+        setIsSidebarCollapsed(true)
+    }, [])
+
+    const expandSidebar = useCallback(() => {
+        setIsSidebarCollapsed(false)
+    }, [])
 
     return (
         <div className="flex h-full min-h-0">
             <div
-                className={`${isSessionsIndex ? 'flex' : 'hidden lg:flex'} w-full lg:w-[420px] xl:w-[480px] shrink-0 min-h-0 flex-col bg-[var(--app-bg)] lg:border-r lg:border-[var(--app-divider)]`}
+                className={[
+                    isSessionsIndex ? 'flex' : 'hidden lg:flex',
+                    'relative w-full shrink-0 min-h-0 flex-col bg-[var(--app-bg)] lg:border-r lg:border-[var(--app-divider)]',
+                    'lg:w-[var(--sessions-sidebar-width)]'
+                ].join(' ')}
+                style={sidebarStyle}
             >
-                <div className="bg-[var(--app-bg)] pt-[env(safe-area-inset-top)]">
-                    <div className="mx-auto w-full max-w-content flex items-center justify-between px-3 py-2">
-                        <div className="text-xs text-[var(--app-hint)]">
-                            {t('sessions.count', { n: totalSessions, m: projectCount })}
+                <div className={`${isSidebarCollapsed ? 'lg:hidden' : ''} flex min-h-0 flex-1 flex-col`}>
+                    <div className="bg-[var(--app-bg)] pt-[env(safe-area-inset-top)]">
+                        <div className="mx-auto w-full max-w-content flex items-center justify-between px-3 py-2">
+                            <div className="text-xs text-[var(--app-hint)]">
+                                {t('sessions.count', { n: totalSessions, m: projectCount })}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate({ to: '/settings' })}
+                                    className="p-1.5 rounded-full text-[var(--app-hint)] hover:text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)] transition-colors"
+                                    title={t('settings.title')}
+                                >
+                                    <SettingsIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate({ to: '/sessions/new', search: {} })}
+                                    className="session-list-new-button p-1.5 rounded-full text-[var(--app-link)] transition-colors"
+                                    title={t('sessions.new')}
+                                >
+                                    <PlusIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={collapseSidebar}
+                                    className="hidden lg:flex p-1.5 rounded-full text-[var(--app-hint)] hover:text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)] transition-colors"
+                                    title={t('sessions.sidebar.collapse')}
+                                    aria-label={t('sessions.sidebar.collapse')}
+                                >
+                                    <ChevronIcon direction="left" className="h-5 w-5" />
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => navigate({ to: '/settings' })}
-                                className="p-1.5 rounded-full text-[var(--app-hint)] hover:text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)] transition-colors"
-                                title={t('settings.title')}
-                            >
-                                <SettingsIcon className="h-5 w-5" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => navigate({ to: '/sessions/new', search: {} })}
-                                className="session-list-new-button p-1.5 rounded-full text-[var(--app-link)] transition-colors"
-                                title={t('sessions.new')}
-                            >
-                                <PlusIcon className="h-5 w-5" />
-                            </button>
-                        </div>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto desktop-scrollbar-left">
+                        {error ? (
+                            <div className="mx-auto w-full max-w-content px-3 py-2">
+                                <div className="text-sm text-red-600">{error}</div>
+                            </div>
+                        ) : null}
+                        <SessionList
+                            activeSessions={activeSessions}
+                            archivedSessions={archivedSessions}
+                            archivedTotal={archivedTotal}
+                            onQuickCreateInDirectory={handleQuickCreateInDirectory}
+                            selectedSessionId={selectedSessionId}
+                            onSelect={(sessionId) => navigate({
+                                to: '/sessions/$sessionId',
+                                params: { sessionId },
+                            })}
+                            onNewSession={() => navigate({ to: '/sessions/new', search: {} })}
+                            onRefresh={handleRefresh}
+                            isLoading={isLoading}
+                            renderHeader={false}
+                            api={api}
+                        />
                     </div>
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-y-auto desktop-scrollbar-left">
-                    {error ? (
-                        <div className="mx-auto w-full max-w-content px-3 py-2">
-                            <div className="text-sm text-red-600">{error}</div>
+                {isSidebarCollapsed ? (
+                    <div className="hidden h-full min-h-0 lg:flex lg:flex-col">
+                        <div className="bg-[var(--app-bg)] pt-[env(safe-area-inset-top)]">
+                            <div className="flex items-center justify-center px-2 py-2">
+                                <button
+                                    type="button"
+                                    onClick={expandSidebar}
+                                    className="p-1.5 rounded-full text-[var(--app-hint)] hover:text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)] transition-colors"
+                                    title={t('sessions.sidebar.expand')}
+                                    aria-label={t('sessions.sidebar.expand')}
+                                >
+                                    <ChevronIcon direction="right" className="h-5 w-5" />
+                                </button>
+                            </div>
                         </div>
-                    ) : null}
-                    <SessionList
-                        activeSessions={activeSessions}
-                        archivedSessions={archivedSessions}
-                        archivedTotal={archivedTotal}
-                        onQuickCreateInDirectory={handleQuickCreateInDirectory}
-                        selectedSessionId={selectedSessionId}
-                        onSelect={(sessionId) => navigate({
-                            to: '/sessions/$sessionId',
-                            params: { sessionId },
-                        })}
-                        onNewSession={() => navigate({ to: '/sessions/new', search: {} })}
-                        onRefresh={handleRefresh}
-                        isLoading={isLoading}
-                        renderHeader={false}
-                        api={api}
+                    </div>
+                ) : null}
+
+                {isSidebarCollapsed ? null : (
+                    <button
+                        type="button"
+                        onPointerDown={handleSidebarResizeStart}
+                        className="hidden lg:block absolute top-0 right-0 z-20 h-full w-2 translate-x-1/2 cursor-col-resize"
+                        title={t('sessions.sidebar.resize')}
+                        aria-label={t('sessions.sidebar.resize')}
                     />
-                </div>
+                )}
             </div>
 
             <div className={`${isSessionsIndex ? 'hidden lg:flex' : 'flex'} min-w-0 min-h-0 flex-1 flex-col bg-[var(--app-bg)]`}>

@@ -47,6 +47,9 @@ export default {
   'sessions.archived.loaded': '{n} of {m} archived sessions shown',
   'sessions.archived.loadMore': 'Load more archived sessions',
   'sessions.archived.loadingMore': 'Loading more…',
+  'sessions.sidebar.collapse': 'Collapse sidebar',
+  'sessions.sidebar.expand': 'Expand sidebar',
+  'sessions.sidebar.resize': 'Resize sidebar',
 
   // Session list
   'session.item.path': 'path',

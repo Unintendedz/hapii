@@ -47,6 +47,9 @@ export default {
   'sessions.archived.loaded': '已显示 {n}/{m} 个归档会话',
   'sessions.archived.loadMore': '加载更多归档会话',
   'sessions.archived.loadingMore': '加载更多中…',
+  'sessions.sidebar.collapse': '折叠侧边栏',
+  'sessions.sidebar.expand': '展开侧边栏',
+  'sessions.sidebar.resize': '调整侧边栏宽度',
 
   // Session list
   'session.item.path': '路径',
