@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-24
+
+`11:06:44` &ensp; [`91f02fc`](https://github.com/Unintendedz/hapii/commit/91f02fc) — Add desktop session-sidebar resize and collapse/expand controls, with persisted width and collapsed state
+
 ### 2026-02-23
 
 `11:05:42` &ensp; [`27ef787`](https://github.com/Unintendedz/hapii/commit/27ef787) — Fix Codex spinner never clearing after stop by mapping wrapped `turn_aborted` events in the converter

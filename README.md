@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-24
+
+`11:06:44` &ensp; [`91f02fc`](https://github.com/Unintendedz/hapii/commit/91f02fc) — 桌面端会话侧边栏支持拖动调宽与折叠/展开，并记住宽度与折叠状态
+
 ### 2026-02-23
 
 `11:05:42` &ensp; [`27ef787`](https://github.com/Unintendedz/hapii/commit/27ef787) — 修复 Codex wrapped 事件流未解析 `turn_aborted` 导致停止后界面持续转圈的问题
