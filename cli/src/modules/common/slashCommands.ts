@@ -134,77 +134,77 @@ async function scanCommandsDir(
     source: 'user' | 'plugin',
     pluginName?: string
 ): Promise<SlashCommand[]> {
-    try {
-        const collectMarkdownFiles = async (currentDir: string, relDir: string): Promise<Array<{
-            dir: string
-            fileName: string
-            relDir: string
-        }>> => {
-            const entries = await readdir(currentDir, { withFileTypes: true })
-            const result: Array<{ dir: string; fileName: string; relDir: string }> = []
-
-            for (const entry of entries) {
-                if (entry.isDirectory()) {
-                    const nextRelDir = relDir ? join(relDir, entry.name) : entry.name
-                    const nested = await collectMarkdownFiles(join(currentDir, entry.name), nextRelDir)
-                    result.push(...nested)
-                    continue
-                }
-
-                if (entry.isFile() && entry.name.endsWith('.md')) {
-                    result.push({ dir: currentDir, fileName: entry.name, relDir })
-                }
-            }
-
-            return result
+    async function scanRecursive(currentDir: string, segments: string[]): Promise<SlashCommand[]> {
+        const entries = await readdir(currentDir, { withFileTypes: true }).catch(() => null);
+        if (!entries) {
+            return [];
         }
 
-        const mdFiles = await collectMarkdownFiles(dir, '')
+        const commandsByEntry = await Promise.all(
+            entries.map(async (entry): Promise<SlashCommand[]> => {
+                if (entry.name.startsWith('.') || entry.isSymbolicLink()) {
+                    return [];
+                }
 
-        // Read all files in parallel
-        const commands = await Promise.all(
-            mdFiles.map(async (entry): Promise<SlashCommand | null> => {
-                const baseName = entry.fileName.slice(0, -3);
-                if (!baseName) return null;
+                if (entry.isDirectory()) {
+                    if (entry.name.includes(':')) return [];
+                    return scanRecursive(join(currentDir, entry.name), [...segments, entry.name]);
+                }
+
+                if (!entry.isFile() || !entry.name.endsWith('.md')) {
+                    return [];
+                }
+
+                const baseName = entry.name.slice(0, -3);
+                if (!baseName || baseName.includes(':')) {
+                    return [];
+                }
+
+                const localName = [...segments, baseName].join(':');
+                const name = pluginName ? `${pluginName}:${localName}` : localName;
+                const fallbackDescription = source === 'plugin' ? `${pluginName ?? 'plugin'} command` : 'Custom command';
 
                 try {
-                    const filePath = join(entry.dir, entry.fileName);
+                    const filePath = join(currentDir, entry.name);
                     const fileContent = await readFile(filePath, 'utf-8');
                     const parsed = parseFrontmatter(fileContent);
                     const resolvedName = parsed.name ?? baseName;
-                    if (!resolvedName) return null;
+                    if (!resolvedName || resolvedName.includes(':')) {
+                        return []
+                    }
+                    const namespaced = segments.length > 0
+                        ? [...segments, resolvedName].join(':')
+                        : resolvedName
+                    const finalName = pluginName ? `${pluginName}:${namespaced}` : namespaced
+                    const relDir = segments.join('/')
+                    const locationHint = relDir ? ` (${relDir})` : ''
+                    const baseDescription = parsed.description ?? fallbackDescription
 
-                    // For plugin commands, prefix with plugin name (e.g., "superpowers:brainstorm")
-                    const name = pluginName ? `${pluginName}:${resolvedName}` : resolvedName;
-                    const locationHint = entry.relDir ? ` (${entry.relDir})` : '';
-                    const baseDescription = parsed.description
-                        ?? (source === 'plugin' ? `${pluginName} command` : 'Custom command')
-
-                    return {
-                        name,
+                    return [{
+                        name: finalName,
                         description: `${baseDescription}${locationHint}`,
                         source,
                         content: parsed.content,
                         pluginName,
-                    };
+                    }];
                 } catch {
-                    const locationHint = entry.relDir ? ` (${entry.relDir})` : '';
-                    const name = pluginName ? `${pluginName}:${baseName}` : baseName;
-                    // Failed to read file, return basic command
-                    return {
+                    const relDir = segments.join('/')
+                    const locationHint = relDir ? ` (${relDir})` : ''
+                    return [{
                         name,
-                        description: `${source === 'plugin' ? `${pluginName} command` : 'Custom command'}${locationHint}`,
+                        description: `${fallbackDescription}${locationHint}`,
                         source,
                         pluginName,
-                    };
+                    }];
                 }
             })
         );
 
-        // Filter nulls and sort alphabetically
-        return commands
-            .filter((cmd): cmd is SlashCommand => cmd !== null)
-            .sort((a, b) => a.name.localeCompare(b.name));
+        return commandsByEntry.flat();
+    }
+    try {
+        const commands = await scanRecursive(dir, []);
+        return commands.sort((a, b) => a.name.localeCompare(b.name));
     } catch {
         // Directory doesn't exist or not accessible - return empty array
         return [];
