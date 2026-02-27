@@ -33,15 +33,86 @@ type ApiClientOptions = {
 
 type ErrorPayload = {
     error?: unknown
+    code?: unknown
+    message?: unknown
 }
 
 function parseErrorCode(bodyText: string): string | undefined {
     try {
         const parsed = JSON.parse(bodyText) as ErrorPayload
+        if (typeof parsed.code === 'string') {
+            return parsed.code
+        }
         return typeof parsed.error === 'string' ? parsed.error : undefined
     } catch {
         return undefined
     }
+}
+
+function looksLikeHtml(bodyText: string): boolean {
+    const trimmed = bodyText.trimStart().toLowerCase()
+    return trimmed.startsWith('<!doctype')
+        || trimmed.startsWith('<html')
+        || trimmed.startsWith('<head')
+        || trimmed.startsWith('<body')
+}
+
+function collapseWhitespace(value: string): string {
+    return value.replace(/\s+/g, ' ').trim()
+}
+
+function truncateText(value: string, maxChars: number = 240): string {
+    if (value.length <= maxChars) {
+        return value
+    }
+    return `${value.slice(0, maxChars - 1)}…`
+}
+
+function summarizeErrorBody(bodyText: string, contentType: string | null): string | undefined {
+    const trimmed = bodyText.trim()
+    if (!trimmed) {
+        return undefined
+    }
+
+    try {
+        const parsed = JSON.parse(trimmed) as ErrorPayload
+        if (typeof parsed.error === 'string' && parsed.error.trim().length > 0) {
+            return truncateText(collapseWhitespace(parsed.error))
+        }
+        if (typeof parsed.message === 'string' && parsed.message.trim().length > 0) {
+            return truncateText(collapseWhitespace(parsed.message))
+        }
+    } catch {
+    }
+
+    const normalizedType = (contentType ?? '').toLowerCase()
+    if (normalizedType.includes('text/html') || looksLikeHtml(trimmed)) {
+        return 'Upstream returned an HTML error page'
+    }
+
+    return truncateText(collapseWhitespace(trimmed))
+}
+
+function truncateBody(bodyText: string, maxChars: number = 4096): string | undefined {
+    if (!bodyText) {
+        return undefined
+    }
+    return bodyText.length <= maxChars ? bodyText : `${bodyText.slice(0, maxChars - 1)}…`
+}
+
+function formatHttpErrorMessage(
+    status: number,
+    statusText: string,
+    bodyText: string,
+    contentType: string | null,
+    prefix?: string
+): string {
+    const lead = prefix ? `${prefix}: HTTP ${status} ${statusText}` : `HTTP ${status} ${statusText}`
+    const detail = summarizeErrorBody(bodyText, contentType)
+    if (!detail) {
+        return lead
+    }
+    return `${lead}: ${detail}`
 }
 
 export class ApiError extends Error {
@@ -118,7 +189,12 @@ export class ApiClient {
 
         if (!res.ok) {
             const body = await res.text().catch(() => '')
-            throw new Error(`HTTP ${res.status} ${res.statusText}: ${body}`)
+            throw new ApiError(
+                formatHttpErrorMessage(res.status, res.statusText, body, res.headers.get('content-type')),
+                res.status,
+                parseErrorCode(body),
+                truncateBody(body)
+            )
         }
 
         return await res.json() as T
@@ -134,8 +210,12 @@ export class ApiClient {
         if (!res.ok) {
             const body = await res.text().catch(() => '')
             const code = parseErrorCode(body)
-            const detail = body ? `: ${body}` : ''
-            throw new ApiError(`Auth failed: HTTP ${res.status} ${res.statusText}${detail}`, res.status, code, body || undefined)
+            throw new ApiError(
+                formatHttpErrorMessage(res.status, res.statusText, body, res.headers.get('content-type'), 'Auth failed'),
+                res.status,
+                code,
+                truncateBody(body)
+            )
         }
 
         return await res.json() as AuthResponse
@@ -162,8 +242,12 @@ export class ApiClient {
         if (!res.ok) {
             const body = await res.text().catch(() => '')
             const code = parseErrorCode(body)
-            const detail = body ? `: ${body}` : ''
-            throw new ApiError(`Bind failed: HTTP ${res.status} ${res.statusText}${detail}`, res.status, code, body || undefined)
+            throw new ApiError(
+                formatHttpErrorMessage(res.status, res.statusText, body, res.headers.get('content-type'), 'Bind failed'),
+                res.status,
+                code,
+                truncateBody(body)
+            )
         }
 
         return await res.json() as AuthResponse
