@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-27
+
+`23:05:00` &ensp; [`4ffc9b9`](https://github.com/Unintendedz/hapii/commit/4ffc9b9) — 修复网关返回 HTML 错误页时聊天区直接渲染整页源码；改为摘要错误信息并保留状态码/错误码
+
 ### 2026-02-24
 
 `11:06:44` &ensp; [`91f02fc`](https://github.com/Unintendedz/hapii/commit/91f02fc) — 桌面端会话侧边栏支持拖动调宽与折叠/展开，并记住宽度与折叠状态

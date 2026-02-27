@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-27
+
+`23:05:00` &ensp; [`4ffc9b9`](https://github.com/Unintendedz/hapii/commit/4ffc9b9) — Fix chat warning dumping full upstream HTML error pages; now shows a concise summary while preserving status/code details
+
 ### 2026-02-24
 
 `11:06:44` &ensp; [`91f02fc`](https://github.com/Unintendedz/hapii/commit/91f02fc) — Add desktop session-sidebar resize and collapse/expand controls, with persisted width and collapsed state
