@@ -262,6 +262,7 @@ export class SessionCache {
                 type: 'session-updated',
                 sessionId: session.id,
                 data: {
+                    active: true,
                     activeAt: session.activeAt,
                     thinking: session.thinking,
                     runtimeConfigVersion: session.runtimeConfigVersion,

@@ -245,6 +245,9 @@ export default {
   'reconnecting.message': '正在重新连接...',
   'update.message': '发现新版本',
   'update.button': '立即更新',
+  'reconnecting.reason.error': '流连接错误',
+  'reconnecting.reason.closed': '流连接已关闭',
+  'reconnecting.reason.heartbeatTimeout': '心跳超时',
 
   // Send blocked
   'send.blocked.title': '无法发送消息',

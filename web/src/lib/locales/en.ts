@@ -243,6 +243,9 @@ export default {
   'reconnecting.message': 'Reconnecting...',
   'update.message': 'A new version is available.',
   'update.button': 'Reload',
+  'reconnecting.reason.error': 'stream error',
+  'reconnecting.reason.closed': 'stream closed',
+  'reconnecting.reason.heartbeatTimeout': 'heartbeat timeout',
 
   // Send blocked
   'send.blocked.title': 'Cannot send message',
