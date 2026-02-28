@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { ApiClient } from '@/api/client'
-import type { Machine } from '@/types/api'
+import type { Machine, SessionSummary } from '@/types/api'
 import { usePlatform } from '@/hooks/usePlatform'
 import { useSpawnSession } from '@/hooks/mutations/useSpawnSession'
 import { useSessions } from '@/hooks/queries/useSessions'
@@ -56,6 +56,51 @@ function hasSamePathExistence(
     }
 
     return true
+}
+
+const SPAWN_RECOVERY_WINDOW_MS = 90_000
+
+function isUncertainSpawnTransportError(rawMessage: string): boolean {
+    const message = rawMessage.toLowerCase()
+    return message.includes('http 502')
+        || message.includes('bad gateway')
+        || message.includes('upstream returned an html error page')
+        || message.includes('failed to fetch')
+        || message.includes('network error')
+}
+
+function findRecoveredSpawnSessionId(options: {
+    sessions: SessionSummary[]
+    knownSessionIds: Set<string>
+    directory: string
+    machineId: string
+    requestedAt: number
+}): string | null {
+    const now = Date.now()
+    const candidates = options.sessions.filter((session) => {
+        if (options.knownSessionIds.has(session.id)) {
+            return false
+        }
+        const metadata = session.metadata
+        if (!metadata) {
+            return false
+        }
+        if (metadata.path !== options.directory) {
+            return false
+        }
+        if (metadata.machineId !== options.machineId) {
+            return false
+        }
+        return session.updatedAt >= options.requestedAt - 3_000
+            && session.updatedAt <= now + 5_000
+    })
+
+    if (candidates.length === 0) {
+        return null
+    }
+
+    candidates.sort((a, b) => b.updatedAt - a.updatedAt)
+    return candidates[0]?.id ?? null
 }
 
 export function NewSession(props: {
@@ -359,12 +404,16 @@ export function NewSession(props: {
     async function handleCreate() {
         if (!machineId || !directory.trim()) return
 
+        const trimmedDirectory = directory.trim()
+        const knownSessionIds = new Set(sessions.map((session) => session.id))
+        const requestedAt = Date.now()
+
         setError(null)
         try {
             const resolvedModel = model !== 'auto' && agent !== 'opencode' ? model : undefined
             const result = await spawnSession({
                 machineId,
-                directory: directory.trim(),
+                directory: trimmedDirectory,
                 agent,
                 model: resolvedModel,
                 yolo: yoloMode,
@@ -375,8 +424,8 @@ export function NewSession(props: {
             if (result.type === 'success') {
                 haptic.notification('success')
                 setLastUsedMachineId(machineId)
-                addRecentPath(machineId, directory.trim())
-                saveProjectPreset(directory.trim(), {
+                addRecentPath(machineId, trimmedDirectory)
+                saveProjectPreset(trimmedDirectory, {
                     machineId,
                     agent,
                     model,
@@ -390,8 +439,39 @@ export function NewSession(props: {
             haptic.notification('error')
             setError(result.message)
         } catch (e) {
+            const rawMessage = e instanceof Error ? e.message : 'Failed to create session'
+
+            if (isUncertainSpawnTransportError(rawMessage)) {
+                try {
+                    const recovered = await props.api.getSessions({ archived: false, limit: 200 })
+                    const recoveredSessionId = findRecoveredSpawnSessionId({
+                        sessions: recovered.sessions,
+                        knownSessionIds,
+                        directory: trimmedDirectory,
+                        machineId,
+                        requestedAt
+                    })
+
+                    if (recoveredSessionId && Date.now() - requestedAt <= SPAWN_RECOVERY_WINDOW_MS) {
+                        haptic.notification('success')
+                        setLastUsedMachineId(machineId)
+                        addRecentPath(machineId, trimmedDirectory)
+                        saveProjectPreset(trimmedDirectory, {
+                            machineId,
+                            agent,
+                            model,
+                            yoloMode,
+                            sessionType
+                        })
+                        props.onSuccess(recoveredSessionId)
+                        return
+                    }
+                } catch {
+                }
+            }
+
             haptic.notification('error')
-            setError(e instanceof Error ? e.message : 'Failed to create session')
+            setError(rawMessage)
         }
     }
 

@@ -134,12 +134,31 @@ export class ApiClient {
     private readonly baseUrl: string | null
     private readonly getToken: (() => string | null) | null
     private readonly onUnauthorized: (() => Promise<string | null>) | null
+    private static readonly MAX_TRANSPORT_RETRIES = 1
 
     constructor(token: string, options?: ApiClientOptions) {
         this.token = token
         this.baseUrl = options?.baseUrl ?? null
         this.getToken = options?.getToken ?? null
         this.onUnauthorized = options?.onUnauthorized ?? null
+    }
+
+    private isIdempotentRequest(init?: RequestInit): boolean {
+        const method = (init?.method ?? 'GET').toUpperCase()
+        return method === 'GET' || method === 'HEAD'
+    }
+
+    private shouldRetryTransport(init: RequestInit | undefined, retryAttempt: number, status?: number): boolean {
+        if (!this.isIdempotentRequest(init)) {
+            return false
+        }
+        if (retryAttempt >= ApiClient.MAX_TRANSPORT_RETRIES) {
+            return false
+        }
+        if (status === undefined) {
+            return true
+        }
+        return status >= 500 && status <= 599
     }
 
     private buildUrl(path: string): string {
@@ -156,8 +175,9 @@ export class ApiClient {
     private async request<T>(
         path: string,
         init?: RequestInit,
-        attempt: number = 0,
-        overrideToken?: string | null
+        authAttempt: number = 0,
+        overrideToken?: string | null,
+        retryAttempt: number = 0
     ): Promise<T> {
         const headers = new Headers(init?.headers)
         const liveToken = this.getToken ? this.getToken() : null
@@ -171,23 +191,34 @@ export class ApiClient {
             headers.set('content-type', 'application/json')
         }
 
-        const res = await fetch(this.buildUrl(path), {
-            ...init,
-            headers
-        })
+        let res: Response
+        try {
+            res = await fetch(this.buildUrl(path), {
+                ...init,
+                headers
+            })
+        } catch (error) {
+            if (this.shouldRetryTransport(init, retryAttempt)) {
+                return await this.request<T>(path, init, authAttempt, overrideToken, retryAttempt + 1)
+            }
+            throw error
+        }
 
         if (res.status === 401) {
-            if (attempt === 0 && this.onUnauthorized) {
+            if (authAttempt === 0 && this.onUnauthorized) {
                 const refreshed = await this.onUnauthorized()
                 if (refreshed) {
                     this.token = refreshed
-                    return await this.request<T>(path, init, attempt + 1, refreshed)
+                    return await this.request<T>(path, init, authAttempt + 1, refreshed, retryAttempt)
                 }
             }
             throw new Error('Session expired. Please sign in again.')
         }
 
         if (!res.ok) {
+            if (this.shouldRetryTransport(init, retryAttempt, res.status)) {
+                return await this.request<T>(path, init, authAttempt, overrideToken, retryAttempt + 1)
+            }
             const body = await res.text().catch(() => '')
             throw new ApiError(
                 formatHttpErrorMessage(res.status, res.statusText, body, res.headers.get('content-type')),

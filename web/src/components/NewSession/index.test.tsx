@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nProvider } from '@/lib/i18n-context'
 import type { ApiClient } from '@/api/client'
 import type { Machine } from '@/types/api'
@@ -7,18 +7,22 @@ import { NewSession, type NewSessionInitialPreset } from './index'
 
 const mockGetRecentPaths = vi.fn(() => [])
 const mockGetLastUsedMachineId = vi.fn(() => null)
+const mockSpawnSession = vi.fn()
+const mockHapticNotification = vi.fn()
+const mockAddRecentPath = vi.fn()
+const mockSetLastUsedMachineId = vi.fn()
 
 vi.mock('@/hooks/usePlatform', () => ({
     usePlatform: () => ({
         haptic: {
-            notification: vi.fn(),
+            notification: mockHapticNotification,
         },
     }),
 }))
 
 vi.mock('@/hooks/mutations/useSpawnSession', () => ({
     useSpawnSession: () => ({
-        spawnSession: vi.fn(),
+        spawnSession: mockSpawnSession,
         isPending: false,
         error: null,
     }),
@@ -46,9 +50,9 @@ vi.mock('@/hooks/useActiveSuggestions', () => ({
 vi.mock('@/hooks/useRecentPaths', () => ({
     useRecentPaths: () => ({
         getRecentPaths: mockGetRecentPaths,
-        addRecentPath: vi.fn(),
+        addRecentPath: mockAddRecentPath,
         getLastUsedMachineId: mockGetLastUsedMachineId,
-        setLastUsedMachineId: vi.fn(),
+        setLastUsedMachineId: mockSetLastUsedMachineId,
     }),
 }))
 
@@ -84,8 +88,13 @@ function renderNewSession(initialPreset?: NewSessionInitialPreset) {
 
 describe('NewSession preset sync', () => {
     beforeEach(() => {
+        cleanup()
         vi.clearAllMocks()
         localStorage.clear()
+        mockSpawnSession.mockReset()
+        mockHapticNotification.mockReset()
+        mockAddRecentPath.mockReset()
+        mockSetLastUsedMachineId.mockReset()
     })
 
     it('updates directory across project quick-create and global new entry', async () => {
@@ -133,6 +142,54 @@ describe('NewSession preset sync', () => {
 
         await waitFor(() => {
             expect(screen.getByPlaceholderText('/path/to/project')).toHaveValue('/projects/beta')
+        })
+    })
+
+    it('recovers successful spawn after transient 502 and routes to recovered session', async () => {
+        mockSpawnSession.mockRejectedValueOnce(new Error('HTTP 502 Bad Gateway: Upstream returned an HTML error page'))
+        const onSuccess = vi.fn()
+
+        const api = {
+            checkMachinePathsExists: vi.fn(async () => ({ exists: {} })),
+            getSessions: vi.fn(async () => ({
+                sessions: [{
+                    id: 'session-recovered',
+                    active: true,
+                    thinking: false,
+                    activeAt: Date.now(),
+                    updatedAt: Date.now(),
+                    work: undefined,
+                    metadata: {
+                        path: '/projects/recovered',
+                        machineId: 'machine-1'
+                    },
+                    todoProgress: null,
+                    pendingRequestsCount: 0
+                }]
+            }))
+        } as unknown as ApiClient
+
+        const view = render(
+            <I18nProvider>
+                <NewSession
+                    api={api}
+                    machines={machines}
+                    initialPreset={{
+                        directory: '/projects/recovered',
+                        machineId: 'machine-1',
+                        agent: 'codex'
+                    }}
+                    onCancel={vi.fn()}
+                    onSuccess={onSuccess}
+                />
+            </I18nProvider>
+        )
+
+        const createButton = await view.findByRole('button', { name: /Create|创建/ })
+        fireEvent.click(createButton)
+
+        await waitFor(() => {
+            expect(onSuccess).toHaveBeenCalledWith('session-recovered')
         })
     })
 })
