@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-02-28
+
+`10:24:42` &ensp; [`9636211`](https://github.com/Unintendedz/hapii/commit/9636211) — 修复新建会话在瞬时 502/网络抖动时误报失败：前端会回查刚创建的会话并自动进入；同时为幂等 GET 请求增加一次 5xx/传输异常重试（POST 保持不重试）
+
 ### 2026-02-27
 
 `23:05:00` &ensp; [`4ffc9b9`](https://github.com/Unintendedz/hapii/commit/4ffc9b9) — 修复网关返回 HTML 错误页时聊天区直接渲染整页源码；改为摘要错误信息并保留状态码/错误码

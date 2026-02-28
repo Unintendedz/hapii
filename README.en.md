@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-02-28
+
+`10:24:42` &ensp; [`9636211`](https://github.com/Unintendedz/hapii/commit/9636211) — Fix false failure on new-session creation during transient 502/network errors by recovering recently created sessions and routing to them automatically; also add one retry for idempotent GET requests on 5xx/transport failures (POST remains no-retry)
+
 ### 2026-02-27
 
 `23:05:00` &ensp; [`4ffc9b9`](https://github.com/Unintendedz/hapii/commit/4ffc9b9) — Fix chat warning dumping full upstream HTML error pages; now shows a concise summary while preserving status/code details
