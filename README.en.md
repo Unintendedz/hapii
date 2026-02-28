@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-02-28
 
+`10:34:00` &ensp; [`dd54ab6`](https://github.com/Unintendedz/hapii/commit/dd54ab6) — Fix session detail pages staying on "Loading session…" after transient 5xx/network errors by adding auto re-polling, and show explicit retry/back error UI for non-recoverable failures
+
 `10:24:42` &ensp; [`9636211`](https://github.com/Unintendedz/hapii/commit/9636211) — Fix false failure on new-session creation during transient 502/network errors by recovering recently created sessions and routing to them automatically; also add one retry for idempotent GET requests on 5xx/transport failures (POST remains no-retry)
 
 ### 2026-02-27
