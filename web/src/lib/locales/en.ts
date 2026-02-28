@@ -3,6 +3,7 @@ export default {
   'loading': 'Loading…',
   'authorizing': 'Authorizing…',
   'loading.session': 'Loading session…',
+  'loading.session.reconnecting': 'Reconnecting session…',
   'loading.git': 'Loading Git status…',
   'loading.files': 'Loading files…',
   'loading.messages': 'Loading messages…',
@@ -98,6 +99,8 @@ export default {
   'button.dismiss': 'Dismiss',
   'button.copy': 'Copy',
   'button.paste': 'Paste',
+  'button.retry': 'Retry',
+  'button.back': 'Back',
 
   // New session form
   'newSession.machine': 'Machine',

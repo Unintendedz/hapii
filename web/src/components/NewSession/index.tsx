@@ -74,10 +74,14 @@ function findRecoveredSpawnSessionId(options: {
     knownSessionIds: Set<string>
     directory: string
     machineId: string
+    agent: string
     requestedAt: number
 }): string | null {
     const now = Date.now()
     const candidates = options.sessions.filter((session) => {
+        if (!session.active) {
+            return false
+        }
         if (options.knownSessionIds.has(session.id)) {
             return false
         }
@@ -89,6 +93,9 @@ function findRecoveredSpawnSessionId(options: {
             return false
         }
         if (metadata.machineId !== options.machineId) {
+            return false
+        }
+        if (metadata.flavor && metadata.flavor !== options.agent) {
             return false
         }
         return session.updatedAt >= options.requestedAt - 3_000
@@ -449,6 +456,7 @@ export function NewSession(props: {
                         knownSessionIds,
                         directory: trimmedDirectory,
                         machineId,
+                        agent,
                         requestedAt
                     })
 

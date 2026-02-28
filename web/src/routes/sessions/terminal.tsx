@@ -4,7 +4,7 @@ import { useParams } from '@tanstack/react-router'
 import type { Terminal } from '@xterm/xterm'
 import { useAppContext } from '@/lib/app-context'
 import { useAppGoBack } from '@/hooks/useAppGoBack'
-import { useSession } from '@/hooks/queries/useSession'
+import { isTransientSessionLoadErrorMessage, useSession } from '@/hooks/queries/useSession'
 import { useTerminalSocket } from '@/hooks/useTerminalSocket'
 import { useLongPress } from '@/hooks/useLongPress'
 import { useTranslation } from '@/lib/use-translation'
@@ -183,7 +183,11 @@ export default function TerminalPage() {
     const { sessionId } = useParams({ from: '/sessions/$sessionId/terminal' })
     const { api, token, baseUrl } = useAppContext()
     const goBack = useAppGoBack()
-    const { session } = useSession(api, sessionId)
+    const {
+        session,
+        error: sessionError,
+        refetch: refetchSession
+    } = useSession(api, sessionId)
     const terminalId = useMemo(() => {
         if (typeof crypto?.randomUUID === 'function') {
             return crypto.randomUUID()
@@ -391,9 +395,40 @@ export default function TerminalPage() {
     )
 
     if (!session) {
+        if (sessionError && !isTransientSessionLoadErrorMessage(sessionError)) {
+            return (
+                <div className="flex h-full items-center justify-center p-4">
+                    <div className="w-full max-w-lg space-y-3 rounded-md border border-[var(--app-badge-error-border)] bg-[var(--app-badge-error-bg)] p-4 text-sm text-[var(--app-badge-error-text)]">
+                        <div>{sessionError}</div>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void refetchSession()
+                                }}
+                                className="rounded-md border border-[var(--app-border)] px-3 py-1.5 text-xs font-medium text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)]"
+                            >
+                                {t('button.retry')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={goBack}
+                                className="rounded-md border border-[var(--app-border)] px-3 py-1.5 text-xs font-medium text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)]"
+                            >
+                                {t('button.back')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
+        const loadingLabel = sessionError && isTransientSessionLoadErrorMessage(sessionError)
+            ? t('loading.session.reconnecting')
+            : t('loading.session')
         return (
             <div className="flex h-full items-center justify-center">
-                <LoadingState label="Loading session…" className="text-sm" />
+                <LoadingState label={loadingLabel} className="text-sm" />
             </div>
         )
     }

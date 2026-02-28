@@ -3,6 +3,7 @@ export default {
   'loading': '加载中…',
   'authorizing': '认证中…',
   'loading.session': '加载会话…',
+  'loading.session.reconnecting': '会话重连中…',
   'loading.git': '加载 Git 状态…',
   'loading.files': '加载文件…',
   'loading.messages': '加载消息…',
@@ -100,6 +101,8 @@ export default {
   'button.dismiss': '忽略',
   'button.copy': '复制',
   'button.paste': '粘贴',
+  'button.retry': '重试',
+  'button.back': '返回',
 
   // New session form
   'newSession.machine': '机器',
