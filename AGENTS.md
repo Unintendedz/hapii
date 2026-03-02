@@ -201,6 +201,11 @@ Restart runner only when CLI/shared protocol changed (RPC/schema/session lifecyc
 
 Agent requirement: after changing `web/` or `hub/`, include runtime replacement steps in final handoff.
 
+## Local-only overrides
+
+- Put personal machine/domain workflow in `AGENTS.local.md` (git-ignored).
+- Keep repo `AGENTS.md` team-generic only.
+
 ## Key source dirs
 
 ### CLI (`cli/src/`)
