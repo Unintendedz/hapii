@@ -51,7 +51,7 @@ describe('seedMessageWindowFromSession', () => {
             id: 'm-pending',
             seq: 2,
             createdAt: 2,
-            role: 'agent',
+            role: 'user',
             text: 'pending'
         })
 

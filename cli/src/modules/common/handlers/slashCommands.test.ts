@@ -166,10 +166,10 @@ describe('slash commands RPC handler', () => {
         expect(names).toContain('project-cmd')
         expect(names).toContain('frontmatter-name')
         expect(names).not.toContain('weird-file-name')
-        expect(names).toContain('nested-cmd')
+        expect(names).toContain('nested:nested-cmd')
         expect(names).toContain('user-cmd')
 
-        const nested = (parsed.commands ?? []).find((cmd) => cmd.name === 'nested-cmd')
+        const nested = (parsed.commands ?? []).find((cmd) => cmd.name === 'nested:nested-cmd')
         expect(nested?.description).toContain('Nested command')
         expect(nested?.description).toContain('nested')
     })
