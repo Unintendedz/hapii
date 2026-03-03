@@ -12,6 +12,8 @@
 
 ### 2026-03-03
 
+`15:25:55` &ensp; [`c06a68c`](https://github.com/Unintendedz/hapii/commit/c06a68c) — 修复 SSE 重连竞态导致订阅 ID 被旧连接回调回写、触发 `/api/visibility` 持续 404；仅处理当前活动 EventSource 回调并补充回归测试
+
 `10:45:30` &ensp; [`d45f2fa`](https://github.com/Unintendedz/hapii/commit/d45f2fa) — 修复 Codex 本地会话在 scanner 启动匹配窗口内未命中时被提前退出的问题；改为持续匹配并保留会话运行
 
 `10:45:50` &ensp; [`84a278d`](https://github.com/Unintendedz/hapii/commit/84a278d) — 修复会话归档在 CLI 离线/RPC handler 不可用时返回 500 的问题；Hub 现在可强制归档并正确落库
