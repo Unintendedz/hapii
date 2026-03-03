@@ -116,6 +116,46 @@ describe('codexSessionScanner', () => {
         expect(events[0].type).toBe('response_item');
     });
 
+    it('matches late session metadata from event-level timestamp even when outside initial window', async () => {
+        const referenceTimestampMs = Date.parse('2025-12-22T00:00:00.000Z');
+        const windowMs = 2 * 60 * 1000;
+        const sessionId = 'session-late-meta';
+        sessionFile = join(sessionsDir, `codex-${sessionId}.jsonl`);
+
+        await writeFile(
+            sessionFile,
+            JSON.stringify({
+                type: 'session_meta',
+                timestamp: '2025-12-22T00:10:00.000Z',
+                payload: {
+                    id: sessionId,
+                    cwd: '/data/github/happy/hapi'
+                }
+            }) + '\n'
+        );
+
+        scanner = await createCodexSessionScanner({
+            sessionId: null,
+            cwd: '/data/github/happy/hapi',
+            startupTimestampMs: referenceTimestampMs,
+            sessionStartWindowMs: windowMs,
+            onEvent: (event) => events.push(event)
+        });
+
+        await wait(200);
+        expect(events).toHaveLength(0);
+
+        const newLine = JSON.stringify({
+            type: 'response_item',
+            payload: { type: 'function_call', name: 'Tool', call_id: 'call-late', arguments: '{}' }
+        });
+        await appendFile(sessionFile, newLine + '\n');
+
+        await wait(250);
+        expect(events).toHaveLength(1);
+        expect(events[0].type).toBe('response_item');
+    });
+
     it('fails fast when cwd is missing and no sessionId is provided', async () => {
         const sessionId = 'session-missing-cwd';
         const matchFailedMessage = 'No cwd provided for Codex session matching; refusing to fallback.';

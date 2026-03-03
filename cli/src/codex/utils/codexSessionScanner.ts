@@ -31,6 +31,7 @@ type Candidate = {
 };
 
 const DEFAULT_SESSION_START_WINDOW_MS = 2 * 60 * 1000;
+const SESSION_MATCH_CLOCK_SKEW_MS = 5_000;
 
 export async function createCodexSessionScanner(opts: CodexSessionScannerOptions): Promise<CodexSessionScanner> {
     const targetCwd = opts.cwd && opts.cwd.trim().length > 0 ? normalizePath(opts.cwd) : null;
@@ -62,7 +63,6 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     private readonly sessionsRoot: string;
     private readonly onEvent: (event: CodexSessionEvent) => void;
     private readonly onSessionFound?: (sessionId: string) => void;
-    private readonly onSessionMatchFailed?: (message: string) => void;
     private readonly sessionIdByFile = new Map<string, string>();
     private readonly sessionCwdByFile = new Map<string, string>();
     private readonly sessionTimestampByFile = new Map<string, number>();
@@ -72,12 +72,10 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     private readonly targetCwd: string | null;
     private readonly referenceTimestampMs: number;
     private readonly sessionStartWindowMs: number;
-    private readonly matchDeadlineMs: number;
     private readonly sessionDatePrefixes: Set<string> | null;
 
     private activeSessionId: string | null;
     private reportedSessionId: string | null;
-    private matchFailed = false;
     private bestWithinWindow: Candidate | null = null;
 
     constructor(opts: CodexSessionScannerOptions, targetCwd: string | null) {
@@ -86,13 +84,11 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
         this.sessionsRoot = join(codexHomeDir, 'sessions');
         this.onEvent = opts.onEvent;
         this.onSessionFound = opts.onSessionFound;
-        this.onSessionMatchFailed = opts.onSessionMatchFailed;
         this.activeSessionId = opts.sessionId;
         this.reportedSessionId = opts.sessionId;
         this.targetCwd = targetCwd;
         this.referenceTimestampMs = opts.startupTimestampMs ?? Date.now();
         this.sessionStartWindowMs = opts.sessionStartWindowMs ?? DEFAULT_SESSION_START_WINDOW_MS;
-        this.matchDeadlineMs = this.referenceTimestampMs + this.sessionStartWindowMs;
         this.sessionDatePrefixes = this.targetCwd
             ? getSessionDatePrefixes(this.referenceTimestampMs, this.sessionStartWindowMs)
             : null;
@@ -107,10 +103,6 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
         logger.debug(`[CODEX_SESSION_SCANNER] Switching to new session: ${sessionId}`);
         this.setActiveSessionId(sessionId);
         this.invalidate();
-    }
-
-    protected shouldScan(): boolean {
-        return !this.matchFailed;
     }
 
     protected shouldWatchFile(filePath: string): boolean {
@@ -187,14 +179,8 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
     protected async afterScan(): Promise<void> {
         if (!this.activeSessionId && this.targetCwd) {
             if (this.bestWithinWindow) {
-                logger.debug(`[CODEX_SESSION_SCANNER] Selected session ${this.bestWithinWindow.sessionId} within start window`);
+                logger.debug(`[CODEX_SESSION_SCANNER] Selected session ${this.bestWithinWindow.sessionId} by cwd/timestamp match`);
                 this.setActiveSessionId(this.bestWithinWindow.sessionId);
-            } else if (Date.now() > this.matchDeadlineMs) {
-                this.matchFailed = true;
-                this.pendingEventsByFile.clear();
-                const message = `No Codex session found within ${this.sessionStartWindowMs}ms for cwd ${this.targetCwd}; refusing fallback.`;
-                logger.warn(`[CODEX_SESSION_SCANNER] ${message}`);
-                this.onSessionMatchFailed?.(message);
             } else if (this.pendingEventsByFile.size > 0) {
                 logger.debug('[CODEX_SESSION_SCANNER] No session candidate matched yet; pending events buffered');
             }
@@ -301,8 +287,8 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
                     if (normalizedCwd) {
                         this.sessionCwdByFile.set(filePath, normalizedCwd);
                     }
-                    const rawTimestamp = payload ? payload.timestamp : null;
-                    const sessionTimestamp = payload ? parseTimestamp(payload.timestamp) : null;
+                    const rawTimestamp = payload ? (payload.timestamp ?? parsed.timestamp) : parsed.timestamp;
+                    const sessionTimestamp = parseTimestamp(rawTimestamp);
                     if (sessionTimestamp !== null) {
                         this.sessionTimestampByFile.set(filePath, sessionTimestamp);
                     }
@@ -336,14 +322,11 @@ class CodexSessionScannerImpl extends BaseSessionScanner<CodexSessionEvent> {
             return null;
         }
 
-        if (sessionTimestamp < this.referenceTimestampMs) {
+        if (sessionTimestamp < (this.referenceTimestampMs - SESSION_MATCH_CLOCK_SKEW_MS)) {
             return null;
         }
 
-        const diff = sessionTimestamp - this.referenceTimestampMs;
-        if (diff > this.sessionStartWindowMs) {
-            return null;
-        }
+        const diff = Math.max(0, sessionTimestamp - this.referenceTimestampMs);
 
         return {
             sessionId,
