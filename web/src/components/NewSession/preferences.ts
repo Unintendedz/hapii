@@ -5,7 +5,7 @@ const YOLO_STORAGE_KEY = 'hapi:newSession:yolo'
 const PROJECT_PRESET_STORAGE_KEY = 'hapi:newSession:projectPresets'
 const MAX_PROJECT_PRESETS = 80
 
-const VALID_AGENTS: AgentType[] = ['claude', 'codex', 'gemini', 'opencode']
+const VALID_AGENTS: AgentType[] = ['claude', 'codex', 'cursor', 'gemini', 'opencode']
 const VALID_SESSION_TYPES: SessionType[] = ['simple', 'worktree']
 
 type StoredProjectPreset = {

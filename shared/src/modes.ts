@@ -10,11 +10,15 @@ export type GeminiPermissionMode = typeof GEMINI_PERMISSION_MODES[number]
 export const OPENCODE_PERMISSION_MODES = ['default', 'yolo'] as const
 export type OpencodePermissionMode = typeof OPENCODE_PERMISSION_MODES[number]
 
+export const CURSOR_PERMISSION_MODES = ['default', 'plan', 'ask', 'yolo'] as const
+export type CursorPermissionMode = typeof CURSOR_PERMISSION_MODES[number]
+
 export const PERMISSION_MODES = [
     'default',
     'acceptEdits',
     'bypassPermissions',
     'plan',
+    'ask',
     'read-only',
     'safe-yolo',
     'yolo'
@@ -27,12 +31,13 @@ export type ModelMode = typeof MODEL_MODES[number]
 export const REASONING_EFFORTS = ['auto', 'low', 'medium', 'high', 'xhigh'] as const
 export type ReasoningEffort = typeof REASONING_EFFORTS[number]
 
-export type AgentFlavor = 'claude' | 'codex' | 'gemini' | 'opencode'
+export type AgentFlavor = 'claude' | 'codex' | 'gemini' | 'opencode' | 'cursor'
 
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
     default: 'Default',
     acceptEdits: 'Accept Edits',
     plan: 'Plan Mode',
+    ask: 'Ask Mode',
     bypassPermissions: 'Yolo',
     'read-only': 'Read Only',
     'safe-yolo': 'Safe Yolo',
@@ -45,6 +50,7 @@ export const PERMISSION_MODE_TONES: Record<PermissionMode, PermissionModeTone> =
     default: 'neutral',
     acceptEdits: 'warning',
     plan: 'info',
+    ask: 'info',
     bypassPermissions: 'danger',
     'read-only': 'warning',
     'safe-yolo': 'warning',
@@ -89,6 +95,9 @@ export function getPermissionModesForFlavor(flavor?: string | null): readonly Pe
     if (flavor === 'opencode') {
         return OPENCODE_PERMISSION_MODES
     }
+    if (flavor === 'cursor') {
+        return CURSOR_PERMISSION_MODES
+    }
     return CLAUDE_PERMISSION_MODES
 }
 
@@ -105,7 +114,7 @@ export function isPermissionModeAllowedForFlavor(mode: PermissionMode, flavor?: 
 }
 
 export function getModelModesForFlavor(flavor?: string | null): readonly ModelMode[] {
-    if (flavor === 'codex' || flavor === 'gemini' || flavor === 'opencode') {
+    if (flavor === 'codex' || flavor === 'gemini' || flavor === 'opencode' || flavor === 'cursor') {
         return []
     }
     return MODEL_MODES
