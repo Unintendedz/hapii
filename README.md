@@ -10,6 +10,12 @@
 
 ## 更新日志
 
+### 2026-03-03
+
+`10:45:30` &ensp; [`d45f2fa`](https://github.com/Unintendedz/hapii/commit/d45f2fa) — 修复 Codex 本地会话在 scanner 启动匹配窗口内未命中时被提前退出的问题；改为持续匹配并保留会话运行
+
+`10:45:50` &ensp; [`84a278d`](https://github.com/Unintendedz/hapii/commit/84a278d) — 修复会话归档在 CLI 离线/RPC handler 不可用时返回 500 的问题；Hub 现在可强制归档并正确落库
+
 ### 2026-02-28
 
 `10:34:00` &ensp; [`dd54ab6`](https://github.com/Unintendedz/hapii/commit/dd54ab6) — 修复会话详情页在临时 5xx/网络错误后长期停留在“加载会话”：新增自动重试轮询，并在不可恢复错误时展示可重试/返回的明确错误态

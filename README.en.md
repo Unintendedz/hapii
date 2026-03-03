@@ -10,6 +10,12 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-03
+
+`10:45:30` &ensp; [`d45f2fa`](https://github.com/Unintendedz/hapii/commit/d45f2fa) — Fix Codex local sessions being exited early when scanner matching misses the startup window; scanner now keeps matching without killing the running session
+
+`10:45:50` &ensp; [`84a278d`](https://github.com/Unintendedz/hapii/commit/84a278d) — Fix session archive returning 500 when CLI is offline / session RPC handler is unavailable; Hub now force-archives and persists lifecycle state correctly
+
 ### 2026-02-28
 
 `10:34:00` &ensp; [`dd54ab6`](https://github.com/Unintendedz/hapii/commit/dd54ab6) — Fix session detail pages staying on "Loading session…" after transient 5xx/network errors by adding auto re-polling, and show explicit retry/back error UI for non-recoverable failures
