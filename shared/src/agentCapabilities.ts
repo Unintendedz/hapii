@@ -1,11 +1,12 @@
 import type { Metadata } from './schemas'
 import type { AgentFlavor } from './modes'
 
-export const AGENT_FLAVORS = ['claude', 'codex', 'gemini', 'opencode'] as const
+export const AGENT_FLAVORS = ['claude', 'codex', 'cursor', 'gemini', 'opencode'] as const
 
 export type ResumeTokenField =
     | 'claudeSessionId'
     | 'codexSessionId'
+    | 'cursorSessionId'
     | 'geminiSessionId'
     | 'opencodeSessionId'
 
@@ -26,11 +27,15 @@ export type AgentCapabilities = {
 }
 
 export function isAgentFlavor(value: unknown): value is AgentFlavor {
-    return value === 'claude' || value === 'codex' || value === 'gemini' || value === 'opencode'
+    return value === 'claude'
+        || value === 'codex'
+        || value === 'cursor'
+        || value === 'gemini'
+        || value === 'opencode'
 }
 
 export function normalizeAgentFlavor(flavor?: string | null): AgentFlavor {
-    if (flavor === 'codex' || flavor === 'gemini' || flavor === 'opencode' || flavor === 'claude') {
+    if (flavor === 'codex' || flavor === 'cursor' || flavor === 'gemini' || flavor === 'opencode' || flavor === 'claude') {
         return flavor
     }
     return 'claude'
@@ -38,7 +43,7 @@ export function normalizeAgentFlavor(flavor?: string | null): AgentFlavor {
 
 export function isCodexFamilyFlavor(flavor?: string | null): boolean {
     const normalized = normalizeAgentFlavor(flavor)
-    return normalized === 'codex' || normalized === 'gemini' || normalized === 'opencode'
+    return normalized === 'codex' || normalized === 'cursor' || normalized === 'gemini' || normalized === 'opencode'
 }
 
 export function isClaudeFlavor(flavor?: string | null): boolean {
@@ -62,6 +67,9 @@ export function getResumeTokenFromMetadata(metadata?: Metadata | null): string |
     const flavor = normalizeAgentFlavor(metadata.flavor ?? null)
     if (flavor === 'codex') {
         return metadata.codexSessionId?.trim() ? metadata.codexSessionId : null
+    }
+    if (flavor === 'cursor') {
+        return metadata.cursorSessionId?.trim() ? metadata.cursorSessionId : null
     }
     if (flavor === 'gemini') {
         return metadata.geminiSessionId?.trim() ? metadata.geminiSessionId : null
@@ -108,6 +116,16 @@ export const AGENT_CAPABILITIES: Record<AgentFlavor, AgentCapabilities> = {
             { name: 'diff', description: 'Show git diff including untracked files' },
             { name: 'status', description: 'Show current session configuration and token usage' }
         ]
+    },
+    cursor: {
+        flavor: 'cursor',
+        codexFamily: true,
+        supportsModelMode: false,
+        supportsReasoningEffort: false,
+        supportsPlugins: false,
+        supportsProjectSlashCommands: false,
+        resumeTokenField: 'cursorSessionId',
+        builtinSlashCommands: []
     },
     gemini: {
         flavor: 'gemini',

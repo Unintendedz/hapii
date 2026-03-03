@@ -293,6 +293,7 @@ export default {
   'mode.permission.acceptEdits': 'Accept Edits',
   'mode.permission.bypassPermissions': 'Yolo',
   'mode.permission.plan': 'Plan Mode',
+  'mode.permission.ask': 'Ask Mode',
   'mode.permission.readOnly': 'Read Only',
   'mode.permission.safeYolo': 'Safe Yolo',
   'mode.permission.yolo': 'Yolo',

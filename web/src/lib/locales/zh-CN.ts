@@ -295,6 +295,7 @@ export default {
   'mode.permission.acceptEdits': '允许编辑',
   'mode.permission.bypassPermissions': 'YOLO',
   'mode.permission.plan': '规划模式',
+  'mode.permission.ask': '询问模式',
   'mode.permission.readOnly': '只读',
   'mode.permission.safeYolo': '安全 YOLO',
   'mode.permission.yolo': 'YOLO',

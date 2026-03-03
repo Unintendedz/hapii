@@ -64,6 +64,7 @@ export function SessionChat(props: {
         acceptEdits: t('mode.permission.acceptEdits'),
         bypassPermissions: t('mode.permission.bypassPermissions'),
         plan: t('mode.permission.plan'),
+        ask: t('mode.permission.ask'),
         'read-only': t('mode.permission.readOnly'),
         'safe-yolo': t('mode.permission.safeYolo'),
         yolo: t('mode.permission.yolo')
