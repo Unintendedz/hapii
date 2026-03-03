@@ -12,6 +12,10 @@
 
 ### 2026-03-03
 
+`16:44:10` &ensp; [`9c0f137`](https://github.com/Unintendedz/hapii/commit/9c0f137) — Web 输入框新增 Shift+Enter 发送快捷键，键盘场景下可更快发送消息
+
+`16:43:50` &ensp; [`ea6e1c3`](https://github.com/Unintendedz/hapii/commit/ea6e1c3) — CLI 启动平台二进制失败时输出可执行命令、退出码/信号与重装建议，便于快速定位安装问题
+
 `15:25:55` &ensp; [`c06a68c`](https://github.com/Unintendedz/hapii/commit/c06a68c) — 修复 SSE 重连竞态导致订阅 ID 被旧连接回调回写、触发 `/api/visibility` 持续 404；仅处理当前活动 EventSource 回调并补充回归测试
 
 `10:45:30` &ensp; [`d45f2fa`](https://github.com/Unintendedz/hapii/commit/d45f2fa) — 修复 Codex 本地会话在 scanner 启动匹配窗口内未命中时被提前退出的问题；改为持续匹配并保留会话运行

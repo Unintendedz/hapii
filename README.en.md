@@ -12,6 +12,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-03
 
+`16:44:10` &ensp; [`9c0f137`](https://github.com/Unintendedz/hapii/commit/9c0f137) — Add a Shift+Enter send shortcut in the web composer for faster keyboard-driven message sending
+
+`16:43:50` &ensp; [`ea6e1c3`](https://github.com/Unintendedz/hapii/commit/ea6e1c3) — Improve CLI startup failure diagnostics with executed command, exit status/signal, and reinstall guidance
+
 `15:25:55` &ensp; [`c06a68c`](https://github.com/Unintendedz/hapii/commit/c06a68c) — Fix SSE reconnect race where stale callbacks overwrite the current subscription ID and cause repeated `/api/visibility` 404s; process callbacks only from the active EventSource and add a regression test
 
 `10:45:30` &ensp; [`d45f2fa`](https://github.com/Unintendedz/hapii/commit/d45f2fa) — Fix Codex local sessions being exited early when scanner matching misses the startup window; scanner now keeps matching without killing the running session
