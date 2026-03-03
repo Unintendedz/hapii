@@ -12,6 +12,14 @@
 
 ### 2026-03-03
 
+`19:16:30` &ensp; [`709044b`](https://github.com/Unintendedz/hapii/commit/709044b) — 新增 Cursor Agent 接入：可在新建会话中选择 Cursor，并支持本地/远程启动与会话恢复
+
+`19:16:00` &ensp; [`471442c`](https://github.com/Unintendedz/hapii/commit/471442c) — SSE 增加心跳事件与超时重连机制，并改进会话/机器活跃状态增量同步
+
+`19:15:40` &ensp; [`b3bed93`](https://github.com/Unintendedz/hapii/commit/b3bed93) — Slash Commands 支持子目录命名空间（如 `nested:cmd`），降低同名命令冲突
+
+`19:15:20` &ensp; [`f010647`](https://github.com/Unintendedz/hapii/commit/f010647) — 聊天窗口未在底部时，AI 回复改为即时显示；仅用户消息进入 pending 缓冲
+
 `16:44:10` &ensp; [`9c0f137`](https://github.com/Unintendedz/hapii/commit/9c0f137) — Web 输入框新增 Shift+Enter 发送快捷键，键盘场景下可更快发送消息
 
 `16:43:50` &ensp; [`ea6e1c3`](https://github.com/Unintendedz/hapii/commit/ea6e1c3) — CLI 启动平台二进制失败时输出可执行命令、退出码/信号与重装建议，便于快速定位安装问题

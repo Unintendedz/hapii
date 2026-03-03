@@ -12,6 +12,14 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-03
 
+`19:16:30` &ensp; [`709044b`](https://github.com/Unintendedz/hapii/commit/709044b) — Add Cursor Agent integration with new-session selection, local/remote launch, and resume flow support
+
+`19:16:00` &ensp; [`471442c`](https://github.com/Unintendedz/hapii/commit/471442c) — Add SSE heartbeat/watchdog reconnect and improve incremental alive-state updates for sessions and machines
+
+`19:15:40` &ensp; [`b3bed93`](https://github.com/Unintendedz/hapii/commit/b3bed93) — Support slash-command namespaces from subdirectories (for example `nested:cmd`) to reduce name collisions
+
+`19:15:20` &ensp; [`f010647`](https://github.com/Unintendedz/hapii/commit/f010647) — Show assistant replies immediately when not at bottom; only user messages remain in the pending buffer
+
 `16:44:10` &ensp; [`9c0f137`](https://github.com/Unintendedz/hapii/commit/9c0f137) — Add a Shift+Enter send shortcut in the web composer for faster keyboard-driven message sending
 
 `16:43:50` &ensp; [`ea6e1c3`](https://github.com/Unintendedz/hapii/commit/ea6e1c3) — Improve CLI startup failure diagnostics with executed command, exit status/signal, and reinstall guidance
