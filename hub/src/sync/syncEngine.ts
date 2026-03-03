@@ -49,6 +49,15 @@ type RestorableSessionConfig = {
     reasoningEffort?: Session['reasoningEffort']
 }
 
+function isSessionRpcUnavailableError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false
+    }
+
+    return error.message.startsWith('RPC handler not registered:')
+        || error.message.startsWith('RPC socket disconnected:')
+}
+
 export class SyncEngine {
     private readonly eventPublisher: EventPublisher
     private readonly sessionCache: SessionCache
@@ -271,8 +280,27 @@ export class SyncEngine {
     }
 
     async archiveSession(sessionId: string): Promise<void> {
-        await this.rpcGateway.killSession(sessionId)
-        this.handleSessionEnd({ sid: sessionId, time: Date.now() })
+        const archivedAt = Date.now()
+
+        try {
+            await this.rpcGateway.killSession(sessionId)
+            this.handleSessionEnd({ sid: sessionId, time: archivedAt })
+            return
+        } catch (error) {
+            if (!isSessionRpcUnavailableError(error)) {
+                throw error
+            }
+
+            const message = error instanceof Error ? error.message : String(error)
+            try {
+                await this.sessionCache.markSessionArchived(sessionId, {
+                    archivedBy: 'hub',
+                    archiveReason: `Forced archive: ${message}`
+                })
+            } finally {
+                this.handleSessionEnd({ sid: sessionId, time: archivedAt })
+            }
+        }
     }
 
     async switchSession(sessionId: string, to: 'remote' | 'local'): Promise<void> {

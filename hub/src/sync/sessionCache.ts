@@ -399,6 +399,50 @@ export class SessionCache {
         this.refreshSession(sessionId)
     }
 
+    async markSessionArchived(
+        sessionId: string,
+        options?: { archivedBy?: string; archiveReason?: string }
+    ): Promise<void> {
+        const archivedBy = options?.archivedBy ?? 'hub'
+        const archiveReason = options?.archiveReason ?? 'Archived via hub'
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            const session = this.sessions.get(sessionId) ?? this.refreshSession(sessionId)
+            if (!session) {
+                throw new Error('Session not found')
+            }
+
+            const currentMetadata = session.metadata ?? { path: '', host: '' }
+            const nextMetadata = {
+                ...currentMetadata,
+                lifecycleState: 'archived',
+                lifecycleStateSince: Date.now(),
+                archivedBy,
+                archiveReason
+            }
+
+            const result = this.store.sessions.updateSessionMetadata(
+                sessionId,
+                nextMetadata,
+                session.metadataVersion,
+                session.namespace
+            )
+
+            if (result.result === 'success') {
+                this.refreshSession(sessionId)
+                return
+            }
+
+            if (result.result === 'error') {
+                throw new Error('Failed to update session metadata')
+            }
+
+            this.refreshSession(sessionId)
+        }
+
+        throw new Error('Session metadata was modified concurrently. Please try again.')
+    }
+
     async deleteSession(sessionId: string): Promise<void> {
         const session = this.sessions.get(sessionId)
         if (!session) {

@@ -255,8 +255,13 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
             return sessionResult
         }
 
-        await engine.archiveSession(sessionResult.sessionId)
-        return c.json({ ok: true })
+        try {
+            await engine.archiveSession(sessionResult.sessionId)
+            return c.json({ ok: true })
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to archive session'
+            return c.json({ error: message }, 500)
+        }
     })
 
     app.post('/sessions/:id/switch', async (c) => {
