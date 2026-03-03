@@ -151,6 +151,9 @@ export function useSSE(options: {
         }
 
         const handleMessage = (message: MessageEvent<string>) => {
+            if (eventSourceRef.current !== eventSource) {
+                return
+            }
             if (typeof message.data !== 'string') {
                 return
             }
@@ -174,9 +177,15 @@ export function useSSE(options: {
 
         eventSource.onmessage = handleMessage
         eventSource.onopen = () => {
+            if (eventSourceRef.current !== eventSource) {
+                return
+            }
             onConnectRef.current?.()
         }
         eventSource.onerror = (error) => {
+            if (eventSourceRef.current !== eventSource) {
+                return
+            }
             onErrorRef.current?.(error)
             const reason = eventSource.readyState === EventSource.CLOSED ? 'closed' : 'error'
             onDisconnectRef.current?.(reason)
