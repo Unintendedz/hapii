@@ -158,9 +158,15 @@ export class SessionCache {
     }
 
     reloadAll(): void {
+        const now = Date.now()
         const sessions = this.store.sessions.getSessions()
         for (const session of sessions) {
-            this.refreshSession(session.id)
+            const loaded = this.refreshSession(session.id)
+            // Give previously-active sessions a fresh expiry window so they
+            // survive until the CLI reconnects and sends a heartbeat.
+            if (loaded?.active) {
+                loaded.activeAt = now
+            }
         }
     }
 
