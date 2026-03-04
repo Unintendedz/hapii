@@ -257,6 +257,30 @@ export function updateSessionRuntimeConfig(
     return result.changes === 1
 }
 
+export function updateSessionActiveState(
+    db: Database,
+    id: string,
+    active: boolean,
+    activeAt: number | null,
+    namespace: string
+): boolean {
+    const result = db.prepare(`
+        UPDATE sessions
+        SET active = @active,
+            active_at = CASE WHEN @active_at IS NOT NULL THEN @active_at ELSE active_at END,
+            seq = seq + 1
+        WHERE id = @id
+          AND namespace = @namespace
+    `).run({
+        id,
+        namespace,
+        active: active ? 1 : 0,
+        active_at: activeAt
+    })
+
+    return result.changes === 1
+}
+
 export function deleteSession(db: Database, id: string, namespace: string): boolean {
     const result = db.prepare(
         'DELETE FROM sessions WHERE id = ? AND namespace = ?'

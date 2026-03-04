@@ -219,6 +219,10 @@ export class SessionCache {
         session.activeAt = Math.max(session.activeAt, t)
         session.thinking = nextThinking
         session.thinkingAt = t
+
+        if (!wasActive) {
+            this.store.sessions.updateSessionActiveState(session.id, true, session.activeAt, session.namespace)
+        }
         const payloadRuntimeConfigVersion = normalizeRuntimeConfigVersion(payload.runtimeConfigVersion)
         const canApplyRuntimeFromAlive = payloadRuntimeConfigVersion !== null
             ? payloadRuntimeConfigVersion >= previousRuntimeConfigVersion
@@ -300,6 +304,7 @@ export class SessionCache {
         session.thinking = false
         session.thinkingAt = t
         this.persistRuntimeConfig(session)
+        this.store.sessions.updateSessionActiveState(session.id, false, null, session.namespace)
 
         this.publisher.emit({ type: 'session-updated', sessionId: session.id, data: { active: false, thinking: false } })
     }
@@ -325,6 +330,7 @@ export class SessionCache {
 
             session.active = false
             session.thinking = false
+            this.store.sessions.updateSessionActiveState(session.id, false, null, session.namespace)
             this.publisher.emit({ type: 'session-updated', sessionId: session.id, data: { active: false } })
         }
     }

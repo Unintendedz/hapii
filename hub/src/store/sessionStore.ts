@@ -10,6 +10,7 @@ import {
     getSessions,
     getSessionsByNamespace,
     setSessionTodos,
+    updateSessionActiveState,
     updateSessionRuntimeConfig,
     updateSessionAgentState,
     updateSessionMetadata
@@ -76,6 +77,10 @@ export class SessionStore {
 
     getSessionsByNamespace(namespace: string): StoredSession[] {
         return getSessionsByNamespace(this.db, namespace)
+    }
+
+    updateSessionActiveState(id: string, active: boolean, activeAt: number | null, namespace: string): boolean {
+        return updateSessionActiveState(this.db, id, active, activeAt, namespace)
     }
 
     deleteSession(id: string, namespace: string): boolean {
