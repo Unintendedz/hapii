@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-05
 
+`21:10:00` &ensp; [`afe0433`](https://github.com/Unintendedz/hapii/commit/afe0433) — Fix active sessions being immediately expired after hub restart; reset activeAt on reload to give CLIs a 30s reconnection window
+
 `21:00:00` &ensp; [`8dd8611`](https://github.com/Unintendedz/hapii/commit/8dd8611) — Fix all sessions appearing archived after hub restart (redeploy); session active state is now persisted to the database and restored correctly on startup
 
 ### 2026-03-03

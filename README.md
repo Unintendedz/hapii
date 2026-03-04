@@ -12,6 +12,8 @@
 
 ### 2026-03-05
 
+`21:10:00` &ensp; [`afe0433`](https://github.com/Unintendedz/hapii/commit/afe0433) — 修复 Hub 重启后活跃会话被过期定时器立即归档的问题；重载时重置 activeAt 给 CLI 30 秒重连窗口
+
 `21:00:00` &ensp; [`8dd8611`](https://github.com/Unintendedz/hapii/commit/8dd8611) — 修复 Hub 重启（redeploy）后所有会话被归档的问题；会话活跃状态现在持久化到数据库，重启后正确恢复
 
 ### 2026-03-03
