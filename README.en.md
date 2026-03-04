@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-05
+
+`21:00:00` &ensp; [`8dd8611`](https://github.com/Unintendedz/hapii/commit/8dd8611) — Fix all sessions appearing archived after hub restart (redeploy); session active state is now persisted to the database and restored correctly on startup
+
 ### 2026-03-03
 
 `19:16:30` &ensp; [`709044b`](https://github.com/Unintendedz/hapii/commit/709044b) — Add Cursor Agent integration with new-session selection, local/remote launch, and resume flow support

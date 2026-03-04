@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-03-05
+
+`21:00:00` &ensp; [`8dd8611`](https://github.com/Unintendedz/hapii/commit/8dd8611) — 修复 Hub 重启（redeploy）后所有会话被归档的问题；会话活跃状态现在持久化到数据库，重启后正确恢复
+
 ### 2026-03-03
 
 `19:16:30` &ensp; [`709044b`](https://github.com/Unintendedz/hapii/commit/709044b) — 新增 Cursor Agent 接入：可在新建会话中选择 Cursor，并支持本地/远程启动与会话恢复
