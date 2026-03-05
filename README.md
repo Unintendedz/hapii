@@ -12,6 +12,8 @@
 
 ### 2026-03-05
 
+`09:19:08` &ensp; [`8019739`](https://github.com/Unintendedz/hapii/commit/8019739) — 修复 Claude 远程会话失败后重复复用旧 `--resume` 参数导致连续 code 1 的问题，并在退出报错中附带 stderr 摘要便于定位
+
 `09:06:01` &ensp; [`2c26212`](https://github.com/Unintendedz/hapii/commit/2c26212) — 调整 Web 输入框快捷键：回车发送、Shift+回车换行；触摸设备继续使用回车换行和发送按钮发送
 
 `09:05:00` &ensp; [`a6a41fb`](https://github.com/Unintendedz/hapii/commit/a6a41fb) — 修复会话已在内存活跃但数据库仍为 inactive 时重启后被归档的问题；心跳现在持续写入 active/activeAt
