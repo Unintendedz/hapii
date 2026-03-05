@@ -359,7 +359,11 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         session.client.sendSessionEvent({ type: 'message', message: 'Aborted by user' });
                     }
                 } catch (e) {
-                    logger.debug('[remote]: launch error', e);
+                    if (e instanceof Error) {
+                        logger.debug('[remote]: launch error', { message: e.message });
+                    } else {
+                        logger.debug('[remote]: launch error', e);
+                    }
                     if (!this.exitReason) {
                         const details = e instanceof Error ? e.message : String(e);
                         session.client.sendSessionEvent({
@@ -369,6 +373,11 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         continue;
                     }
                 } finally {
+                    // --resume is a one-time bootstrap flag. Consume it even when launch fails,
+                    // otherwise a stale resume ID can cause repeated crash loops on every send.
+                    if (session.claudeArgs?.includes('--resume')) {
+                        session.consumeOneTimeFlags();
+                    }
                     logger.debug('[remote]: launch finally');
 
                     for (let [toolCallId, { parentToolCallId }] of ongoingToolCalls) {

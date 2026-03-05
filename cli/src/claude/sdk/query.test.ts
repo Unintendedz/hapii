@@ -62,9 +62,29 @@ describe('claude sdk query exit handling', () => {
         child.stdout.end()
         child.emit('close', 1)
 
-        await expect(nextPromise).rejects.toThrow('Claude Code process exited with code 1')
+        await expect(nextPromise).rejects.toThrow(/Claude Code process exited with code 1/)
         await new Promise((resolve) => setTimeout(resolve, 0))
         expect(mocks.killProcessByChildProcess).toHaveBeenCalledTimes(1)
+    })
+
+    it('includes stderr tail in non-zero exit errors', async () => {
+        const child = new FakeChildProcess()
+        mocks.spawn.mockReturnValue(child as any)
+
+        const response = query({
+            prompt: 'hello',
+            options: {
+                pathToClaudeCodeExecutable: 'claude'
+            }
+        })
+
+        const nextPromise = response.next()
+
+        child.stderr.write('fatal: resume session not found\n')
+        child.stdout.end()
+        child.emit('close', 1)
+
+        await expect(nextPromise).rejects.toThrow('resume session not found')
     })
 
     it('prefers AbortError when aborted', async () => {

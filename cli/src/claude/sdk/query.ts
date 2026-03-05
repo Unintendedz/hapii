@@ -386,12 +386,37 @@ export function query(config: {
         childStdin = child.stdin
     }
 
-    // Handle stderr in debug mode
-    if (process.env.DEBUG) {
-        child.stderr.on('data', (data) => {
-            console.error('Claude Code stderr:', data.toString())
-        })
+    const stderrTail: string[] = []
+    const maxStderrTailLines = 24
+    const maxStderrTailChars = 500
+    const appendStderrTail = (chunk: string): void => {
+        for (const line of chunk.split(/\r?\n/)) {
+            const trimmed = line.trim()
+            if (!trimmed) continue
+            stderrTail.push(trimmed)
+            if (stderrTail.length > maxStderrTailLines) {
+                stderrTail.splice(0, stderrTail.length - maxStderrTailLines)
+            }
+        }
     }
+    const stderrSummary = (): string | null => {
+        if (stderrTail.length === 0) {
+            return null
+        }
+        const joined = stderrTail.join(' | ')
+        if (joined.length <= maxStderrTailChars) {
+            return joined
+        }
+        return `${joined.slice(0, maxStderrTailChars)}...`
+    }
+
+    child.stderr.on('data', (data) => {
+        const text = data.toString()
+        appendStderrTail(text)
+        if (process.env.DEBUG) {
+            console.error('Claude Code stderr:', text)
+        }
+    })
 
     // Setup cleanup
     const cleanup = () => {
@@ -430,7 +455,11 @@ export function query(config: {
             if (config.options?.abort?.aborted) {
                 reportQueryError(new AbortError('Claude Code process aborted by user'))
             } else if (code !== 0) {
-                reportQueryError(new Error(`Claude Code process exited with code ${code}`))
+                const summary = stderrSummary()
+                const message = summary
+                    ? `Claude Code process exited with code ${code}: ${summary}`
+                    : `Claude Code process exited with code ${code}`
+                reportQueryError(new Error(message))
             }
             completeProcessExit()
         })
