@@ -226,9 +226,7 @@ export class SessionCache {
         session.thinking = nextThinking
         session.thinkingAt = t
 
-        if (!wasActive) {
-            this.store.sessions.updateSessionActiveState(session.id, true, session.activeAt, session.namespace)
-        }
+        this.store.sessions.updateSessionActiveState(session.id, true, session.activeAt, session.namespace)
         const payloadRuntimeConfigVersion = normalizeRuntimeConfigVersion(payload.runtimeConfigVersion)
         const canApplyRuntimeFromAlive = payloadRuntimeConfigVersion !== null
             ? payloadRuntimeConfigVersion >= previousRuntimeConfigVersion
