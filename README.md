@@ -12,6 +12,8 @@
 
 ### 2026-03-05
 
+`09:06:01` &ensp; [`2c26212`](https://github.com/Unintendedz/hapii/commit/2c26212) — 调整 Web 输入框快捷键：回车发送、Shift+回车换行；触摸设备继续使用回车换行和发送按钮发送
+
 `09:05:00` &ensp; [`a6a41fb`](https://github.com/Unintendedz/hapii/commit/a6a41fb) — 修复会话已在内存活跃但数据库仍为 inactive 时重启后被归档的问题；心跳现在持续写入 active/activeAt
 
 `21:10:00` &ensp; [`afe0433`](https://github.com/Unintendedz/hapii/commit/afe0433) — 修复 Hub 重启后活跃会话被过期定时器立即归档的问题；重载时重置 activeAt 给 CLI 30 秒重连窗口

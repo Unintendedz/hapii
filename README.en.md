@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-05
 
+`09:06:01` &ensp; [`2c26212`](https://github.com/Unintendedz/hapii/commit/2c26212) — Adjust web composer shortcuts: Enter sends, Shift+Enter inserts newline; touch devices keep Enter for newline and use the send button to submit
+
 `09:05:00` &ensp; [`a6a41fb`](https://github.com/Unintendedz/hapii/commit/a6a41fb) — Fix sessions being archived after restart when memory was active but DB still inactive; keepalive now continuously persists active/activeAt
 
 `21:10:00` &ensp; [`afe0433`](https://github.com/Unintendedz/hapii/commit/afe0433) — Fix active sessions being immediately expired after hub restart; reset activeAt on reload to give CLIs a 30s reconnection window
