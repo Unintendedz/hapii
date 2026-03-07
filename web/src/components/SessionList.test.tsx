@@ -108,7 +108,7 @@ describe('SessionList archived load more behavior', () => {
 
         fireEvent.click(screen.getAllByRole('button', { name: /^Archived/ })[0])
 
-        const loadMoreRows = screen.getAllByRole('button', { name: 'Load more archived sessions' })
+        const loadMoreRows = screen.getAllByRole('button', { name: 'Load more sessions' })
         expect(loadMoreRows).toHaveLength(2)
         expect(loadMoreRows[0].className).not.toContain('rounded-md')
         expect(loadMoreRows[0].className).not.toContain('border')
@@ -138,7 +138,7 @@ describe('SessionList archived load more behavior', () => {
         expect(screen.queryByText('alpha-09')).toBeNull()
         expect(screen.queryByText('beta-09')).toBeNull()
 
-        const loadMoreRows = screen.getAllByRole('button', { name: 'Load more archived sessions' })
+        const loadMoreRows = screen.getAllByRole('button', { name: 'Load more sessions' })
         fireEvent.click(loadMoreRows[0])
 
         expect(screen.getByText('alpha-09')).toBeTruthy()
@@ -146,7 +146,7 @@ describe('SessionList archived load more behavior', () => {
         expect(screen.queryByText('beta-09')).toBeNull()
         expect(screen.queryByText('beta-10')).toBeNull()
 
-        expect(screen.getAllByRole('button', { name: 'Load more archived sessions' })).toHaveLength(1)
+        expect(screen.getAllByRole('button', { name: 'Load more sessions' })).toHaveLength(1)
     })
 
     it('does not pin archived section to viewport when expanded', () => {
@@ -214,5 +214,54 @@ describe('SessionList archived load more behavior', () => {
             directory: '/projects/alpha',
             seedSession: expect.objectContaining({ id: 'alpha-01' })
         })
+    })
+
+    it('hides unarchived sessions older than 12 hours behind the same load-more row', () => {
+        const now = Date.now()
+
+        render(
+            <I18nProvider>
+                <SessionList
+                    activeSessions={[
+                        makeActiveSession('alpha-live', '/projects/alpha', now, 'alpha-live'),
+                        makeArchivedSession(
+                            'alpha-recent',
+                            '/projects/alpha',
+                            now - (2 * 60 * 60 * 1000),
+                            'alpha-recent'
+                        ),
+                        makeArchivedSession(
+                            'alpha-old-1',
+                            '/projects/alpha',
+                            now - (13 * 60 * 60 * 1000),
+                            'alpha-old-1'
+                        ),
+                        makeArchivedSession(
+                            'alpha-old-2',
+                            '/projects/alpha',
+                            now - (14 * 60 * 60 * 1000),
+                            'alpha-old-2'
+                        ),
+                    ]}
+                    archivedSessions={[]}
+                    archivedTotal={0}
+                    onSelect={vi.fn()}
+                    onNewSession={vi.fn()}
+                    onRefresh={vi.fn()}
+                    isLoading={false}
+                    api={null}
+                />
+            </I18nProvider>
+        )
+
+        expect(screen.getByText('alpha-live')).toBeTruthy()
+        expect(screen.getByText('alpha-recent')).toBeTruthy()
+        expect(screen.queryByText('alpha-old-1')).toBeNull()
+        expect(screen.queryByText('alpha-old-2')).toBeNull()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }))
+
+        expect(screen.getByText('alpha-old-1')).toBeTruthy()
+        expect(screen.getByText('alpha-old-2')).toBeTruthy()
     })
 })

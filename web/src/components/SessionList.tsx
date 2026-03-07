@@ -20,7 +20,13 @@ type SessionGroup = {
 
 type GroupSection = 'active' | 'archived'
 
-const ARCHIVED_GROUP_PAGE_SIZE = 8
+const SESSION_GROUP_PAGE_SIZE = 8
+const STALE_UNARCHIVED_SESSION_MS = 12 * 60 * 60 * 1000
+
+function normalizeTimestampMs(value: number): number {
+    if (!Number.isFinite(value)) return Number.NaN
+    return value < 1_000_000_000_000 ? value * 1000 : value
+}
 
 function getGroupDisplayName(directory: string): string {
     if (directory === 'Other') return directory
@@ -172,7 +178,7 @@ function getAgentLabel(session: SessionSummary): string {
 }
 
 function formatRelativeTime(value: number, t: (key: string, params?: Record<string, string | number>) => string): string | null {
-    const ms = value < 1_000_000_000_000 ? value * 1000 : value
+    const ms = normalizeTimestampMs(value)
     if (!Number.isFinite(ms)) return null
     const delta = Date.now() - ms
     if (delta < 60_000) return t('session.time.justNow')
@@ -194,6 +200,26 @@ function formatDurationMs(ms: number): string {
     if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
     if (minutes > 0) return `${minutes}m ${seconds}s`
     return `${seconds}s`
+}
+
+function getInitialVisibleCount(
+    section: GroupSection,
+    group: SessionGroup,
+    now: number
+): number {
+    if (section === 'archived') {
+        return Math.min(group.sessions.length, SESSION_GROUP_PAGE_SIZE)
+    }
+
+    const staleCutoff = now - STALE_UNARCHIVED_SESSION_MS
+    const firstHiddenIndex = group.sessions.findIndex((session) => {
+        if (session.active) return false
+        const updatedAt = normalizeTimestampMs(session.updatedAt)
+        if (!Number.isFinite(updatedAt)) return false
+        return updatedAt < staleCutoff
+    })
+
+    return firstHiddenIndex === -1 ? group.sessions.length : firstHiddenIndex
 }
 
 function SessionItem(props: {
@@ -385,6 +411,7 @@ export function SessionList(props: {
         return all.some((session) => session.thinking && Boolean(session.work?.current))
     }, [props.activeSessions, props.archivedSessions])
     const now = useNow({ enabled: hasThinkingSessions, intervalMs: 1000 })
+    const visibilityNow = hasThinkingSessions ? now : Date.now()
     const activeGroups = useMemo(
         () => groupSessionsByDirectory(props.activeSessions),
         [props.activeSessions]
@@ -397,35 +424,40 @@ export function SessionList(props: {
         () => new Map()
     )
     const [isArchivedSectionCollapsed, setIsArchivedSectionCollapsed] = useState(true)
-    const [archivedVisibleCounts, setArchivedVisibleCounts] = useState<Map<string, number>>(
+    const [visibleCounts, setVisibleCounts] = useState<Map<string, number>>(
         () => new Map()
     )
 
     const makeGroupKey = (section: GroupSection, directory: string): string => `${section}:${directory}`
 
-    const getArchivedVisibleCount = useCallback((group: SessionGroup): number => {
-        const override = archivedVisibleCounts.get(group.directory)
+    const getVisibleCount = useCallback((section: GroupSection, group: SessionGroup): number => {
+        const key = makeGroupKey(section, group.directory)
+        const initialVisibleCount = getInitialVisibleCount(section, group, visibilityNow)
+        const override = visibleCounts.get(key)
         if (override === undefined) {
-            return Math.min(group.sessions.length, ARCHIVED_GROUP_PAGE_SIZE)
+            return initialVisibleCount
         }
         if (!Number.isFinite(override) || override < 0) {
             return 0
         }
         return Math.min(group.sessions.length, Math.floor(override))
-    }, [archivedVisibleCounts])
+    }, [visibilityNow, visibleCounts])
 
-    const loadMoreArchivedForGroup = useCallback((group: SessionGroup) => {
-        setArchivedVisibleCounts(prev => {
-            const current = prev.get(group.directory) ?? Math.min(group.sessions.length, ARCHIVED_GROUP_PAGE_SIZE)
-            const nextCount = Math.min(group.sessions.length, current + ARCHIVED_GROUP_PAGE_SIZE)
+    const loadMoreForGroup = useCallback((section: GroupSection, group: SessionGroup) => {
+        const key = makeGroupKey(section, group.directory)
+        const initialVisibleCount = getInitialVisibleCount(section, group, visibilityNow)
+
+        setVisibleCounts(prev => {
+            const current = prev.get(key) ?? initialVisibleCount
+            const nextCount = Math.min(group.sessions.length, current + SESSION_GROUP_PAGE_SIZE)
             if (nextCount <= current) {
                 return prev
             }
             const next = new Map(prev)
-            next.set(group.directory, nextCount)
+            next.set(key, nextCount)
             return next
         })
-    }, [])
+    }, [visibilityNow])
 
     const isGroupCollapsed = (section: GroupSection, group: SessionGroup): boolean => {
         const key = makeGroupKey(section, group.directory)
@@ -464,26 +496,38 @@ export function SessionList(props: {
     }, [activeGroups, archivedGroups])
 
     useEffect(() => {
-        setArchivedVisibleCounts(prev => {
+        setVisibleCounts(prev => {
             if (prev.size === 0) {
                 return prev
             }
 
-            const totalsByDirectory = new Map(
-                archivedGroups.map(group => [group.directory, group.sessions.length])
-            )
+            const groupsByKey = new Map<string, { section: GroupSection; group: SessionGroup }>([
+                ...activeGroups.map(group => [
+                    makeGroupKey('active', group.directory),
+                    { section: 'active' as const, group }
+                ] as const),
+                ...archivedGroups.map(group => [
+                    makeGroupKey('archived', group.directory),
+                    { section: 'archived' as const, group }
+                ] as const)
+            ])
             let changed = false
             const next = new Map<string, number>()
 
-            for (const [directory, count] of prev.entries()) {
-                const total = totalsByDirectory.get(directory)
-                if (total === undefined) {
+            for (const [key, count] of prev.entries()) {
+                const entry = groupsByKey.get(key)
+                if (!entry) {
                     changed = true
                     continue
                 }
 
-                const normalized = Math.min(total, Math.max(0, Math.floor(count)))
-                if (normalized <= ARCHIVED_GROUP_PAGE_SIZE) {
+                const initialVisibleCount = getInitialVisibleCount(
+                    entry.section,
+                    entry.group,
+                    visibilityNow
+                )
+                const normalized = Math.min(entry.group.sessions.length, Math.max(0, Math.floor(count)))
+                if (normalized <= initialVisibleCount) {
                     changed = true
                     continue
                 }
@@ -491,7 +535,7 @@ export function SessionList(props: {
                 if (normalized !== count) {
                     changed = true
                 }
-                next.set(directory, normalized)
+                next.set(key, normalized)
             }
 
             if (!changed && next.size === prev.size) {
@@ -499,37 +543,83 @@ export function SessionList(props: {
             }
             return next
         })
-    }, [archivedGroups])
+    }, [activeGroups, archivedGroups, visibilityNow])
 
     useEffect(() => {
         if (!selectedSessionId) {
             return
         }
 
-        const selectedInArchived = archivedGroups.some((group) =>
+        const selectedGroup = [
+            ...activeGroups.map(group => ({ section: 'active' as const, group })),
+            ...archivedGroups.map(group => ({ section: 'archived' as const, group }))
+        ].find(({ group }) =>
             group.sessions.some((session) => session.id === selectedSessionId)
         )
 
-        if (selectedInArchived) {
+        if (!selectedGroup) {
+            return
+        }
+
+        const { section, group } = selectedGroup
+        const key = makeGroupKey(section, group.directory)
+
+        if (section === 'archived') {
             setIsArchivedSectionCollapsed(false)
         }
-    }, [archivedGroups, selectedSessionId])
+
+        setCollapseOverrides(prev => {
+            const current = prev.get(key)
+            if (current === false) {
+                return prev
+            }
+
+            const next = new Map(prev)
+            next.set(key, false)
+            return next
+        })
+
+        const selectedIndex = group.sessions.findIndex((session) => session.id === selectedSessionId)
+        if (selectedIndex < 0) {
+            return
+        }
+
+        const initialVisibleCount = getInitialVisibleCount(section, group, visibilityNow)
+        const requiredVisibleCount = Math.min(
+            group.sessions.length,
+            Math.max(initialVisibleCount, selectedIndex + 1)
+        )
+
+        if (requiredVisibleCount <= initialVisibleCount) {
+            return
+        }
+
+        setVisibleCounts(prev => {
+            const current = prev.get(key) ?? initialVisibleCount
+            if (current >= requiredVisibleCount) {
+                return prev
+            }
+
+            const next = new Map(prev)
+            next.set(key, requiredVisibleCount)
+            return next
+        })
+    }, [activeGroups, archivedGroups, selectedSessionId, visibilityNow])
 
     const visibleArchivedCount = archivedGroups.reduce((sum, group) => {
-        return sum + getArchivedVisibleCount(group)
+        return sum + getVisibleCount('archived', group)
+    }, 0)
+    const visibleActiveCount = activeGroups.reduce((sum, group) => {
+        return sum + getVisibleCount('active', group)
     }, 0)
 
     const renderGroups = (section: GroupSection, groups: SessionGroup[], compactItems: boolean) => {
         return groups.map((group) => {
             const isCollapsed = isGroupCollapsed(section, group)
             const quickCreateSeed = group.sessions[0] ?? null
-            const visibleCount = section === 'archived'
-                ? getArchivedVisibleCount(group)
-                : group.sessions.length
-            const visibleSessions = section === 'archived'
-                ? group.sessions.slice(0, visibleCount)
-                : group.sessions
-            const hasMoreInGroup = section === 'archived' && visibleCount < group.sessions.length
+            const visibleCount = getVisibleCount(section, group)
+            const visibleSessions = group.sessions.slice(0, visibleCount)
+            const hasMoreInGroup = visibleCount < group.sessions.length
 
             return (
                 <div key={makeGroupKey(section, group.directory)}>
@@ -590,10 +680,10 @@ export function SessionList(props: {
                                 <div className="px-3 py-2">
                                     <button
                                         type="button"
-                                        onClick={() => loadMoreArchivedForGroup(group)}
+                                        onClick={() => loadMoreForGroup(section, group)}
                                         className="w-full text-left text-[11px] text-[var(--app-hint)] transition-colors hover:text-[var(--app-fg)]"
                                     >
-                                        {t('sessions.archived.loadMore')}
+                                        {t('sessions.loadMore')}
                                     </button>
                                 </div>
                             ) : null}
@@ -604,7 +694,7 @@ export function SessionList(props: {
         })
     }
 
-    const visibleSessionsCount = props.activeSessions.length + visibleArchivedCount
+    const visibleSessionsCount = visibleActiveCount + visibleArchivedCount
     const visibleGroupCount = activeGroups.length + archivedGroups.length
     const hasArchivedSection = props.archivedTotal > 0 || props.archivedSessions.length > 0
 

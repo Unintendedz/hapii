@@ -77,7 +77,10 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
 
         const { archived, limit, offset } = parsedQuery.data
         const getPendingCount = (s: Session) => s.agentState?.requests ? Object.keys(s.agentState.requests).length : 0
-        const isArchived = (s: Session) => !s.active
+        const isArchived = (s: Session) => (
+            s.metadata?.lifecycleState === 'archived'
+            || s.metadata?.archivedBy !== undefined
+        )
 
         const namespace = c.get('namespace')
         let sessions = engine.getSessionsByNamespace(namespace)
