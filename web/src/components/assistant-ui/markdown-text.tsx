@@ -169,27 +169,27 @@ function Td(props: ComponentPropsWithoutRef<'td'>) {
 }
 
 function H1(props: ComponentPropsWithoutRef<'h1'>) {
-    return <h1 {...props} className={cn('aui-md-h1 mt-3 text-base font-semibold', props.className)} />
+    return <h1 {...props} className={cn('aui-md-h1 mt-3 scroll-mt-14 text-base font-semibold', props.className)} />
 }
 
 function H2(props: ComponentPropsWithoutRef<'h2'>) {
-    return <h2 {...props} className={cn('aui-md-h2 mt-3 text-base font-semibold', props.className)} />
+    return <h2 {...props} className={cn('aui-md-h2 mt-3 scroll-mt-14 text-base font-semibold', props.className)} />
 }
 
 function H3(props: ComponentPropsWithoutRef<'h3'>) {
-    return <h3 {...props} className={cn('aui-md-h3 mt-2 text-base font-semibold', props.className)} />
+    return <h3 {...props} className={cn('aui-md-h3 mt-2 scroll-mt-14 text-base font-semibold', props.className)} />
 }
 
 function H4(props: ComponentPropsWithoutRef<'h4'>) {
-    return <h4 {...props} className={cn('aui-md-h4 mt-2 text-base font-semibold', props.className)} />
+    return <h4 {...props} className={cn('aui-md-h4 mt-2 scroll-mt-14 text-base font-semibold', props.className)} />
 }
 
 function H5(props: ComponentPropsWithoutRef<'h5'>) {
-    return <h5 {...props} className={cn('aui-md-h5 mt-2 text-base font-semibold', props.className)} />
+    return <h5 {...props} className={cn('aui-md-h5 mt-2 scroll-mt-14 text-base font-semibold', props.className)} />
 }
 
 function H6(props: ComponentPropsWithoutRef<'h6'>) {
-    return <h6 {...props} className={cn('aui-md-h6 mt-2 text-base font-semibold', props.className)} />
+    return <h6 {...props} className={cn('aui-md-h6 mt-2 scroll-mt-14 text-base font-semibold', props.className)} />
 }
 
 function Strong(props: ComponentPropsWithoutRef<'strong'>) {

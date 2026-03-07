@@ -158,6 +158,9 @@ export default {
   // Message actions
   'message.action.copy': '复制消息',
   'message.action.selectText': '选择文字',
+  'message.jump.start': '开头',
+  'message.jump.end': '末尾',
+  'message.jump.toc': '目录',
 
   // Code block
   'code.copy': '复制',

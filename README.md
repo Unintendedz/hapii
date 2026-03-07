@@ -12,6 +12,8 @@
 
 ### 2026-03-07
 
+`15:29:25` &ensp; [`71ce656`](https://github.com/Unintendedz/hapii/commit/71ce656) — 聊天中的超长 AI 回复块新增块内跳转按钮，支持一键回到开头/末尾，并可按 Markdown 副标题目录快速定位
+
 `09:50:32` &ensp; [`458cdfb`](https://github.com/Unintendedz/hapii/commit/458cdfb) — 未归档且超过 24 小时未活动的 inactive 会话现在会自动归档，避免旧会话长期堆积在未归档列表
 
 `09:40:37` &ensp; [`018fed8`](https://github.com/Unintendedz/hapii/commit/018fed8) — 修复 redeploy 窗口内 runner 机器注册偶发 404 后直接退出的问题；runner 现在会重试 `/cli/machines`，redeploy 也会在 Hub 就绪后再拉起 runner 并校验 machine 在线

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { MessagePrimitive, useAssistantState } from '@assistant-ui/react'
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { Reasoning, ReasoningGroup } from '@/components/assistant-ui/reasoning'
 import { HappyToolMessage } from '@/components/AssistantChat/messages/ToolMessage'
 import { MessageActionMenu } from '@/components/AssistantChat/messages/MessageActionMenu'
 import { MessageSelectDialog } from '@/components/AssistantChat/messages/MessageSelectDialog'
+import { LongMessageJumpControls } from '@/components/AssistantChat/messages/LongMessageJumpControls'
 import { useHappyChatContext } from '@/components/AssistantChat/context'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -28,6 +29,9 @@ export function HappyAssistantMessage() {
     const [menuOpen, setMenuOpen] = useState(false)
     const [menuAnchorPoint, setMenuAnchorPoint] = useState({ x: 0, y: 0 })
     const [selectOpen, setSelectOpen] = useState(false)
+    const messageRef = useRef<HTMLDivElement | null>(null)
+    const contentRef = useRef<HTMLDivElement | null>(null)
+    const bottomRef = useRef<HTMLDivElement | null>(null)
 
     const messageId = useAssistantState(({ message }) => message.id)
     const isCliOutput = useAssistantState(({ message }) => {
@@ -51,6 +55,12 @@ export function HappyAssistantMessage() {
         const parts = message.content
         return parts.length > 0 && parts.every((part) => part.type === 'tool-call')
     })
+    const navigationCandidate = useMemo(() => {
+        if (toolOnly || isCliOutput) return false
+
+        const lineCount = textContent.split(/\r?\n/).length
+        return textContent.length >= 900 || lineCount >= 18
+    }, [isCliOutput, textContent, toolOnly])
 
     const longPressHandlers = useLongPress({
         onLongPress: (point) => {
@@ -62,12 +72,12 @@ export function HappyAssistantMessage() {
         threshold: 500
     })
 
-    const assistantBubbleClass = 'w-fit min-w-0 max-w-[92%] rounded-xl bg-[var(--app-subtle-bg)] px-3 py-2 text-[var(--app-fg)] shadow-sm overflow-x-hidden'
+    const assistantBubbleClass = 'relative w-fit min-w-0 max-w-[92%] rounded-xl bg-[var(--app-subtle-bg)] px-3 py-2 text-[var(--app-fg)] shadow-sm'
     const rootClass = toolOnly
-        ? 'py-1 min-w-0 max-w-full overflow-x-hidden'
+        ? 'relative py-1 min-w-0 max-w-full'
         : ctx.assistantBubbleEnabled
             ? assistantBubbleClass
-            : 'px-1 min-w-0 max-w-full overflow-x-hidden'
+            : 'relative px-1 min-w-0 max-w-full'
 
     if (isCliOutput) {
         return (
@@ -96,12 +106,23 @@ export function HappyAssistantMessage() {
 
     return (
         <MessagePrimitive.Root
+            ref={messageRef}
             className={rootClass}
             style={{ WebkitTouchCallout: 'none' }}
             data-hapi-message-id={messageId}
             {...longPressHandlers}
         >
-            <MessagePrimitive.Content components={MESSAGE_PART_COMPONENTS} />
+            <LongMessageJumpControls
+                bottomRef={bottomRef}
+                candidate={navigationCandidate}
+                contentRef={contentRef}
+                messageId={messageId}
+                messageRef={messageRef}
+            />
+            <div ref={contentRef} className="min-w-0 overflow-x-hidden">
+                <MessagePrimitive.Content components={MESSAGE_PART_COMPONENTS} />
+            </div>
+            <div ref={bottomRef} aria-hidden="true" className="h-px w-full" />
             <MessageActionMenu
                 isOpen={menuOpen}
                 onClose={() => setMenuOpen(false)}

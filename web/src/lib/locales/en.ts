@@ -156,6 +156,9 @@ export default {
   // Message actions
   'message.action.copy': 'Copy message',
   'message.action.selectText': 'Select text',
+  'message.jump.start': 'Start',
+  'message.jump.end': 'End',
+  'message.jump.toc': 'Sections',
 
   // Code block
   'code.copy': 'Copy',
