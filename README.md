@@ -12,6 +12,8 @@
 
 ### 2026-03-07
 
+`09:40:37` &ensp; [`018fed8`](https://github.com/Unintendedz/hapii/commit/018fed8) — 修复 redeploy 窗口内 runner 机器注册偶发 404 后直接退出的问题；runner 现在会重试 `/cli/machines`，redeploy 也会在 Hub 就绪后再拉起 runner 并校验 machine 在线
+
 `09:31:29` &ensp; [`3d3c68e`](https://github.com/Unintendedz/hapii/commit/3d3c68e) — 未归档会话列表按项目折叠 12 小时前的旧会话，统一改为“加载更多会话”按需展开；仅手动归档的会话进入归档区
 
 ### 2026-03-05
