@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-07
 
+`09:50:32` &ensp; [`458cdfb`](https://github.com/Unintendedz/hapii/commit/458cdfb) — Automatically archive inactive unarchived sessions after 24 hours without activity so stale sessions stop accumulating in the unarchived list
+
 `09:40:37` &ensp; [`018fed8`](https://github.com/Unintendedz/hapii/commit/018fed8) — Fix runner exits caused by transient `/cli/machines` 404s during redeploy; runner now retries machine registration, and redeploy waits for hub readiness before starting runner and validating machine availability
 
 `09:31:29` &ensp; [`3d3c68e`](https://github.com/Unintendedz/hapii/commit/3d3c68e) — Collapse unarchived sessions older than 12 hours behind per-project “Load more sessions” rows, and keep the archived section limited to manually archived sessions
