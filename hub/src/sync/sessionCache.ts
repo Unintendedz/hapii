@@ -5,6 +5,10 @@ import { clampAliveTime } from './aliveTime'
 import { EventPublisher } from './eventPublisher'
 import { extractTodoWriteTodosFromMessageContent, TodosSchema } from './todos'
 
+const SESSION_TIMEOUT_MS = 30_000
+const AUTO_ARCHIVE_INACTIVE_SESSION_MS = 24 * 60 * 60 * 1000
+const AUTO_ARCHIVE_REASON = 'Auto-archived after 24 hours of inactivity'
+
 function clampWorkStartTime(t: number, now: number): number | null {
     if (!Number.isFinite(t)) return null
     if (t > now) return now
@@ -19,6 +23,15 @@ function normalizeRuntimeConfigVersion(value: unknown): number | null {
         return null
     }
     return value
+}
+
+function isSessionArchived(session: Pick<Session, 'metadata'>): boolean {
+    return session.metadata?.lifecycleState === 'archived'
+        || session.metadata?.archivedBy !== undefined
+}
+
+function getSessionLastTouchedAt(session: Pick<Session, 'createdAt' | 'updatedAt' | 'activeAt'>): number {
+    return Math.max(session.createdAt, session.updatedAt, session.activeAt)
 }
 
 export class SessionCache {
@@ -314,11 +327,9 @@ export class SessionCache {
     }
 
     expireInactive(now: number = Date.now()): void {
-        const sessionTimeoutMs = 30_000
-
         for (const session of this.sessions.values()) {
             if (!session.active) continue
-            if (now - session.activeAt <= sessionTimeoutMs) continue
+            if (now - session.activeAt <= SESSION_TIMEOUT_MS) continue
 
             session.work ??= { current: null, last: null }
             if (session.thinking && session.work.current) {
@@ -336,6 +347,22 @@ export class SessionCache {
             session.thinking = false
             this.store.sessions.updateSessionActiveState(session.id, false, null, session.namespace)
             this.publisher.emit({ type: 'session-updated', sessionId: session.id, data: { active: false } })
+        }
+
+        for (const session of this.sessions.values()) {
+            if (session.active) continue
+            if (isSessionArchived(session)) continue
+            if (now - getSessionLastTouchedAt(session) <= AUTO_ARCHIVE_INACTIVE_SESSION_MS) continue
+
+            try {
+                this.markSessionArchivedInternal(session.id, {
+                    archivedBy: 'hub',
+                    archiveReason: AUTO_ARCHIVE_REASON,
+                    lifecycleStateSince: now
+                })
+            } catch (error) {
+                console.error(`[SessionCache] Failed to auto-archive session ${session.id}`, error)
+            }
         }
     }
 
@@ -414,8 +441,16 @@ export class SessionCache {
         sessionId: string,
         options?: { archivedBy?: string; archiveReason?: string }
     ): Promise<void> {
+        this.markSessionArchivedInternal(sessionId, options)
+    }
+
+    private markSessionArchivedInternal(
+        sessionId: string,
+        options?: { archivedBy?: string; archiveReason?: string; lifecycleStateSince?: number }
+    ): void {
         const archivedBy = options?.archivedBy ?? 'hub'
         const archiveReason = options?.archiveReason ?? 'Archived via hub'
+        const lifecycleStateSince = options?.lifecycleStateSince ?? Date.now()
 
         for (let attempt = 0; attempt < 3; attempt += 1) {
             const session = this.sessions.get(sessionId) ?? this.refreshSession(sessionId)
@@ -427,7 +462,7 @@ export class SessionCache {
             const nextMetadata = {
                 ...currentMetadata,
                 lifecycleState: 'archived',
-                lifecycleStateSince: Date.now(),
+                lifecycleStateSince,
                 archivedBy,
                 archiveReason
             }
