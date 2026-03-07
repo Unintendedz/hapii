@@ -44,22 +44,17 @@ fi
 step "Build single-exe (web + embedded assets + binary)"
 bun run build:single-exe
 
-# ---------- 3. Ensure runner version ----------
-step "Ensure runner is on current CLI version (sessions preserved)"
-"$HAPI_BIN" runner start
-
-# ---------- 4. Optional: clean runner sessions ----------
+# ---------- 3. Optional: clean runner sessions ----------
 if [ "$CLEAN_SESSIONS" = true ]; then
     step "Clean runner and runner-spawned sessions (destructive)"
     "$HAPI_BIN" doctor clean || true
-    "$HAPI_BIN" runner start
 fi
 
-# ---------- 5. Restart hub via launchctl ----------
+# ---------- 4. Restart hub via launchctl ----------
 step "Restart hub (launchctl kickstart)"
 launchctl kickstart -k "gui/$(id -u)/org.hapii.hub"
 
-# ---------- 6. Wait for hub ----------
+# ---------- 5. Wait for hub ----------
 step "Waiting for hub to come up"
 for i in $(seq 1 30); do
     if curl -fsS -o /dev/null http://127.0.0.1:3006/version.json 2>/dev/null; then
@@ -71,6 +66,10 @@ for i in $(seq 1 30); do
     fi
     sleep 1
 done
+
+# ---------- 6. Ensure runner version ----------
+step "Ensure runner is on current CLI version (sessions preserved)"
+"$HAPI_BIN" runner start
 
 # ---------- 7. Smoke check ----------
 step "Smoke check"
@@ -91,5 +90,19 @@ JWT=$(curl -fsS -X POST -H 'Content-Type: application/json' \
     http://127.0.0.1:3006/api/auth | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
 curl -fsS -H "Authorization: Bearer $JWT" 'http://127.0.0.1:3006/api/sessions?archived=false' >/dev/null
 echo "  API: OK"
+
+for i in $(seq 1 20); do
+    ONLINE_MACHINES=$(curl -fsS -H "Authorization: Bearer $JWT" \
+        'http://127.0.0.1:3006/api/machines' | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["machines"]))')
+    if [ "$ONLINE_MACHINES" -gt 0 ]; then
+        echo "  machines: $ONLINE_MACHINES online"
+        break
+    fi
+    if [ "$i" -eq 20 ]; then
+        echo "  ERROR: no machine online after redeploy" >&2
+        exit 1
+    fi
+    sleep 1
+done
 
 step "Done"

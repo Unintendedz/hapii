@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractErrorInfo, apiValidationError, isRetryableConnectionError } from './errorUtils'
+import { extractErrorInfo, apiValidationError, isRetryableConnectionError, isRetryableMachineRegistrationError } from './errorUtils'
 
 describe('extractErrorInfo', () => {
     it('extracts serverProtocolVersion from axios-style response header', () => {
@@ -56,6 +56,21 @@ describe('extractErrorInfo', () => {
         const info = extractErrorInfo(error)
         expect(info.serverProtocolVersion).toBeUndefined()
     })
+
+    it('extracts axios request url when present', () => {
+        const error = {
+            message: 'Request failed with status code 404',
+            config: {
+                url: 'http://127.0.0.1:3006/cli/machines'
+            },
+            response: {
+                status: 404,
+                data: { error: 'Not Found' }
+            }
+        }
+        const info = extractErrorInfo(error)
+        expect(info.requestUrl).toBe('http://127.0.0.1:3006/cli/machines')
+    })
 })
 
 describe('apiValidationError', () => {
@@ -99,6 +114,24 @@ describe('isRetryableConnectionError', () => {
         expect(isRetryableConnectionError({
             message: 'Request failed with status code 401',
             response: { status: 401, data: { error: 'Invalid access token' } }
+        })).toBe(false)
+    })
+})
+
+describe('isRetryableMachineRegistrationError', () => {
+    it('treats /cli/machines 404 as retryable during startup', () => {
+        expect(isRetryableMachineRegistrationError({
+            message: 'Request failed with status code 404',
+            config: { url: 'http://127.0.0.1:3006/cli/machines' },
+            response: { status: 404, data: { error: 'Not Found' } }
+        })).toBe(true)
+    })
+
+    it('does not treat unrelated 404s as retryable', () => {
+        expect(isRetryableMachineRegistrationError({
+            message: 'Request failed with status code 404',
+            config: { url: 'http://127.0.0.1:3006/cli/sessions/missing' },
+            response: { status: 404, data: { error: 'Session not found' } }
         })).toBe(false)
     })
 })

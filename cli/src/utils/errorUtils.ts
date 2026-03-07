@@ -9,6 +9,7 @@ export type ErrorInfo = {
     messageLower: string
     axiosCode?: string
     httpStatus?: number
+    requestUrl?: string
     responseErrorText: string
     serverProtocolVersion?: number
 }
@@ -42,10 +43,14 @@ export function extractErrorInfo(error: unknown): ErrorInfo {
 
     const record = error as Record<string, unknown>
     const axiosCode = typeof record.code === 'string' ? record.code : undefined
+    const config = typeof record.config === 'object' && record.config !== null
+        ? (record.config as Record<string, unknown>)
+        : undefined
     const response = typeof record.response === 'object' && record.response !== null
         ? (record.response as Record<string, unknown>)
         : undefined
     const httpStatus = typeof response?.status === 'number' ? response.status : undefined
+    const requestUrl = typeof config?.url === 'string' ? config.url : undefined
     const responseData = response?.data
     const responseError = typeof responseData === 'object' && responseData !== null
         ? (responseData as Record<string, unknown>).error
@@ -73,6 +78,7 @@ export function extractErrorInfo(error: unknown): ErrorInfo {
         messageLower,
         axiosCode,
         httpStatus,
+        requestUrl,
         responseErrorText,
         serverProtocolVersion
     }
@@ -123,4 +129,26 @@ export function isRetryableConnectionError(error: unknown): boolean {
 
     // Other errors (401, 403, 404, etc.) are not retryable
     return false
+}
+
+/**
+ * Machine registration is uniquely sensitive during local redeploys:
+ * `/cli/machines` should never legitimately return 404 from a compatible hub,
+ * so treat that response as a transient startup/routing mismatch and retry.
+ */
+export function isRetryableMachineRegistrationError(error: unknown): boolean {
+    if (isRetryableConnectionError(error)) {
+        return true
+    }
+
+    const { httpStatus, requestUrl, messageLower } = extractErrorInfo(error)
+    if (httpStatus !== 404) {
+        return false
+    }
+
+    if (requestUrl?.endsWith('/cli/machines')) {
+        return true
+    }
+
+    return messageLower.includes('/cli/machines')
 }

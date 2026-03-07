@@ -13,7 +13,7 @@ import { spawnHappyCLI } from '@/utils/spawnHappyCLI';
 import { writeRunnerState, RunnerLocallyPersistedState, readRunnerState, acquireRunnerLock, releaseRunnerLock } from '@/persistence';
 import { isProcessAlive, isWindows, killProcess, killProcessByChildProcess } from '@/utils/process';
 import { withRetry } from '@/utils/time';
-import { isRetryableConnectionError } from '@/utils/errorUtils';
+import { isRetryableMachineRegistrationError } from '@/utils/errorUtils';
 
 import { cleanupRunnerState, getInstalledCliMtimeMs, isRunnerRunningCurrentlyInstalledHappyVersion, stopRunner } from './controlClient';
 import { startRunnerControlServer } from './controlServer';
@@ -567,7 +567,7 @@ export async function startRunner(): Promise<void> {
         maxAttempts: 60,
         minDelay: 1000,
         maxDelay: 30000,
-        shouldRetry: isRetryableConnectionError,
+        shouldRetry: isRetryableMachineRegistrationError,
         onRetry: (error, attempt, nextDelayMs) => {
           const errorMsg = error instanceof Error ? error.message : String(error)
           logger.debug(`[RUNNER RUN] Failed to register machine (attempt ${attempt}), retrying in ${nextDelayMs}ms: ${errorMsg}`)
