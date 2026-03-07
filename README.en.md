@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-07
+
+`09:31:29` &ensp; [`3d3c68e`](https://github.com/Unintendedz/hapii/commit/3d3c68e) — Collapse unarchived sessions older than 12 hours behind per-project “Load more sessions” rows, and keep the archived section limited to manually archived sessions
+
 ### 2026-03-05
 
 `09:19:08` &ensp; [`8019739`](https://github.com/Unintendedz/hapii/commit/8019739) — Fix repeated Claude remote code-1 failures caused by reusing stale `--resume` flags after launch errors, and include stderr tail in exit errors for faster diagnosis

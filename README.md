@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-03-07
+
+`09:31:29` &ensp; [`3d3c68e`](https://github.com/Unintendedz/hapii/commit/3d3c68e) — 未归档会话列表按项目折叠 12 小时前的旧会话，统一改为“加载更多会话”按需展开；仅手动归档的会话进入归档区
+
 ### 2026-03-05
 
 `09:19:08` &ensp; [`8019739`](https://github.com/Unintendedz/hapii/commit/8019739) — 修复 Claude 远程会话失败后重复复用旧 `--resume` 参数导致连续 code 1 的问题，并在退出报错中附带 stderr 摘要便于定位
