@@ -4,6 +4,11 @@ export type LongMessageHeading = {
     level: 2 | 3 | 4
 }
 
+export type LongMessageHeadingPosition = {
+    id: string
+    top: number
+}
+
 const HEADING_SELECTOR = 'h2, h3, h4'
 
 export function normalizeLongMessageHeadingSegment(text: string): string {
@@ -22,6 +27,22 @@ export function shouldShowLongMessageJumpControls(messageHeight: number, viewpor
     }
 
     return messageHeight > viewportHeight + 80
+}
+
+export function getActiveLongMessageHeadingId(
+    headings: LongMessageHeadingPosition[],
+    activationTop: number
+): string | null {
+    let activeId: string | null = null
+
+    for (const heading of headings) {
+        if (heading.top > activationTop) {
+            break
+        }
+        activeId = heading.id
+    }
+
+    return activeId
 }
 
 export function collectLongMessageHeadings(container: ParentNode, idPrefix: string): LongMessageHeading[] {

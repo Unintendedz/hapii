@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     collectLongMessageHeadings,
+    getActiveLongMessageHeadingId,
     normalizeLongMessageHeadingSegment,
     shouldShowLongMessageJumpControls,
 } from './long-message-navigation'
@@ -61,5 +62,29 @@ describe('collectLongMessageHeadings', () => {
             { id: 'custom-id', label: 'Alpha', level: 2 },
             { id: 'custom-id-2', label: 'Beta', level: 2 },
         ])
+    })
+})
+
+describe('getActiveLongMessageHeadingId', () => {
+    it('returns null before the first heading crosses the activation line', () => {
+        expect(getActiveLongMessageHeadingId([
+            { id: 'a', top: 140 },
+            { id: 'b', top: 320 },
+        ], 120)).toBeNull()
+    })
+
+    it('keeps the latest heading above the activation line active', () => {
+        expect(getActiveLongMessageHeadingId([
+            { id: 'a', top: 80 },
+            { id: 'b', top: 220 },
+            { id: 'c', top: 360 },
+        ], 260)).toBe('b')
+    })
+
+    it('keeps the final heading active after scrolling past it', () => {
+        expect(getActiveLongMessageHeadingId([
+            { id: 'a', top: 80 },
+            { id: 'b', top: 220 },
+        ], 800)).toBe('b')
     })
 })

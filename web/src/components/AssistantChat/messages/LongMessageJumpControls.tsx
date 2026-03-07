@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { useTranslation } from '@/lib/use-translation'
 import {
     collectLongMessageHeadings,
+    getActiveLongMessageHeadingId,
     normalizeLongMessageHeadingSegment,
     shouldShowLongMessageJumpControls,
     type LongMessageHeading,
@@ -47,8 +48,10 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
     const { t } = useTranslation()
     const { bottomRef, candidate, contentRef, messageId, messageRef } = props
     const [navigation, setNavigation] = useState<NavigationState>({ headings: [], visible: false })
+    const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null)
     const [tocOpen, setTocOpen] = useState(false)
     const controlsRef = useRef<HTMLDivElement | null>(null)
+    const tocItemRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
     const headingIdPrefix = useMemo(
         () => `hapi-message-${normalizeLongMessageHeadingSegment(messageId)}`,
@@ -124,6 +127,67 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
         setTocOpen(false)
     }, [navigation.visible])
 
+    const refreshActiveHeading = useCallback(() => {
+        if (!navigation.visible || navigation.headings.length === 0) {
+            setActiveHeadingId(null)
+            return
+        }
+
+        const messageEl = messageRef.current
+        const doc = contentRef.current?.ownerDocument
+        const scrollContainer = findScrollContainer(messageEl)
+        if (!messageEl || !doc || !scrollContainer) {
+            setActiveHeadingId(null)
+            return
+        }
+
+        const activationTop = scrollContainer.getBoundingClientRect().top + 96
+        const headingPositions = navigation.headings
+            .map((heading) => {
+                const element = doc.getElementById(heading.id)
+                if (!element) return null
+
+                return {
+                    id: heading.id,
+                    top: element.getBoundingClientRect().top
+                }
+            })
+            .filter((heading): heading is { id: string; top: number } => Boolean(heading))
+
+        const nextActiveId = getActiveLongMessageHeadingId(headingPositions, activationTop)
+        setActiveHeadingId((current) => current === nextActiveId ? current : nextActiveId)
+    }, [contentRef, messageRef, navigation.headings, navigation.visible])
+
+    useEffect(() => {
+        if (!navigation.visible || navigation.headings.length === 0) {
+            setActiveHeadingId(null)
+            return
+        }
+
+        const scrollContainer = findScrollContainer(messageRef.current)
+        if (!scrollContainer) {
+            setActiveHeadingId(null)
+            return
+        }
+
+        let frame = 0
+
+        const scheduleRefresh = () => {
+            window.cancelAnimationFrame(frame)
+            frame = window.requestAnimationFrame(refreshActiveHeading)
+        }
+
+        scheduleRefresh()
+        scrollContainer.addEventListener('scroll', scheduleRefresh, { passive: true })
+        window.addEventListener('resize', scheduleRefresh)
+
+        return () => {
+            scrollContainer.removeEventListener('scroll', scheduleRefresh)
+            window.removeEventListener('resize', scheduleRefresh)
+            window.cancelAnimationFrame(frame)
+        }
+    }, [messageRef, navigation.headings, navigation.visible, refreshActiveHeading])
+
     useEffect(() => {
         if (!tocOpen) return
 
@@ -150,8 +214,24 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
         }
     }, [tocOpen])
 
+    useEffect(() => {
+        if (!tocOpen || !activeHeadingId) return
+
+        const activeItem = tocItemRefs.current.get(activeHeadingId)
+        activeItem?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }, [activeHeadingId, tocOpen])
+
     const stopPropagation = useCallback((event: { stopPropagation: () => void }) => {
         event.stopPropagation()
+    }, [])
+
+    const registerTocItem = useCallback((id: string, element: HTMLButtonElement | null) => {
+        if (element) {
+            tocItemRefs.current.set(id, element)
+            return
+        }
+
+        tocItemRefs.current.delete(id)
     }, [])
 
     const scrollToElement = useCallback((element: HTMLElement | null, block: ScrollLogicalPosition) => {
@@ -185,6 +265,9 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
     }
 
     const buttonClassName = 'rounded-md border border-[var(--app-border)] bg-[var(--app-bg)]/90 px-2 py-1 text-[11px] font-medium text-[var(--app-fg)] shadow-sm backdrop-blur transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]'
+    const tocButtonClassName = activeHeadingId
+        ? `${buttonClassName} border-[var(--app-link)] text-[var(--app-link)]`
+        : buttonClassName
 
     return (
         <>
@@ -215,7 +298,7 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
                     {navigation.headings.length > 0 ? (
                         <button
                             type="button"
-                            className={buttonClassName}
+                            className={tocButtonClassName}
                             aria-expanded={tocOpen}
                             onClick={() => setTocOpen((open) => !open)}
                             title={t('message.jump.toc')}
@@ -230,8 +313,14 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
                                 {navigation.headings.map((heading) => (
                                     <button
                                         key={heading.id}
+                                        ref={(element) => registerTocItem(heading.id, element)}
                                         type="button"
-                                        className="block w-full truncate rounded-md px-3 py-2 text-left text-sm text-[var(--app-fg)] transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
+                                        aria-current={activeHeadingId === heading.id ? 'location' : undefined}
+                                        className={
+                                            activeHeadingId === heading.id
+                                                ? 'block w-full truncate rounded-md bg-[var(--app-subtle-bg)] px-3 py-2 text-left text-sm font-medium text-[var(--app-link)] transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]'
+                                                : 'block w-full truncate rounded-md px-3 py-2 text-left text-sm text-[var(--app-fg)] transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]'
+                                        }
                                         onClick={() => handleScrollToHeading(heading.id)}
                                         style={{ paddingLeft: `${0.75 + Math.max(0, heading.level - 2) * 0.875}rem` }}
                                         title={heading.label}
