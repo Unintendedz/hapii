@@ -12,7 +12,7 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-07
 
-`15:29:25` &ensp; [`71ce656`](https://github.com/Unintendedz/hapii/commit/71ce656) — Add in-message jump controls for very long AI replies, with one-tap start/end navigation and section jumps from Markdown subheadings
+`15:29:25` &ensp; [`71be88f`](https://github.com/Unintendedz/hapii/commit/71be88f) — Add in-message jump controls for very long AI replies, with one-tap start/end navigation and section jumps from Markdown subheadings
 
 `09:50:32` &ensp; [`458cdfb`](https://github.com/Unintendedz/hapii/commit/458cdfb) — Automatically archive inactive unarchived sessions after 24 hours without activity so stale sessions stop accumulating in the unarchived list
 
