@@ -12,6 +12,8 @@
 
 ### 2026-03-07
 
+`15:37:15` &ensp; [`26104f2`](https://github.com/Unintendedz/hapii/commit/26104f2) — 长回复消息块的目录现在会跟随滚动高亮当前章节，并自动把高亮项滚动到目录可视区域内
+
 `15:29:25` &ensp; [`71be88f`](https://github.com/Unintendedz/hapii/commit/71be88f) — 聊天中的超长 AI 回复块新增块内跳转按钮，支持一键回到开头/末尾，并可按 Markdown 副标题目录快速定位
 
 `09:50:32` &ensp; [`458cdfb`](https://github.com/Unintendedz/hapii/commit/458cdfb) — 未归档且超过 24 小时未活动的 inactive 会话现在会自动归档，避免旧会话长期堆积在未归档列表
