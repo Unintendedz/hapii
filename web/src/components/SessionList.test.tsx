@@ -67,6 +67,24 @@ function makeActiveSession(
     }
 }
 
+function makeThinkingSession(
+    id: string,
+    path: string,
+    updatedAt: number,
+    name: string
+): SessionSummary {
+    const base = makeActiveSession(id, path, updatedAt, name)
+    return {
+        ...base,
+        thinking: true,
+        work: {
+            current: {
+                startedAt: updatedAt - 30_000,
+            },
+        },
+    } as unknown as SessionSummary
+}
+
 function makeProjectSessions(projectKey: string, path: string, count: number, startTs: number): SessionSummary[] {
     return Array.from({ length: count }, (_, index) => {
         const n = index + 1
@@ -84,6 +102,7 @@ describe('SessionList archived load more behavior', () => {
     beforeEach(() => {
         cleanup()
         vi.clearAllMocks()
+        vi.useRealTimers()
         localStorage.clear()
     })
 
@@ -263,5 +282,104 @@ describe('SessionList archived load more behavior', () => {
 
         expect(screen.getByText('alpha-old-1')).toBeTruthy()
         expect(screen.getByText('alpha-old-2')).toBeTruthy()
+    })
+
+    it('keeps a manually collapsed active project collapsed while a selected thinking session is running', () => {
+        vi.useFakeTimers()
+        const now = new Date('2026-03-08T10:00:00.000Z').getTime()
+        vi.setSystemTime(now)
+
+        render(
+            <I18nProvider>
+                <SessionList
+                    activeSessions={[
+                        makeThinkingSession('alpha-live', '/projects/alpha', now, 'alpha-live'),
+                        makeArchivedSession(
+                            'alpha-old',
+                            '/projects/alpha',
+                            now - (13 * 60 * 60 * 1000),
+                            'alpha-old'
+                        ),
+                    ]}
+                    archivedSessions={[]}
+                    archivedTotal={0}
+                    selectedSessionId="alpha-live"
+                    onSelect={vi.fn()}
+                    onNewSession={vi.fn()}
+                    onRefresh={vi.fn()}
+                    isLoading={false}
+                    api={null}
+                />
+            </I18nProvider>
+        )
+
+        expect(screen.getByText('alpha-live')).toBeTruthy()
+
+        fireEvent.click(screen.getByRole('button', { name: /projects\/alpha/i }))
+        expect(screen.queryByText('alpha-live')).toBeNull()
+
+        vi.advanceTimersByTime(3_000)
+
+        expect(screen.queryByText('alpha-live')).toBeNull()
+        expect(screen.queryByText('alpha-old')).toBeNull()
+
+        vi.useRealTimers()
+    })
+
+    it('resets active load-more visibility after collapsing and re-expanding the project', () => {
+        const now = Date.now()
+
+        render(
+            <I18nProvider>
+                <SessionList
+                    activeSessions={[
+                        makeActiveSession('alpha-live', '/projects/alpha', now, 'alpha-live'),
+                        makeArchivedSession(
+                            'alpha-recent',
+                            '/projects/alpha',
+                            now - (2 * 60 * 60 * 1000),
+                            'alpha-recent'
+                        ),
+                        makeArchivedSession(
+                            'alpha-old-1',
+                            '/projects/alpha',
+                            now - (13 * 60 * 60 * 1000),
+                            'alpha-old-1'
+                        ),
+                        makeArchivedSession(
+                            'alpha-old-2',
+                            '/projects/alpha',
+                            now - (14 * 60 * 60 * 1000),
+                            'alpha-old-2'
+                        ),
+                    ]}
+                    archivedSessions={[]}
+                    archivedTotal={0}
+                    onSelect={vi.fn()}
+                    onNewSession={vi.fn()}
+                    onRefresh={vi.fn()}
+                    isLoading={false}
+                    api={null}
+                />
+            </I18nProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }))
+
+        expect(screen.getByText('alpha-old-1')).toBeTruthy()
+        expect(screen.getByText('alpha-old-2')).toBeTruthy()
+
+        const groupToggle = screen.getByRole('button', { name: /projects\/alpha/i })
+        fireEvent.click(groupToggle)
+
+        expect(screen.queryByText('alpha-live')).toBeNull()
+        expect(screen.queryByText('alpha-old-1')).toBeNull()
+
+        fireEvent.click(groupToggle)
+
+        expect(screen.getByText('alpha-live')).toBeTruthy()
+        expect(screen.getByText('alpha-recent')).toBeTruthy()
+        expect(screen.queryByText('alpha-old-1')).toBeNull()
+        expect(screen.queryByText('alpha-old-2')).toBeNull()
     })
 })

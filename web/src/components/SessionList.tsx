@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SessionSummary } from '@/types/api'
 import type { ApiClient } from '@/api/client'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -427,6 +427,7 @@ export function SessionList(props: {
     const [visibleCounts, setVisibleCounts] = useState<Map<string, number>>(
         () => new Map()
     )
+    const lastAutoExpandedSelectedSessionIdRef = useRef<string | null>(null)
 
     const makeGroupKey = (section: GroupSection, directory: string): string => `${section}:${directory}`
 
@@ -469,11 +470,25 @@ export function SessionList(props: {
 
     const toggleGroup = (section: GroupSection, directory: string, isCollapsed: boolean) => {
         const key = makeGroupKey(section, directory)
+        const nextCollapsed = !isCollapsed
+
         setCollapseOverrides(prev => {
             const next = new Map(prev)
-            next.set(key, !isCollapsed)
+            next.set(key, nextCollapsed)
             return next
         })
+
+        if (nextCollapsed && section === 'active') {
+            setVisibleCounts(prev => {
+                if (!prev.has(key)) {
+                    return prev
+                }
+
+                const next = new Map(prev)
+                next.delete(key)
+                return next
+            })
+        }
     }
 
     useEffect(() => {
@@ -547,6 +562,7 @@ export function SessionList(props: {
 
     useEffect(() => {
         if (!selectedSessionId) {
+            lastAutoExpandedSelectedSessionIdRef.current = null
             return
         }
 
@@ -558,11 +574,19 @@ export function SessionList(props: {
         )
 
         if (!selectedGroup) {
+            if (lastAutoExpandedSelectedSessionIdRef.current === selectedSessionId) {
+                lastAutoExpandedSelectedSessionIdRef.current = null
+            }
+            return
+        }
+
+        if (lastAutoExpandedSelectedSessionIdRef.current === selectedSessionId) {
             return
         }
 
         const { section, group } = selectedGroup
         const key = makeGroupKey(section, group.directory)
+        lastAutoExpandedSelectedSessionIdRef.current = selectedSessionId
 
         if (section === 'archived') {
             setIsArchivedSectionCollapsed(false)
@@ -604,6 +628,7 @@ export function SessionList(props: {
             next.set(key, requiredVisibleCount)
             return next
         })
+
     }, [activeGroups, archivedGroups, selectedSessionId, visibilityNow])
 
     const visibleArchivedCount = archivedGroups.reduce((sum, group) => {
