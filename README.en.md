@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-08
+
+`11:19:54` &ensp; [`9788bcf`](https://github.com/Unintendedz/hapii/commit/9788bcf) — Fix session-sidebar project groups reopening automatically after you manually collapse them while a session is still running; when reopened, sessions older than 12 hours are hidden behind “Load more sessions” again
+
 ### 2026-03-07
 
 `15:37:15` &ensp; [`26104f2`](https://github.com/Unintendedz/hapii/commit/26104f2) — Highlight the current section in long-reply navigation as you scroll, and keep the active TOC entry visible inside the section list
