@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@/types/api'
+import { clearMessageWindow } from '@/lib/message-window-store'
 import { resolveSessionIdForSend } from '@/lib/session-resume'
 import { useSendMessage } from './useSendMessage'
 
@@ -38,6 +39,20 @@ function makeSession(nowMs: number, overrides?: Partial<Session>): Session {
     }
 }
 
+function createDeferred(): {
+    promise: Promise<void>
+    resolve: () => void
+} {
+    let resolvePromise!: () => void
+    const promise = new Promise<void>((resolve) => {
+        resolvePromise = () => resolve()
+    })
+    return {
+        promise,
+        resolve: resolvePromise,
+    }
+}
+
 function Harness(props: {
     api: {
         getSession: (sessionId: string) => Promise<{ session: Session }>
@@ -48,6 +63,7 @@ function Harness(props: {
     initialSession: Session
     now: () => number
     sleep: (ms: number) => Promise<void>
+    onSessionResolved?: (sessionId: string) => void
 }) {
     const { sendMessage } = useSendMessage(props.api as never, props.sessionId, {
         resolveSessionId: async (currentSessionId) => {
@@ -62,14 +78,24 @@ function Harness(props: {
                 warmupPollMs: 100,
             })
         },
+        onSessionResolved: props.onSessionResolved,
     })
 
     return (
-        <button type="button" onClick={() => sendMessage('hello')}>Send</button>
+        <div>
+            <button type="button" onClick={() => sendMessage('hello')}>Send</button>
+            <button type="button" onClick={() => sendMessage('follow-up')}>Queue</button>
+        </div>
     )
 }
 
 describe('useSendMessage integration', () => {
+    beforeEach(() => {
+        cleanup()
+        clearMessageWindow('session-1')
+        clearMessageWindow('session-2')
+    })
+
     it('waits for session warmup and then sends without resuming', async () => {
         let nowMs = 1_000_000
         const createdAt = nowMs - 500
@@ -137,5 +163,137 @@ describe('useSendMessage integration', () => {
 
         expect(api.resumeSession).not.toHaveBeenCalled()
         expect(api.sendMessage).toHaveBeenCalledWith('session-1', 'hello', expect.any(String), undefined)
+    })
+
+    it('queues later messages while an earlier send is still in flight', async () => {
+        const active = makeSession(1_000_000, {
+            active: true,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const firstSend = createDeferred()
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: active })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async (_sessionId: string, text: string) => {
+                if (text === 'hello') {
+                    await firstSend.promise
+                }
+            }),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        firstSend.resolve()
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        expect(api.sendMessage).toHaveBeenNthCalledWith(1, 'session-1', 'hello', expect.any(String), undefined)
+        expect(api.sendMessage).toHaveBeenNthCalledWith(2, 'session-1', 'follow-up', expect.any(String), undefined)
+    })
+
+    it('defers session replacement until queued sends are flushed', async () => {
+        let nowMs = 1_000_000
+
+        const inactive = makeSession(nowMs, {
+            createdAt: nowMs - 200_000,
+            updatedAt: nowMs - 200_000,
+            active: false,
+            activeAt: nowMs - 200_000,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+                codexSessionId: 'codex-token',
+            },
+        })
+
+        const firstSend = createDeferred()
+        const onSessionResolved = vi.fn()
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: inactive })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async (_sessionId: string, text: string) => {
+                if (text === 'hello') {
+                    await firstSend.promise
+                }
+            }),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={inactive}
+                    now={() => nowMs}
+                    sleep={async (ms) => {
+                        nowMs += ms
+                    }}
+                    onSessionResolved={onSessionResolved}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        expect(api.sendMessage).toHaveBeenNthCalledWith(1, 'session-2', 'hello', expect.any(String), undefined)
+        expect(onSessionResolved).not.toHaveBeenCalled()
+
+        firstSend.resolve()
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        expect(api.sendMessage).toHaveBeenNthCalledWith(2, 'session-2', 'follow-up', expect.any(String), undefined)
+
+        await waitFor(() => {
+            expect(onSessionResolved).toHaveBeenCalledWith('session-2')
+        })
     })
 })

@@ -451,7 +451,6 @@ function SessionPage() {
     const {
         sendMessage,
         retryMessage,
-        isSending,
     } = useSendMessage(api, sessionId, {
         resolveSessionId: async (currentSessionId) => {
             if (!api) {
@@ -538,7 +537,7 @@ function SessionPage() {
                     url: ''
                 })
             }
-            // 'no-session' and 'pending' don't need toast - either invalid state or expected behavior
+            // 'no-session' doesn't need toast here; route state is already invalid
         }
     })
     // Get agent type from session metadata for slash commands
@@ -611,7 +610,6 @@ function SessionPage() {
             hasMoreMessages={messagesHasMore}
             isLoadingMessages={messagesLoading}
             isLoadingMoreMessages={messagesLoadingMore}
-            isSending={isSending}
             pendingCount={pendingCount}
             messagesVersion={messagesVersion}
             onBack={goBack}

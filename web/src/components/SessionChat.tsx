@@ -30,7 +30,6 @@ export function SessionChat(props: {
     hasMoreMessages: boolean
     isLoadingMessages: boolean
     isLoadingMoreMessages: boolean
-    isSending: boolean
     pendingCount: number
     messagesVersion: number
     onBack: () => void
@@ -159,20 +158,6 @@ export function SessionChat(props: {
 
         prevRequestIdsRef.current = currentIds
     }, [props.session.agentState?.requests, props.session.id])
-
-    const handleVoiceToggle = useCallback(async () => {
-        if (!voice) return
-        if (voice.status === 'connected' || voice.status === 'connecting') {
-            await voice.stopVoice()
-        } else {
-            await voice.startVoice(props.session.id)
-        }
-    }, [voice, props.session.id])
-
-    const handleVoiceMicToggle = useCallback(() => {
-        if (!voice) return
-        voice.toggleMic()
-    }, [voice])
 
     // Track session id to clear caches when it changes
     const prevSessionIdRef = useRef<string | null>(null)
@@ -334,7 +319,6 @@ export function SessionChat(props: {
     const runtime = useHappyRuntime({
         session: props.session,
         blocks: reconciled.blocks,
-        isSending: props.isSending,
         onSendMessage: handleSend,
         onAbort: handleAbort,
         attachmentAdapter,
@@ -386,7 +370,6 @@ export function SessionChat(props: {
 
                     <HappyComposer
                         sessionId={props.session.id}
-                        disabled={props.isSending}
                         permissionMode={props.session.permissionMode}
                         modelMode={props.session.modelMode}
                         reasoningEffort={props.session.reasoningEffort}
@@ -404,9 +387,6 @@ export function SessionChat(props: {
                         onTerminal={props.session.active ? handleViewTerminal : undefined}
                         autocompleteSuggestions={props.autocompleteSuggestions}
                         voiceStatus={voice?.status}
-                        voiceMicMuted={voice?.micMuted}
-                        onVoiceToggle={voice ? handleVoiceToggle : undefined}
-                        onVoiceMicToggle={voice ? handleVoiceMicToggle : undefined}
                     />
                 </div>
             </AssistantRuntimeProvider>

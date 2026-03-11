@@ -68,11 +68,7 @@ export function HappyComposer(props: {
     onTerminal?: () => void
     autocompletePrefixes?: string[]
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
-    // Voice assistant props
     voiceStatus?: ConversationStatus
-    voiceMicMuted?: boolean
-    onVoiceToggle?: () => void
-    onVoiceMicToggle?: () => void
 }) {
     const { t } = useTranslation()
     const {
@@ -95,10 +91,7 @@ export function HappyComposer(props: {
         onTerminal,
         autocompletePrefixes = ['@', '/', '$'],
         autocompleteSuggestions = defaultSuggestionHandler,
-        voiceStatus = 'disconnected',
-        voiceMicMuted = false,
-        onVoiceToggle,
-        onVoiceMicToggle
+        voiceStatus = 'disconnected'
     } = props
 
     // Use ?? so missing values fall back to default (destructuring defaults only handle undefined)
@@ -126,7 +119,7 @@ export function HappyComposer(props: {
         const path = (attachment as { path?: string }).path
         return typeof path === 'string' && path.length > 0
     })
-    const canSend = (hasText || hasAttachments) && attachmentsReady && !controlsDisabled && !threadIsRunning
+    const canSend = (hasText || hasAttachments) && attachmentsReady && !controlsDisabled
 
     const [inputState, setInputState] = useState<TextInputState>({
         text: '',
@@ -373,6 +366,14 @@ export function HappyComposer(props: {
         [agentFlavor]
     )
 
+    const handleSend = useCallback(() => {
+        if (!canSend) {
+            return
+        }
+        setShowContinueHint(false)
+        api.composer().send()
+    }, [api, canSend])
+
     const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
         const key = e.key
 
@@ -411,6 +412,14 @@ export function HappyComposer(props: {
             return
         }
 
+        if (key === 'Enter' && !e.shiftKey && !isTouch) {
+            e.preventDefault()
+            if (canSend) {
+                handleSend()
+            }
+            return
+        }
+
         if (key === 'Tab' && e.shiftKey && onPermissionModeChange && permissionModes.length > 0) {
             e.preventDefault()
             const currentIndex = permissionModes.indexOf(permissionMode)
@@ -428,6 +437,9 @@ export function HappyComposer(props: {
         handleSuggestionSelect,
         threadIsRunning,
         handleAbort,
+        handleSend,
+        canSend,
+        isTouch,
         onPermissionModeChange,
         permissionMode,
         permissionModes,
@@ -488,12 +500,9 @@ export function HappyComposer(props: {
     }, [haptic])
 
     const handleSubmit = useCallback((event?: ReactFormEvent<HTMLFormElement>) => {
-        if (event && !attachmentsReady) {
-            event.preventDefault()
-            return
-        }
-        setShowContinueHint(false)
-    }, [attachmentsReady])
+        event?.preventDefault()
+        handleSend()
+    }, [handleSend])
 
     const handlePermissionChange = useCallback((mode: PermissionMode) => {
         if (!onPermissionModeChange || controlsDisabled) return
@@ -521,11 +530,6 @@ export function HappyComposer(props: {
     const showReasoningSettings = Boolean(onReasoningEffortChange && supportsReasoningEffort && reasoningEffortModes.length > 0)
     const showSettingsButton = Boolean(showPermissionSettings || showModelSettings || showReasoningSettings)
     const showAbortButton = true
-    const voiceEnabled = Boolean(onVoiceToggle)
-
-    const handleSend = useCallback(() => {
-        api.composer().send()
-    }, [api])
 
     const overlays = useMemo(() => {
         if (showSettings && (showPermissionSettings || showModelSettings || showReasoningSettings)) {
@@ -723,7 +727,7 @@ export function HappyComposer(props: {
                                 placeholder={showContinueHint ? t('misc.typeMessage') : t('misc.typeAMessage')}
                                 disabled={controlsDisabled}
                                 maxRows={5}
-                                submitOnEnter={!isTouch}
+                                submitOnEnter={false}
                                 cancelOnEscape={false}
                                 onChange={handleChange}
                                 onSelect={handleSelect}
@@ -749,11 +753,6 @@ export function HappyComposer(props: {
                             switchDisabled={switchDisabled}
                             isSwitching={isSwitching}
                             onSwitch={handleSwitch}
-                            voiceEnabled={voiceEnabled}
-                            voiceStatus={voiceStatus}
-                            voiceMicMuted={voiceMicMuted}
-                            onVoiceToggle={onVoiceToggle ?? (() => {})}
-                            onVoiceMicToggle={onVoiceMicToggle}
                             onSend={handleSend}
                         />
                     </div>

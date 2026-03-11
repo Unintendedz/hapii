@@ -171,7 +171,6 @@ function extractMessageContent(message: AppendMessage): { text: string; attachme
 export function useHappyRuntime(props: {
     session: Session
     blocks: readonly ChatBlock[]
-    isSending: boolean
     onSendMessage: (text: string, attachments?: AttachmentMetadata[]) => void
     onAbort: () => Promise<void>
     attachmentAdapter?: AttachmentAdapter
@@ -198,7 +197,7 @@ export function useHappyRuntime(props: {
     // Memoize the adapter to avoid recreating on every render
     // useExternalStoreRuntime may use adapter identity for subscriptions
     const adapter = useMemo(() => ({
-        isDisabled: props.isSending || (!props.session.active && !props.allowSendWhenInactive),
+        isDisabled: !props.session.active && !props.allowSendWhenInactive,
         isRunning: props.session.thinking,
         messages: convertedMessages,
         onNew,
@@ -207,7 +206,6 @@ export function useHappyRuntime(props: {
         unstable_capabilities: { copy: true }
     }), [
         props.session.active,
-        props.isSending,
         props.allowSendWhenInactive,
         props.session.thinking,
         convertedMessages,

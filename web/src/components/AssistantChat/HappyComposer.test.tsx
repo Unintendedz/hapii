@@ -1,10 +1,29 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { I18nContext } from '@/lib/i18n-context'
 import { HappyComposer } from './HappyComposer'
 
-const { setTextMock } = vi.hoisted(() => ({
+const {
+    assistantState,
+    addAttachmentMock,
+    cancelRunMock,
+    sendMock,
+    setTextMock,
+} = vi.hoisted(() => ({
+    assistantState: {
+        composer: {
+            text: '',
+            attachments: [] as Array<{ status: { type: string } }>,
+        },
+        thread: {
+            isRunning: false,
+            isDisabled: false,
+        },
+    },
+    addAttachmentMock: vi.fn(),
+    cancelRunMock: vi.fn(),
+    sendMock: vi.fn(),
     setTextMock: vi.fn()
 }))
 
@@ -36,23 +55,28 @@ vi.mock('@assistant-ui/react', async () => {
     return {
         ComposerPrimitive,
         useAssistantApi: () => ({
-            thread: () => ({ cancelRun: vi.fn() }),
+            thread: () => ({ cancelRun: cancelRunMock }),
             composer: () => ({
-                send: vi.fn(),
-                addAttachment: vi.fn(),
+                send: sendMock,
+                addAttachment: addAttachmentMock,
                 setText: setTextMock
             })
         }),
-        useAssistantState: (selector: (state: any) => any) => selector({
-            composer: { text: '', attachments: [] },
-            thread: { isRunning: false, isDisabled: false }
-        })
+        useAssistantState: (selector: (state: any) => any) => selector(assistantState)
     }
 })
 
 describe('HappyComposer', () => {
     beforeEach(() => {
+        cleanup()
         localStorage.clear()
+        assistantState.composer.text = ''
+        assistantState.composer.attachments = []
+        assistantState.thread.isRunning = false
+        assistantState.thread.isDisabled = false
+        addAttachmentMock.mockReset()
+        cancelRunMock.mockReset()
+        sendMock.mockReset()
         setTextMock.mockClear()
 
         Object.defineProperty(window, 'matchMedia', {
@@ -103,5 +127,38 @@ describe('HappyComposer', () => {
         await waitFor(() => {
             expect(setTextMock).toHaveBeenCalledWith('hello draft')
         })
+    })
+
+    it('allows sending while thread is running', () => {
+        assistantState.composer.text = 'queue this'
+        assistantState.thread.isRunning = true
+
+        const t = (key: string) => key
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer sessionId="s1" />
+            </I18nContext.Provider>
+        )
+
+        const sendButton = screen.getByRole('button', { name: 'composer.send' })
+        expect(sendButton).toBeEnabled()
+
+        fireEvent.click(sendButton)
+
+        expect(sendMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not render a voice button when composer is empty', () => {
+        const t = (key: string) => key
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer sessionId="s1" />
+            </I18nContext.Provider>
+        )
+
+        expect(screen.queryByRole('button', { name: 'composer.voice' })).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'composer.send' })).toBeDisabled()
     })
 })
