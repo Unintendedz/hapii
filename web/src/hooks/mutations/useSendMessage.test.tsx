@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@/types/api'
-import { clearMessageWindow } from '@/lib/message-window-store'
+import { clearMessageWindow, getMessageWindowState } from '@/lib/message-window-store'
 import { resolveSessionIdForSend } from '@/lib/session-resume'
 import { useSendMessage } from './useSendMessage'
 
@@ -217,6 +217,12 @@ describe('useSendMessage integration', () => {
         })
 
         await waitFor(() => {
+            expect(
+                getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
+            ).toEqual(['hello'])
+        })
+
+        await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(1)
         })
 
@@ -224,6 +230,12 @@ describe('useSendMessage integration', () => {
 
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        await waitFor(() => {
+            expect(
+                getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
+            ).toEqual(['hello', 'follow-up'])
         })
 
         await waitFor(() => {
@@ -293,6 +305,12 @@ describe('useSendMessage integration', () => {
         })
 
         await waitFor(() => {
+            expect(
+                getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
+            ).toEqual(['hello'])
+        })
+
+        await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(1)
         })
 
@@ -303,6 +321,12 @@ describe('useSendMessage integration', () => {
 
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        await waitFor(() => {
+            expect(
+                getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
+            ).toEqual(['hello', 'follow-up'])
         })
 
         await waitFor(() => {

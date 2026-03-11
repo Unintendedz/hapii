@@ -19,6 +19,7 @@ type SendMessageInput = {
 
 type SendQueueItem = SendMessageInput & {
     optimisticSessionId: string
+    optimisticApplied: boolean
 }
 
 export type QueuedComposerMessage = {
@@ -148,6 +149,16 @@ export function useSendMessage(
         appendOptimisticMessage(input.optimisticSessionId, optimisticMessage)
     }, [])
 
+    const prepareQueuedMessageForSend = useCallback((input: SendQueueItem) => {
+        if (input.optimisticApplied) {
+            updateMessageStatus(input.optimisticSessionId, input.localId, 'sending')
+            return
+        }
+
+        enqueueOptimisticMessage(input)
+        input.optimisticApplied = true
+    }, [enqueueOptimisticMessage])
+
     const flushQueue = useCallback(async () => {
         if (processingRef.current) {
             return
@@ -161,6 +172,8 @@ export function useSendMessage(
             while (queueRef.current.length > 0) {
                 const current = queueRef.current[0]
                 const currentApi = apiRef.current
+
+                prepareQueuedMessageForSend(current)
 
                 if (!currentApi) {
                     updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
@@ -229,11 +242,10 @@ export function useSendMessage(
     }, [haptic, syncQueuedMessages])
 
     const enqueueMessage = useCallback((input: SendQueueItem) => {
-        enqueueOptimisticMessage(input)
         queueRef.current.push(input)
         syncQueuedMessages()
         void flushQueue()
-    }, [enqueueOptimisticMessage, flushQueue, syncQueuedMessages])
+    }, [flushQueue, syncQueuedMessages])
 
     const sendMessage = (text: string, attachments?: AttachmentMetadata[]) => {
         if (!api) {
@@ -255,6 +267,7 @@ export function useSendMessage(
             localId,
             createdAt,
             attachments,
+            optimisticApplied: false,
         })
     }
 
@@ -276,8 +289,6 @@ export function useSendMessage(
         const retryPayload = getRetryPayload(message)
         if (!retryPayload) return
 
-        updateMessageStatus(sessionId, localId, 'sending')
-
         queueRef.current.push({
             sessionId: resolvedSessionIdRef.current ?? sessionId,
             optimisticSessionId: sessionId,
@@ -285,6 +296,7 @@ export function useSendMessage(
             localId,
             createdAt: message.createdAt,
             attachments: retryPayload.attachments,
+            optimisticApplied: true,
         })
         syncQueuedMessages()
         void flushQueue()
