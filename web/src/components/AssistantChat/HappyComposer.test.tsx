@@ -198,11 +198,34 @@ describe('HappyComposer', () => {
         const textbox = screen.getByRole('textbox')
 
         expect(queueHeading).toBeInTheDocument()
-        expect(screen.getByText('Sending')).toBeInTheDocument()
         expect(screen.getByText('Queued')).toBeInTheDocument()
-        expect(screen.getByText('first queued message')).toBeInTheDocument()
         expect(screen.getByText('Attachments only')).toBeInTheDocument()
         expect(screen.getByText('2 attachments')).toBeInTheDocument()
+        expect(screen.queryByText('Sending')).not.toBeInTheDocument()
+        expect(screen.queryByText('first queued message')).not.toBeInTheDocument()
         expect(queueHeading.compareDocumentPosition(textbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('hides the queue panel when nothing is actually queued', () => {
+        const t = (key: string) => key
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer
+                    sessionId="s1"
+                    queuedMessages={[
+                        {
+                            localId: 'm1',
+                            text: 'sending only',
+                            attachmentsCount: 0,
+                            status: 'sending'
+                        }
+                    ]}
+                />
+            </I18nContext.Provider>
+        )
+
+        expect(screen.queryByText('composer.queue.title')).not.toBeInTheDocument()
+        expect(screen.queryByText('sending only')).not.toBeInTheDocument()
     })
 })

@@ -51,8 +51,9 @@ const defaultSuggestionHandler = async (): Promise<Suggestion[]> => []
 
 function QueuedMessageList(props: { messages: QueuedComposerMessage[] }) {
     const { t } = useTranslation()
+    const queuedMessages = props.messages.filter((message) => message.status === 'queued')
 
-    if (props.messages.length === 0) {
+    if (queuedMessages.length === 0) {
         return null
     }
 
@@ -60,43 +61,26 @@ function QueuedMessageList(props: { messages: QueuedComposerMessage[] }) {
         <div className="mx-3 mt-3 rounded-2xl border border-[var(--app-divider)] bg-[var(--app-bg)]/60 p-2">
             <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-medium text-[var(--app-hint)]">
                 <span>{t('composer.queue.title')}</span>
-                <span>{props.messages.length}</span>
+                <span>{queuedMessages.length}</span>
             </div>
 
             <div className="max-h-32 space-y-1 overflow-y-auto pr-1">
-                {props.messages.map((message) => {
-                    const statusLabel = message.status === 'sending'
-                        ? t('composer.queue.sending')
-                        : t('composer.queue.queued')
+                {queuedMessages.map((message) => {
                     const previewText = message.text.trim() || t('composer.queue.attachmentsOnly')
 
                     return (
                         <div
                             key={message.localId}
-                            className={`flex items-start gap-2 rounded-xl px-2.5 py-2 ${
-                                message.status === 'sending'
-                                    ? 'bg-[var(--app-bg)] shadow-sm'
-                                    : 'bg-[var(--app-secondary-bg)]/80'
-                            }`}
+                            className="flex items-start gap-2 rounded-xl bg-[var(--app-secondary-bg)]/80 px-2.5 py-2"
                         >
                             <span
-                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                                    message.status === 'sending'
-                                        ? 'animate-pulse bg-sky-500'
-                                        : 'bg-[var(--app-hint)]/60'
-                                }`}
+                                className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--app-hint)]/60"
                             />
 
                             <div className="min-w-0 flex-1">
                                 <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px]">
-                                    <span
-                                        className={`font-medium ${
-                                            message.status === 'sending'
-                                                ? 'text-sky-600'
-                                                : 'text-[var(--app-hint)]'
-                                        }`}
-                                    >
-                                        {statusLabel}
+                                    <span className="font-medium text-[var(--app-hint)]">
+                                        {t('composer.queue.queued')}
                                     </span>
 
                                     {message.attachmentsCount > 0 ? (
