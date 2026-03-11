@@ -12,6 +12,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-11
 
+`19:24:14` &ensp; [`c0e889c`](https://github.com/Unintendedz/hapii/commit/c0e889c) — Add a queued-message list above the chat composer so in-flight and queued messages show their preview text and attachment count
+
+`19:24:10` &ensp; [`22d89d6`](https://github.com/Unintendedz/hapii/commit/22d89d6) — Fix stale assistant replies staying stuck in the pending buffer after refresh/reconnect while the chat view is away from the bottom; assistant replies return to the visible message list immediately
+
 `16:10:36` &ensp; [`f1730d7`](https://github.com/Unintendedz/hapii/commit/f1730d7) — Queue multiple composer messages and flush them in order even while a session is running or resuming, and remove the voice button from the chat composer
 
 ### 2026-03-08

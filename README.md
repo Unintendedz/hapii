@@ -12,6 +12,10 @@
 
 ### 2026-03-11
 
+`19:24:14` &ensp; [`c0e889c`](https://github.com/Unintendedz/hapii/commit/c0e889c) — 聊天输入框上方新增排队消息列表，发送中/排队中的消息会显示预览与附件数量
+
+`19:24:10` &ensp; [`22d89d6`](https://github.com/Unintendedz/hapii/commit/22d89d6) — 修复聊天窗口未在底部时，刷新/重连后旧的助手回复继续卡在 pending 缓冲里的问题；助手回复会立即回到可见消息区
+
 `16:10:36` &ensp; [`f1730d7`](https://github.com/Unintendedz/hapii/commit/f1730d7) — 聊天输入框支持排队发送多条消息，运行中或恢复中的会话会按顺序继续发送；同时移除输入区语音按钮
 
 ### 2026-03-08
