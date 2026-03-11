@@ -453,6 +453,7 @@ function SessionPage() {
         retryMessage,
         queuedMessages,
     } = useSendMessage(api, sessionId, {
+        thinking: session?.thinking === true,
         resolveSessionId: async (currentSessionId) => {
             if (!api) {
                 return currentSessionId

@@ -61,11 +61,13 @@ function Harness(props: {
     }
     sessionId: string
     initialSession: Session
+    thinking?: boolean
     now: () => number
     sleep: (ms: number) => Promise<void>
     onSessionResolved?: (sessionId: string) => void
 }) {
     const { sendMessage, queuedMessages } = useSendMessage(props.api as never, props.sessionId, {
+        thinking: props.thinking,
         resolveSessionId: async (currentSessionId) => {
             return await resolveSessionIdForSend({
                 api: props.api as never,
@@ -197,12 +199,13 @@ describe('useSendMessage integration', () => {
             },
         })
 
-        render(
+        const view = render(
             <QueryClientProvider client={queryClient}>
                 <Harness
                     api={api}
                     sessionId="session-1"
                     initialSession={active}
+                    thinking={false}
                     now={() => 1_000_000}
                     sleep={async () => {}}
                 />
@@ -227,6 +230,36 @@ describe('useSendMessage integration', () => {
         })
 
         firstSend.resolve()
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking={false}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
 
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
@@ -282,12 +315,13 @@ describe('useSendMessage integration', () => {
             },
         })
 
-        render(
+        const view = render(
             <QueryClientProvider client={queryClient}>
                 <Harness
                     api={api}
                     sessionId="session-1"
                     initialSession={inactive}
+                    thinking={false}
                     now={() => nowMs}
                     sleep={async (ms) => {
                         nowMs += ms
@@ -319,6 +353,42 @@ describe('useSendMessage integration', () => {
 
         firstSend.resolve()
 
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={inactive}
+                    thinking
+                    now={() => nowMs}
+                    sleep={async (ms) => {
+                        nowMs += ms
+                    }}
+                    onSessionResolved={onSessionResolved}
+                />
+            </QueryClientProvider>
+        )
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={inactive}
+                    thinking={false}
+                    now={() => nowMs}
+                    sleep={async (ms) => {
+                        nowMs += ms
+                    }}
+                    onSessionResolved={onSessionResolved}
+                />
+            </QueryClientProvider>
+        )
+
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
         })
@@ -337,6 +407,96 @@ describe('useSendMessage integration', () => {
 
         await waitFor(() => {
             expect(onSessionResolved).toHaveBeenCalledWith('session-2')
+        })
+    })
+
+    it('keeps later messages queued while the previous turn is still thinking', async () => {
+        const active = makeSession(1_000_000, {
+            active: true,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: active })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async () => {}),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        const view = render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking={false}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('queued:follow-up')
+        })
+
+        expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        expect(
+            getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
+        ).toEqual(['hello'])
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking={false}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        await waitFor(() => {
+            expect(
+                getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
+            ).toEqual(['hello', 'follow-up'])
         })
     })
 })

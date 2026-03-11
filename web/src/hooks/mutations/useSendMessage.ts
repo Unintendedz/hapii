@@ -32,6 +32,7 @@ export type QueuedComposerMessage = {
 type BlockedReason = 'no-api' | 'no-session'
 
 type UseSendMessageOptions = {
+    thinking?: boolean
     resolveSessionId?: (sessionId: string) => Promise<string>
     onSessionResolved?: (sessionId: string) => void
     onBlocked?: (reason: BlockedReason) => void
@@ -95,6 +96,10 @@ export function useSendMessage(
     const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([])
     const queueRef = useRef<SendQueueItem[]>([])
     const processingRef = useRef(false)
+    const awaitingTurnCompletionRef = useRef(false)
+    const observedThinkingRef = useRef(false)
+    const turnStartFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const flushQueueRef = useRef<(() => Promise<void>) | null>(null)
     const apiRef = useRef(api)
     const optionsRef = useRef(options)
     const resolvedSessionIdRef = useRef<string | null>(null)
@@ -128,6 +133,38 @@ export function useSendMessage(
         optionsRef.current = options
     }, [options])
 
+    const clearTurnStartFallbackTimer = useCallback(() => {
+        if (turnStartFallbackTimerRef.current !== null) {
+            clearTimeout(turnStartFallbackTimerRef.current)
+            turnStartFallbackTimerRef.current = null
+        }
+    }, [])
+
+    const releaseAwaitingTurnCompletion = useCallback(() => {
+        clearTurnStartFallbackTimer()
+        awaitingTurnCompletionRef.current = false
+        observedThinkingRef.current = false
+    }, [clearTurnStartFallbackTimer])
+
+    const armAwaitingTurnCompletion = useCallback(() => {
+        clearTurnStartFallbackTimer()
+        awaitingTurnCompletionRef.current = true
+        observedThinkingRef.current = optionsRef.current?.thinking === true
+
+        turnStartFallbackTimerRef.current = setTimeout(() => {
+            if (observedThinkingRef.current) {
+                return
+            }
+            if (optionsRef.current?.thinking) {
+                observedThinkingRef.current = true
+                return
+            }
+
+            releaseAwaitingTurnCompletion()
+            void flushQueueRef.current?.()
+        }, 800)
+    }, [clearTurnStartFallbackTimer, releaseAwaitingTurnCompletion])
+
     const enqueueOptimisticMessage = useCallback((input: SendQueueItem) => {
         const optimisticMessage: DecryptedMessage = {
             id: input.localId,
@@ -160,7 +197,7 @@ export function useSendMessage(
     }, [enqueueOptimisticMessage])
 
     const flushQueue = useCallback(async () => {
-        if (processingRef.current) {
+        if (processingRef.current || awaitingTurnCompletionRef.current) {
             return
         }
 
@@ -170,6 +207,10 @@ export function useSendMessage(
 
         try {
             while (queueRef.current.length > 0) {
+                if (optionsRef.current?.thinking) {
+                    break
+                }
+
                 const current = queueRef.current[0]
                 const currentApi = apiRef.current
 
@@ -215,10 +256,12 @@ export function useSendMessage(
                     }
                 }
 
+                let sendStarted = false
                 try {
                     await currentApi.sendMessage(targetSessionId, current.text, current.localId, current.attachments)
                     updateMessageStatus(current.optimisticSessionId, current.localId, 'sent')
                     haptic.notification('success')
+                    sendStarted = true
                 } catch (error) {
                     updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
                     haptic.notification('error')
@@ -226,6 +269,11 @@ export function useSendMessage(
                 } finally {
                     queueRef.current.shift()
                     syncQueuedMessages(true)
+                }
+
+                if (sendStarted) {
+                    armAwaitingTurnCompletion()
+                    break
                 }
             }
         } finally {
@@ -239,7 +287,37 @@ export function useSendMessage(
                 optionsRef.current?.onSessionResolved?.(pendingSessionResolution.toSessionId)
             }
         }
-    }, [haptic, syncQueuedMessages])
+    }, [armAwaitingTurnCompletion, haptic, prepareQueuedMessageForSend, syncQueuedMessages])
+
+    flushQueueRef.current = flushQueue
+
+    useEffect(() => {
+        const thinking = options?.thinking === true
+
+        if (thinking) {
+            if (awaitingTurnCompletionRef.current) {
+                observedThinkingRef.current = true
+                clearTurnStartFallbackTimer()
+            }
+            return
+        }
+
+        if (awaitingTurnCompletionRef.current && observedThinkingRef.current) {
+            releaseAwaitingTurnCompletion()
+            void flushQueueRef.current?.()
+            return
+        }
+
+        if (!awaitingTurnCompletionRef.current && queueRef.current.length > 0 && !processingRef.current) {
+            void flushQueueRef.current?.()
+        }
+    }, [options?.thinking, clearTurnStartFallbackTimer, releaseAwaitingTurnCompletion])
+
+    useEffect(() => {
+        return () => {
+            clearTurnStartFallbackTimer()
+        }
+    }, [clearTurnStartFallbackTimer])
 
     const enqueueMessage = useCallback((input: SendQueueItem) => {
         queueRef.current.push(input)
