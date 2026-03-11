@@ -12,6 +12,8 @@
 
 ### 2026-03-11
 
+`21:50:02` &ensp; [`300f892`](https://github.com/Unintendedz/hapii/commit/300f892) — 修复仅有一条发送中消息时仍显示“排队消息”面板的问题；现在只有真正存在等待发送的消息时才展示队列
+
 `21:41:14` &ensp; [`77a1bdc`](https://github.com/Unintendedz/hapii/commit/77a1bdc) — 修复排队消息过早进入聊天区的问题；未轮到发送前仅显示在输入框上方队列，轮到发送时才上屏
 
 `19:24:14` &ensp; [`c0e889c`](https://github.com/Unintendedz/hapii/commit/c0e889c) — 聊天输入框上方新增排队消息列表，发送中/排队中的消息会显示预览与附件数量

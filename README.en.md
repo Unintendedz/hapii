@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-11
 
+`21:50:02` &ensp; [`300f892`](https://github.com/Unintendedz/hapii/commit/300f892) — Fix the queue panel still showing when only one message is actively sending; the panel now appears only when there are real waiting messages behind it
+
 `21:41:14` &ensp; [`77a1bdc`](https://github.com/Unintendedz/hapii/commit/77a1bdc) — Fix queued messages appearing in the chat timeline too early; they now stay in the queue above the composer until their send actually starts
 
 `19:24:14` &ensp; [`c0e889c`](https://github.com/Unintendedz/hapii/commit/c0e889c) — Add a queued-message list above the chat composer so in-flight and queued messages show their preview text and attachment count
