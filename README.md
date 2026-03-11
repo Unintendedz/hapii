@@ -12,6 +12,8 @@
 
 ### 2026-03-11
 
+`21:58:03` &ensp; [`483994e`](https://github.com/Unintendedz/hapii/commit/483994e) — 修复排队消息只串行 HTTP 发送、没有真正等待上一轮 agent 工作完成的问题；现在会等当前一轮结束后再发送下一条
+
 `21:50:02` &ensp; [`300f892`](https://github.com/Unintendedz/hapii/commit/300f892) — 修复仅有一条发送中消息时仍显示“排队消息”面板的问题；现在只有真正存在等待发送的消息时才展示队列
 
 `21:41:14` &ensp; [`77a1bdc`](https://github.com/Unintendedz/hapii/commit/77a1bdc) — 修复排队消息过早进入聊天区的问题；未轮到发送前仅显示在输入框上方队列，轮到发送时才上屏
