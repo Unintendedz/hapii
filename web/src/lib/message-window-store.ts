@@ -269,6 +269,60 @@ function mergeIntoPending(
     return { pending, pendingVisibleCount, pendingOverflowCount, pendingOverflowVisibleCount, warning }
 }
 
+function promotePendingAgentMessages(prev: InternalState): InternalState {
+    if (prev.pending.length === 0) {
+        return prev
+    }
+
+    const agentPending = prev.pending.filter((message) => !isUserMessage(message))
+    if (agentPending.length === 0) {
+        return prev
+    }
+
+    const userPending = prev.pending.filter((message) => isUserMessage(message))
+    const merged = mergeMessages(prev.messages, agentPending)
+    const trimmed = trimVisible(merged, 'append')
+    const pending = filterPendingAgainstVisible(userPending, trimmed)
+
+    return buildState(prev, {
+        messages: trimmed,
+        pending,
+    })
+}
+
+function mergeIncomingWhileScrolledAway(prev: InternalState, incoming: DecryptedMessage[]): InternalState {
+    let state = promotePendingAgentMessages(prev)
+    if (incoming.length === 0) {
+        return state
+    }
+
+    const agentMessages = incoming.filter((message) => !isUserMessage(message))
+    const userMessages = incoming.filter((message) => isUserMessage(message))
+
+    if (agentMessages.length > 0) {
+        const merged = mergeMessages(state.messages, agentMessages)
+        const trimmed = trimVisible(merged, 'append')
+        const pending = filterPendingAgainstVisible(state.pending, trimmed)
+        state = buildState(state, {
+            messages: trimmed,
+            pending
+        })
+    }
+
+    if (userMessages.length > 0) {
+        const pendingResult = mergeIntoPending(state, userMessages)
+        state = buildState(state, {
+            pending: pendingResult.pending,
+            pendingVisibleCount: pendingResult.pendingVisibleCount,
+            pendingOverflowCount: pendingResult.pendingOverflowCount,
+            pendingOverflowVisibleCount: pendingResult.pendingOverflowVisibleCount,
+            warning: pendingResult.warning,
+        })
+    }
+
+    return state
+}
+
 export function getMessageWindowState(sessionId: string): MessageWindowState {
     return getState(sessionId)
 }
@@ -344,14 +398,10 @@ export async function fetchLatestMessages(api: ApiClient, sessionId: string): Pr
                     warning: null,
                 })
             }
-            const pendingResult = mergeIntoPending(prev, response.messages)
-            return buildState(prev, {
-                pending: pendingResult.pending,
-                pendingVisibleCount: pendingResult.pendingVisibleCount,
-                pendingOverflowCount: pendingResult.pendingOverflowCount,
-                pendingOverflowVisibleCount: pendingResult.pendingOverflowVisibleCount,
+            const state = mergeIncomingWhileScrolledAway(prev, response.messages)
+            return buildState(state, {
                 isLoading: false,
-                warning: pendingResult.warning,
+                hasMore: response.page.hasMore,
             })
         })
     } catch (error) {
@@ -414,29 +464,9 @@ export function ingestIncomingMessages(sessionId: string, incoming: DecryptedMes
             }
             return buildState(prev, { messages: trimmed, pending: [] })
         }
-        // 不在底部时：agent 消息立即显示，user 消息才放入 pending
-        // 原因：用户必须看到 AI 回复才能继续交互，pending 机制会导致回复滞后
-        const agentMessages = incoming.filter(msg => !isUserMessage(msg))
-        const userMessages = incoming.filter(msg => isUserMessage(msg))
-
-        let state = prev
-        if (agentMessages.length > 0) {
-            const merged = mergeMessages(state.messages, agentMessages)
-            const trimmed = trimVisible(merged, 'append')
-            const pending = filterPendingAgainstVisible(state.pending, trimmed)
-            state = buildState(state, { messages: trimmed, pending })
-        }
-        if (userMessages.length > 0) {
-            const pendingResult = mergeIntoPending(state, userMessages)
-            state = buildState(state, {
-                pending: pendingResult.pending,
-                pendingVisibleCount: pendingResult.pendingVisibleCount,
-                pendingOverflowCount: pendingResult.pendingOverflowCount,
-                pendingOverflowVisibleCount: pendingResult.pendingOverflowVisibleCount,
-                warning: pendingResult.warning,
-            })
-        }
-        return state
+        // 不在底部时：assistant 消息也必须立即可见；只缓冲 user 消息。
+        // 否则刷新/重连路径会把旧回复继续塞进 pending，形成“每发一条才补一条旧回复”的错位感。
+        return mergeIncomingWhileScrolledAway(prev, incoming)
     })
 }
 

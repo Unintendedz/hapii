@@ -1,7 +1,9 @@
+import type { ApiClient } from '@/api/client'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { DecryptedMessage } from '@/types/api'
 import {
     clearMessageWindow,
+    fetchLatestMessages,
     getMessageWindowState,
     ingestIncomingMessages,
     seedMessageWindowFromSession,
@@ -72,5 +74,110 @@ describe('seedMessageWindowFromSession', () => {
         expect(targetState.pendingCount).toBe(0)
         expect(targetState.atBottom).toBe(true)
         expect(targetState.warning).toBeNull()
+    })
+})
+
+describe('fetchLatestMessages while scrolled away', () => {
+    const sessionId = 'session-fetch-latest'
+
+    beforeEach(() => {
+        clearMessageWindow(sessionId)
+    })
+
+    it('keeps assistant messages visible instead of buffering them in pending', async () => {
+        ingestIncomingMessages(sessionId, [
+            makeMessage({
+                id: 'm1',
+                seq: 1,
+                createdAt: 1,
+                role: 'user',
+                text: '1'
+            })
+        ])
+        setAtBottom(sessionId, false)
+
+        const api = {
+            async getMessages() {
+                return {
+                    messages: [
+                        makeMessage({
+                            id: 'm1',
+                            seq: 1,
+                            createdAt: 1,
+                            role: 'user',
+                            text: '1'
+                        }),
+                        makeMessage({
+                            id: 'm2',
+                            seq: 2,
+                            createdAt: 2,
+                            role: 'agent',
+                            text: '1'
+                        })
+                    ],
+                    page: {
+                        limit: 50,
+                        beforeSeq: null,
+                        nextBeforeSeq: null,
+                        hasMore: false
+                    }
+                }
+            }
+        } as Pick<ApiClient, 'getMessages'> as ApiClient
+
+        await fetchLatestMessages(api, sessionId)
+
+        const state = getMessageWindowState(sessionId)
+        expect(state.messages.map((message) => message.id)).toEqual(['m1', 'm2'])
+        expect(state.pending).toEqual([])
+    })
+
+    it('self-heals previously buffered assistant messages on refresh', async () => {
+        ingestIncomingMessages(sessionId, [
+            makeMessage({
+                id: 'm1',
+                seq: 1,
+                createdAt: 1,
+                role: 'user',
+                text: '1'
+            })
+        ])
+        setAtBottom(sessionId, false)
+
+        const staleAssistant = makeMessage({
+            id: 'm2',
+            seq: 2,
+            createdAt: 2,
+            role: 'agent',
+            text: '1'
+        })
+
+        const currentUser = makeMessage({
+            id: 'm3',
+            seq: 3,
+            createdAt: 3,
+            role: 'user',
+            text: '2'
+        })
+
+        const api = {
+            async getMessages() {
+                return {
+                    messages: [staleAssistant, currentUser],
+                    page: {
+                        limit: 50,
+                        beforeSeq: null,
+                        nextBeforeSeq: null,
+                        hasMore: false
+                    }
+                }
+            }
+        } as Pick<ApiClient, 'getMessages'> as ApiClient
+
+        await fetchLatestMessages(api, sessionId)
+
+        const state = getMessageWindowState(sessionId)
+        expect(state.messages.map((message) => message.id)).toEqual(['m1', 'm2'])
+        expect(state.pending.map((message) => message.id)).toEqual(['m3'])
     })
 })
