@@ -66,7 +66,15 @@ function Harness(props: {
     sleep: (ms: number) => Promise<void>
     onSessionResolved?: (sessionId: string) => void
 }) {
-    const { sendMessage, queuedMessages } = useSendMessage(props.api as never, props.sessionId, {
+    const {
+        sendMessage,
+        editQueuedMessage,
+        deleteQueuedMessage,
+        pauseQueue,
+        resumeQueue,
+        isQueuePaused,
+        queuedMessages
+    } = useSendMessage(props.api as never, props.sessionId, {
         thinking: props.thinking,
         resolveSessionId: async (currentSessionId) => {
             return await resolveSessionIdForSend({
@@ -87,9 +95,34 @@ function Harness(props: {
         <div>
             <button type="button" onClick={() => sendMessage('hello')}>Send</button>
             <button type="button" onClick={() => sendMessage('follow-up')}>Queue</button>
+            <button
+                type="button"
+                onClick={() => {
+                    const queued = queuedMessages.find((message) => message.text === 'follow-up')
+                    if (queued) {
+                        editQueuedMessage(queued.localId, 'edited follow-up')
+                    }
+                }}
+            >
+                EditQueued
+            </button>
+            <button
+                type="button"
+                onClick={() => {
+                    const queued = queuedMessages.find((message) => message.text === 'follow-up' || message.text === 'edited follow-up')
+                    if (queued) {
+                        deleteQueuedMessage(queued.localId)
+                    }
+                }}
+            >
+                DeleteQueued
+            </button>
+            <button type="button" onClick={pauseQueue}>PauseQueue</button>
+            <button type="button" onClick={resumeQueue}>ResumeQueue</button>
             <div data-testid="queue-state">
                 {queuedMessages.map((message) => `${message.status}:${message.text}`).join('|')}
             </div>
+            <div data-testid="queue-paused">{String(isQueuePaused)}</div>
         </div>
     )
 }
@@ -497,6 +530,152 @@ describe('useSendMessage integration', () => {
             expect(
                 getMessageWindowState('session-1').messages.map((message) => message.originalText ?? '')
             ).toEqual(['hello', 'follow-up'])
+        })
+    })
+
+    it('supports editing and deleting queued items before they are sent', async () => {
+        const active = makeSession(1_000_000, {
+            active: true,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: active })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async () => {}),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('queued:hello|queued:follow-up')
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'EditQueued' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('queued:hello|queued:edited follow-up')
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'DeleteQueued' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('queued:hello')
+        })
+    })
+
+    it('keeps the queue paused until resumed after stopping the current turn', async () => {
+        const active = makeSession(1_000_000, {
+            active: true,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: active })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async () => {}),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        const view = render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking={false}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
+        fireEvent.click(screen.getByRole('button', { name: 'PauseQueue' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-paused')).toHaveTextContent('true')
+        })
+
+        view.rerender(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking={false}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: 'ResumeQueue' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-paused')).toHaveTextContent('false')
+        })
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(2)
         })
     })
 })

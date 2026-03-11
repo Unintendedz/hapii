@@ -101,6 +101,8 @@ export default {
   'button.paste': 'Paste',
   'button.retry': 'Retry',
   'button.back': 'Back',
+  'button.edit': 'Edit',
+  'button.delete': 'Delete',
 
   // New session form
   'newSession.machine': 'Machine',
@@ -226,6 +228,9 @@ export default {
   'composer.queue.queued': 'Queued',
   'composer.queue.attachmentsOnly': 'Attachments only',
   'composer.queue.attachments': '{n} attachments',
+  'composer.queue.pause': 'Pause queue',
+  'composer.queue.resume': 'Resume queue',
+  'composer.queue.paused': 'Paused',
 
   // Voice assistant
   'voice.connecting': 'Connecting...',

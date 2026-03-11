@@ -169,6 +169,13 @@ describe('HappyComposer', () => {
             if (key === 'composer.queue.queued') return 'Queued'
             if (key === 'composer.queue.attachmentsOnly') return 'Attachments only'
             if (key === 'composer.queue.attachments') return `${params?.n ?? 0} attachments`
+            if (key === 'composer.queue.pause') return 'Pause queue'
+            if (key === 'composer.queue.resume') return 'Resume queue'
+            if (key === 'composer.queue.paused') return 'Paused'
+            if (key === 'button.edit') return 'Edit'
+            if (key === 'button.delete') return 'Delete'
+            if (key === 'button.cancel') return 'Cancel'
+            if (key === 'button.save') return 'Save'
             return key
         }
 
@@ -201,6 +208,9 @@ describe('HappyComposer', () => {
         expect(screen.getByText('Queued')).toBeInTheDocument()
         expect(screen.getByText('Attachments only')).toBeInTheDocument()
         expect(screen.getByText('2 attachments')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Pause queue' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
         expect(screen.queryByText('Sending')).not.toBeInTheDocument()
         expect(screen.queryByText('first queued message')).not.toBeInTheDocument()
         expect(queueHeading.compareDocumentPosition(textbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -227,5 +237,91 @@ describe('HappyComposer', () => {
 
         expect(screen.queryByText('composer.queue.title')).not.toBeInTheDocument()
         expect(screen.queryByText('sending only')).not.toBeInTheDocument()
+    })
+
+    it('edits and deletes queued items with touch-friendly controls', () => {
+        const onEditQueuedMessage = vi.fn()
+        const onDeleteQueuedMessage = vi.fn()
+
+        const t = (key: string) => {
+            if (key === 'composer.queue.title') return 'Queued messages'
+            if (key === 'composer.queue.queued') return 'Queued'
+            if (key === 'button.edit') return 'Edit'
+            if (key === 'button.delete') return 'Delete'
+            if (key === 'button.cancel') return 'Cancel'
+            if (key === 'button.save') return 'Save'
+            return key
+        }
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer
+                    sessionId="s1"
+                    queuedMessages={[
+                        {
+                            localId: 'm2',
+                            text: 'queued text',
+                            attachmentsCount: 0,
+                            status: 'queued'
+                        }
+                    ]}
+                    onEditQueuedMessage={onEditQueuedMessage}
+                    onDeleteQueuedMessage={onDeleteQueuedMessage}
+                />
+            </I18nContext.Provider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+        fireEvent.change(screen.getByDisplayValue('queued text'), { target: { value: 'edited text' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+        expect(onEditQueuedMessage).toHaveBeenCalledWith('m2', 'edited text')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+        expect(onDeleteQueuedMessage).toHaveBeenCalledWith('m2')
+    })
+
+    it('pauses the queue when aborting and can resume from the queue panel', () => {
+        const onPauseQueuedMessages = vi.fn()
+        const onResumeQueuedMessages = vi.fn()
+
+        assistantState.thread.isRunning = true
+
+        const t = (key: string) => {
+            if (key === 'composer.queue.title') return 'Queued messages'
+            if (key === 'composer.queue.queued') return 'Queued'
+            if (key === 'composer.queue.resume') return 'Resume queue'
+            if (key === 'composer.queue.paused') return 'Paused'
+            return key
+        }
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer
+                    sessionId="s1"
+                    queuedMessages={[
+                        {
+                            localId: 'm2',
+                            text: 'queued text',
+                            attachmentsCount: 0,
+                            status: 'queued'
+                        }
+                    ]}
+                    isQueuePaused
+                    onPauseQueuedMessages={onPauseQueuedMessages}
+                    onResumeQueuedMessages={onResumeQueuedMessages}
+                />
+            </I18nContext.Provider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'composer.abort' }))
+
+        expect(onPauseQueuedMessages).toHaveBeenCalledTimes(1)
+        expect(cancelRunMock).toHaveBeenCalledTimes(1)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Resume queue' }))
+
+        expect(onResumeQueuedMessages).toHaveBeenCalledTimes(1)
     })
 })

@@ -49,9 +49,30 @@ function getSessionDraftKey(sessionId: string): string {
 
 const defaultSuggestionHandler = async (): Promise<Suggestion[]> => []
 
-function QueuedMessageList(props: { messages: QueuedComposerMessage[] }) {
+function QueuedMessageList(props: {
+    messages: QueuedComposerMessage[]
+    isPaused: boolean
+    onPause: () => void
+    onResume: () => void
+    onEdit: (localId: string, text: string) => void
+    onDelete: (localId: string) => void
+}) {
     const { t } = useTranslation()
     const queuedMessages = props.messages.filter((message) => message.status === 'queued')
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [draftText, setDraftText] = useState('')
+
+    useEffect(() => {
+        if (!editingId) {
+            return
+        }
+
+        const editingMessage = queuedMessages.find((message) => message.localId === editingId)
+        if (!editingMessage) {
+            setEditingId(null)
+            setDraftText('')
+        }
+    }, [editingId, queuedMessages])
 
     if (queuedMessages.length === 0) {
         return null
@@ -60,13 +81,32 @@ function QueuedMessageList(props: { messages: QueuedComposerMessage[] }) {
     return (
         <div className="mx-3 mt-3 rounded-2xl border border-[var(--app-divider)] bg-[var(--app-bg)]/60 p-2">
             <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-medium text-[var(--app-hint)]">
-                <span>{t('composer.queue.title')}</span>
-                <span>{queuedMessages.length}</span>
+                <div className="flex items-center gap-2">
+                    <span>{t('composer.queue.title')}</span>
+                    {props.isPaused ? (
+                        <span className="rounded-full bg-[var(--app-secondary-bg)] px-2 py-0.5 text-[10px]">
+                            {t('composer.queue.paused')}
+                        </span>
+                    ) : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span>{queuedMessages.length}</span>
+                    <button
+                        type="button"
+                        className="min-h-8 rounded-full border border-[var(--app-divider)] px-2.5 py-1 text-[11px] font-medium text-[var(--app-fg)] transition-colors hover:bg-[var(--app-bg)]"
+                        onClick={props.isPaused ? props.onResume : props.onPause}
+                    >
+                        {props.isPaused ? t('composer.queue.resume') : t('composer.queue.pause')}
+                    </button>
+                </div>
             </div>
 
             <div className="max-h-32 space-y-1 overflow-y-auto pr-1">
                 {queuedMessages.map((message) => {
                     const previewText = message.text.trim() || t('composer.queue.attachmentsOnly')
+                    const isEditing = editingId === message.localId
+                    const canSave = draftText.trim().length > 0 || message.attachmentsCount > 0
 
                     return (
                         <div
@@ -88,11 +128,79 @@ function QueuedMessageList(props: { messages: QueuedComposerMessage[] }) {
                                             {t('composer.queue.attachments', { n: message.attachmentsCount })}
                                         </span>
                                     ) : null}
+
+                                    <div className="ml-auto flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            aria-label={t('button.edit')}
+                                            title={t('button.edit')}
+                                            className="min-h-8 rounded-full px-2.5 text-[11px] font-medium text-[var(--app-fg)] transition-colors hover:bg-[var(--app-bg)]"
+                                            onClick={() => {
+                                                setEditingId(message.localId)
+                                                setDraftText(message.text)
+                                            }}
+                                        >
+                                            {t('button.edit')}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            aria-label={t('button.delete')}
+                                            title={t('button.delete')}
+                                            className="min-h-8 rounded-full px-2.5 text-[11px] font-medium text-red-500 transition-colors hover:bg-[var(--app-bg)]"
+                                            onClick={() => {
+                                                if (isEditing) {
+                                                    setEditingId(null)
+                                                    setDraftText('')
+                                                }
+                                                props.onDelete(message.localId)
+                                            }}
+                                        >
+                                            {t('button.delete')}
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="truncate text-sm text-[var(--app-fg)]">
-                                    {previewText}
-                                </div>
+                                {isEditing ? (
+                                    <div className="space-y-2">
+                                        <textarea
+                                            value={draftText}
+                                            onChange={(event) => setDraftText(event.target.value)}
+                                            rows={2}
+                                            className="w-full resize-none rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] px-2.5 py-2 text-sm text-[var(--app-fg)] outline-none focus:border-[var(--app-accent)]"
+                                        />
+
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                className="rounded-md px-2 py-1 text-xs font-medium text-[var(--app-hint)] transition-colors hover:bg-[var(--app-bg)]"
+                                                onClick={() => {
+                                                    setEditingId(null)
+                                                    setDraftText('')
+                                                }}
+                                            >
+                                                {t('button.cancel')}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                disabled={!canSave}
+                                                className="rounded-md bg-[var(--app-fg)] px-2 py-1 text-xs font-medium text-[var(--app-bg)] transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+                                                onClick={() => {
+                                                    props.onEdit(message.localId, draftText)
+                                                    setEditingId(null)
+                                                    setDraftText('')
+                                                }}
+                                            >
+                                                {t('button.save')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="truncate text-sm text-[var(--app-fg)]">
+                                        {previewText}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )
@@ -114,6 +222,11 @@ export function HappyComposer(props: {
     agentState?: AgentState | null
     contextSize?: number
     queuedMessages?: QueuedComposerMessage[]
+    isQueuePaused?: boolean
+    onEditQueuedMessage?: (localId: string, text: string) => void
+    onDeleteQueuedMessage?: (localId: string) => void
+    onPauseQueuedMessages?: () => void
+    onResumeQueuedMessages?: () => void
     controlledByUser?: boolean
     agentFlavor?: string | null
     onPermissionModeChange?: (mode: PermissionMode) => void
@@ -138,6 +251,11 @@ export function HappyComposer(props: {
         agentState,
         contextSize,
         queuedMessages = [],
+        isQueuePaused = false,
+        onEditQueuedMessage,
+        onDeleteQueuedMessage,
+        onPauseQueuedMessages,
+        onResumeQueuedMessages,
         controlledByUser = false,
         agentFlavor,
         onPermissionModeChange,
@@ -385,8 +503,9 @@ export function HappyComposer(props: {
         if (abortDisabled) return
         haptic('error')
         setIsAborting(true)
+        onPauseQueuedMessages?.()
         api.thread().cancelRun()
-    }, [abortDisabled, api, haptic])
+    }, [abortDisabled, api, haptic, onPauseQueuedMessages])
 
     const handleSwitch = useCallback(async () => {
         if (switchDisabled || !onSwitchToRemote) return
@@ -776,7 +895,22 @@ export function HappyComposer(props: {
                             </div>
                         ) : null}
 
-                        <QueuedMessageList messages={queuedMessages} />
+                        <QueuedMessageList
+                            messages={queuedMessages}
+                            isPaused={isQueuePaused}
+                            onPause={() => {
+                                onPauseQueuedMessages?.()
+                            }}
+                            onResume={() => {
+                                onResumeQueuedMessages?.()
+                            }}
+                            onEdit={(localId, text) => {
+                                onEditQueuedMessage?.(localId, text)
+                            }}
+                            onDelete={(localId) => {
+                                onDeleteQueuedMessage?.(localId)
+                            }}
+                        />
 
                         <div className="flex items-center px-4 py-3">
                             <ComposerPrimitive.Input

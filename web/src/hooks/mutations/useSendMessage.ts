@@ -87,15 +87,22 @@ export function useSendMessage(
 ): {
     sendMessage: (text: string, attachments?: AttachmentMetadata[]) => void
     retryMessage: (localId: string) => void
+    editQueuedMessage: (localId: string, text: string) => void
+    deleteQueuedMessage: (localId: string) => void
+    pauseQueue: () => void
+    resumeQueue: () => void
+    isQueuePaused: boolean
     isSending: boolean
     queuedMessages: QueuedComposerMessage[]
 } {
     const { haptic } = usePlatform()
     const [isResolving, setIsResolving] = useState(false)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [isQueuePaused, setIsQueuePaused] = useState(false)
     const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([])
     const queueRef = useRef<SendQueueItem[]>([])
     const processingRef = useRef(false)
+    const pausedRef = useRef(false)
     const awaitingTurnCompletionRef = useRef(false)
     const observedThinkingRef = useRef(false)
     const turnStartFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -121,6 +128,8 @@ export function useSendMessage(
         if (!processingRef.current && queueRef.current.length === 0) {
             resolvedSessionIdRef.current = null
             pendingSessionResolutionRef.current = null
+            pausedRef.current = false
+            setIsQueuePaused(false)
             setQueuedMessages([])
         }
     }, [sessionId])
@@ -197,7 +206,7 @@ export function useSendMessage(
     }, [enqueueOptimisticMessage])
 
     const flushQueue = useCallback(async () => {
-        if (processingRef.current || awaitingTurnCompletionRef.current) {
+        if (processingRef.current || awaitingTurnCompletionRef.current || pausedRef.current) {
             return
         }
 
@@ -302,6 +311,13 @@ export function useSendMessage(
             return
         }
 
+        if (pausedRef.current) {
+            if (awaitingTurnCompletionRef.current && observedThinkingRef.current) {
+                releaseAwaitingTurnCompletion()
+            }
+            return
+        }
+
         if (awaitingTurnCompletionRef.current && observedThinkingRef.current) {
             releaseAwaitingTurnCompletion()
             void flushQueueRef.current?.()
@@ -324,6 +340,64 @@ export function useSendMessage(
         syncQueuedMessages()
         void flushQueue()
     }, [flushQueue, syncQueuedMessages])
+
+    const pauseQueue = useCallback(() => {
+        clearTurnStartFallbackTimer()
+        pausedRef.current = true
+        setIsQueuePaused(true)
+    }, [clearTurnStartFallbackTimer])
+
+    const resumeQueue = useCallback(() => {
+        pausedRef.current = false
+        setIsQueuePaused(false)
+
+        if (!optionsRef.current?.thinking && awaitingTurnCompletionRef.current) {
+            releaseAwaitingTurnCompletion()
+        }
+
+        void flushQueueRef.current?.()
+    }, [releaseAwaitingTurnCompletion])
+
+    const editQueuedMessage = useCallback((localId: string, text: string) => {
+        let changed = false
+        queueRef.current = queueRef.current.map((item, index) => {
+            const isSendingItem = processingRef.current && index === 0
+            if (item.localId !== localId || isSendingItem) {
+                return item
+            }
+
+            if (item.text === text) {
+                return item
+            }
+
+            changed = true
+            return {
+                ...item,
+                text,
+            }
+        })
+
+        if (changed) {
+            syncQueuedMessages()
+        }
+    }, [syncQueuedMessages])
+
+    const deleteQueuedMessage = useCallback((localId: string) => {
+        const nextQueue = queueRef.current.filter((item, index) => {
+            const isSendingItem = processingRef.current && index === 0
+            if (isSendingItem) {
+                return true
+            }
+            return item.localId !== localId
+        })
+
+        if (nextQueue.length === queueRef.current.length) {
+            return
+        }
+
+        queueRef.current = nextQueue
+        syncQueuedMessages()
+    }, [syncQueuedMessages])
 
     const sendMessage = (text: string, attachments?: AttachmentMetadata[]) => {
         if (!api) {
@@ -383,6 +457,11 @@ export function useSendMessage(
     return {
         sendMessage,
         retryMessage,
+        editQueuedMessage,
+        deleteQueuedMessage,
+        pauseQueue,
+        resumeQueue,
+        isQueuePaused,
         isSending: isProcessing || isResolving || queuedMessages.length > 0,
         queuedMessages,
     }

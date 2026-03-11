@@ -33,6 +33,11 @@ export function SessionChat(props: {
     isLoadingMoreMessages: boolean
     pendingCount: number
     queuedMessages: QueuedComposerMessage[]
+    onEditQueuedMessage: (localId: string, text: string) => void
+    onDeleteQueuedMessage: (localId: string) => void
+    onPauseQueuedMessages: () => void
+    onResumeQueuedMessages: () => void
+    isQueuePaused: boolean
     messagesVersion: number
     onBack: () => void
     onRefresh: () => void
@@ -382,6 +387,11 @@ export function SessionChat(props: {
                         agentState={props.session.agentState}
                         contextSize={reduced.latestUsage?.contextSize}
                         queuedMessages={props.queuedMessages}
+                        onEditQueuedMessage={props.onEditQueuedMessage}
+                        onDeleteQueuedMessage={props.onDeleteQueuedMessage}
+                        onPauseQueuedMessages={props.onPauseQueuedMessages}
+                        onResumeQueuedMessages={props.onResumeQueuedMessages}
+                        isQueuePaused={props.isQueuePaused}
                         controlledByUser={props.session.agentState?.controlledByUser === true}
                         onPermissionModeChange={handlePermissionModeChange}
                         onModelModeChange={handleModelModeChange}

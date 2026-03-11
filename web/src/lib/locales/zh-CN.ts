@@ -103,6 +103,8 @@ export default {
   'button.paste': '粘贴',
   'button.retry': '重试',
   'button.back': '返回',
+  'button.edit': '编辑',
+  'button.delete': '删除',
 
   // New session form
   'newSession.machine': '机器',
@@ -228,6 +230,9 @@ export default {
   'composer.queue.queued': '排队中',
   'composer.queue.attachmentsOnly': '仅附件',
   'composer.queue.attachments': '{n} 个附件',
+  'composer.queue.pause': '暂停队列',
+  'composer.queue.resume': '恢复队列',
+  'composer.queue.paused': '已暂停',
 
   // Voice assistant
   'voice.connecting': '连接中...',

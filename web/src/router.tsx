@@ -451,6 +451,11 @@ function SessionPage() {
     const {
         sendMessage,
         retryMessage,
+        editQueuedMessage,
+        deleteQueuedMessage,
+        pauseQueue,
+        resumeQueue,
+        isQueuePaused,
         queuedMessages,
     } = useSendMessage(api, sessionId, {
         thinking: session?.thinking === true,
@@ -614,6 +619,11 @@ function SessionPage() {
             isLoadingMoreMessages={messagesLoadingMore}
             pendingCount={pendingCount}
             queuedMessages={queuedMessages}
+            onEditQueuedMessage={editQueuedMessage}
+            onDeleteQueuedMessage={deleteQueuedMessage}
+            onPauseQueuedMessages={pauseQueue}
+            onResumeQueuedMessages={resumeQueue}
+            isQueuePaused={isQueuePaused}
             messagesVersion={messagesVersion}
             onBack={goBack}
             onRefresh={refreshSelectedSession}
