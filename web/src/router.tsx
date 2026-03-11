@@ -451,6 +451,7 @@ function SessionPage() {
     const {
         sendMessage,
         retryMessage,
+        queuedMessages,
     } = useSendMessage(api, sessionId, {
         resolveSessionId: async (currentSessionId) => {
             if (!api) {
@@ -611,6 +612,7 @@ function SessionPage() {
             isLoadingMessages={messagesLoading}
             isLoadingMoreMessages={messagesLoadingMore}
             pendingCount={pendingCount}
+            queuedMessages={queuedMessages}
             messagesVersion={messagesVersion}
             onBack={goBack}
             onRefresh={refreshSelectedSession}

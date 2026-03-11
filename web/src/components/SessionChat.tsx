@@ -5,6 +5,7 @@ import type { ApiClient } from '@/api/client'
 import type { AttachmentMetadata, DecryptedMessage, ModelMode, PermissionMode, ReasoningEffort, Session } from '@/types/api'
 import type { ChatBlock, NormalizedMessage } from '@/chat/types'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
+import type { QueuedComposerMessage } from '@/hooks/mutations/useSendMessage'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
 import { reconcileChatBlocks } from '@/chat/reconcile'
@@ -31,6 +32,7 @@ export function SessionChat(props: {
     isLoadingMessages: boolean
     isLoadingMoreMessages: boolean
     pendingCount: number
+    queuedMessages: QueuedComposerMessage[]
     messagesVersion: number
     onBack: () => void
     onRefresh: () => void
@@ -379,6 +381,7 @@ export function SessionChat(props: {
                         thinking={props.session.thinking}
                         agentState={props.session.agentState}
                         contextSize={reduced.latestUsage?.contextSize}
+                        queuedMessages={props.queuedMessages}
                         controlledByUser={props.session.agentState?.controlledByUser === true}
                         onPermissionModeChange={handlePermissionModeChange}
                         onModelModeChange={handleModelModeChange}

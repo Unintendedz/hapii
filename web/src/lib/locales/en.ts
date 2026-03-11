@@ -221,6 +221,11 @@ export default {
   'composer.send': 'Send',
   'composer.stop': 'Stop',
   'composer.voice': 'Voice assistant',
+  'composer.queue.title': 'Queued messages',
+  'composer.queue.sending': 'Sending',
+  'composer.queue.queued': 'Queued',
+  'composer.queue.attachmentsOnly': 'Attachments only',
+  'composer.queue.attachments': '{n} attachments',
 
   // Voice assistant
   'voice.connecting': 'Connecting...',

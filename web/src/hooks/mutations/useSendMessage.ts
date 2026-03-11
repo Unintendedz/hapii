@@ -21,6 +21,13 @@ type SendQueueItem = SendMessageInput & {
     optimisticSessionId: string
 }
 
+export type QueuedComposerMessage = {
+    localId: string
+    text: string
+    attachmentsCount: number
+    status: 'sending' | 'queued'
+}
+
 type BlockedReason = 'no-api' | 'no-session'
 
 type UseSendMessageOptions = {
@@ -79,11 +86,12 @@ export function useSendMessage(
     sendMessage: (text: string, attachments?: AttachmentMetadata[]) => void
     retryMessage: (localId: string) => void
     isSending: boolean
+    queuedMessages: QueuedComposerMessage[]
 } {
     const { haptic } = usePlatform()
     const [isResolving, setIsResolving] = useState(false)
-    const [queuedCount, setQueuedCount] = useState(0)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([])
     const queueRef = useRef<SendQueueItem[]>([])
     const processingRef = useRef(false)
     const apiRef = useRef(api)
@@ -94,10 +102,20 @@ export function useSendMessage(
         toSessionId: string
     } | null>(null)
 
+    const syncQueuedMessages = useCallback((processing = processingRef.current) => {
+        setQueuedMessages(queueRef.current.map((item, index) => ({
+            localId: item.localId,
+            text: item.text,
+            attachmentsCount: item.attachments?.length ?? 0,
+            status: processing && index === 0 ? 'sending' : 'queued'
+        })))
+    }, [])
+
     useEffect(() => {
         if (!processingRef.current && queueRef.current.length === 0) {
             resolvedSessionIdRef.current = null
             pendingSessionResolutionRef.current = null
+            setQueuedMessages([])
         }
     }, [sessionId])
 
@@ -137,6 +155,7 @@ export function useSendMessage(
 
         processingRef.current = true
         setIsProcessing(true)
+        syncQueuedMessages(true)
 
         try {
             while (queueRef.current.length > 0) {
@@ -147,7 +166,7 @@ export function useSendMessage(
                     updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
                     haptic.notification('error')
                     queueRef.current.shift()
-                    setQueuedCount(queueRef.current.length)
+                    syncQueuedMessages(true)
                     continue
                 }
 
@@ -176,7 +195,7 @@ export function useSendMessage(
                         haptic.notification('error')
                         console.error('Failed to resolve session before send:', error)
                         queueRef.current.shift()
-                        setQueuedCount(queueRef.current.length)
+                        syncQueuedMessages(true)
                         continue
                     } finally {
                         setIsResolving(false)
@@ -193,12 +212,13 @@ export function useSendMessage(
                     console.error('Failed to send message:', error)
                 } finally {
                     queueRef.current.shift()
-                    setQueuedCount(queueRef.current.length)
+                    syncQueuedMessages(true)
                 }
             }
         } finally {
             processingRef.current = false
             setIsProcessing(false)
+            syncQueuedMessages(false)
 
             const pendingSessionResolution = pendingSessionResolutionRef.current
             if (queueRef.current.length === 0 && pendingSessionResolution) {
@@ -206,14 +226,14 @@ export function useSendMessage(
                 optionsRef.current?.onSessionResolved?.(pendingSessionResolution.toSessionId)
             }
         }
-    }, [haptic])
+    }, [haptic, syncQueuedMessages])
 
     const enqueueMessage = useCallback((input: SendQueueItem) => {
         enqueueOptimisticMessage(input)
         queueRef.current.push(input)
-        setQueuedCount(queueRef.current.length)
+        syncQueuedMessages()
         void flushQueue()
-    }, [enqueueOptimisticMessage, flushQueue])
+    }, [enqueueOptimisticMessage, flushQueue, syncQueuedMessages])
 
     const sendMessage = (text: string, attachments?: AttachmentMetadata[]) => {
         if (!api) {
@@ -266,13 +286,14 @@ export function useSendMessage(
             createdAt: message.createdAt,
             attachments: retryPayload.attachments,
         })
-        setQueuedCount(queueRef.current.length)
+        syncQueuedMessages()
         void flushQueue()
     }
 
     return {
         sendMessage,
         retryMessage,
-        isSending: isProcessing || isResolving || queuedCount > 0,
+        isSending: isProcessing || isResolving || queuedMessages.length > 0,
+        queuedMessages,
     }
 }

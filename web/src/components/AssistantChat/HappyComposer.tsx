@@ -21,6 +21,7 @@ import {
 } from 'react'
 import type { AgentState, ModelMode, PermissionMode, ReasoningEffort } from '@/types/api'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
+import type { QueuedComposerMessage } from '@/hooks/mutations/useSendMessage'
 import type { ConversationStatus } from '@/realtime/types'
 import { useActiveWord } from '@/hooks/useActiveWord'
 import { useActiveSuggestions } from '@/hooks/useActiveSuggestions'
@@ -48,6 +49,75 @@ function getSessionDraftKey(sessionId: string): string {
 
 const defaultSuggestionHandler = async (): Promise<Suggestion[]> => []
 
+function QueuedMessageList(props: { messages: QueuedComposerMessage[] }) {
+    const { t } = useTranslation()
+
+    if (props.messages.length === 0) {
+        return null
+    }
+
+    return (
+        <div className="mx-3 mt-3 rounded-2xl border border-[var(--app-divider)] bg-[var(--app-bg)]/60 p-2">
+            <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-medium text-[var(--app-hint)]">
+                <span>{t('composer.queue.title')}</span>
+                <span>{props.messages.length}</span>
+            </div>
+
+            <div className="max-h-32 space-y-1 overflow-y-auto pr-1">
+                {props.messages.map((message) => {
+                    const statusLabel = message.status === 'sending'
+                        ? t('composer.queue.sending')
+                        : t('composer.queue.queued')
+                    const previewText = message.text.trim() || t('composer.queue.attachmentsOnly')
+
+                    return (
+                        <div
+                            key={message.localId}
+                            className={`flex items-start gap-2 rounded-xl px-2.5 py-2 ${
+                                message.status === 'sending'
+                                    ? 'bg-[var(--app-bg)] shadow-sm'
+                                    : 'bg-[var(--app-secondary-bg)]/80'
+                            }`}
+                        >
+                            <span
+                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                                    message.status === 'sending'
+                                        ? 'animate-pulse bg-sky-500'
+                                        : 'bg-[var(--app-hint)]/60'
+                                }`}
+                            />
+
+                            <div className="min-w-0 flex-1">
+                                <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                    <span
+                                        className={`font-medium ${
+                                            message.status === 'sending'
+                                                ? 'text-sky-600'
+                                                : 'text-[var(--app-hint)]'
+                                        }`}
+                                    >
+                                        {statusLabel}
+                                    </span>
+
+                                    {message.attachmentsCount > 0 ? (
+                                        <span className="rounded-full bg-[var(--app-secondary-bg)] px-2 py-0.5 text-[10px] text-[var(--app-hint)]">
+                                            {t('composer.queue.attachments', { n: message.attachmentsCount })}
+                                        </span>
+                                    ) : null}
+                                </div>
+
+                                <div className="truncate text-sm text-[var(--app-fg)]">
+                                    {previewText}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
 export function HappyComposer(props: {
     sessionId: string
     disabled?: boolean
@@ -59,6 +129,7 @@ export function HappyComposer(props: {
     thinking?: boolean
     agentState?: AgentState | null
     contextSize?: number
+    queuedMessages?: QueuedComposerMessage[]
     controlledByUser?: boolean
     agentFlavor?: string | null
     onPermissionModeChange?: (mode: PermissionMode) => void
@@ -82,6 +153,7 @@ export function HappyComposer(props: {
         thinking = false,
         agentState,
         contextSize,
+        queuedMessages = [],
         controlledByUser = false,
         agentFlavor,
         onPermissionModeChange,
@@ -719,6 +791,8 @@ export function HappyComposer(props: {
                                 <ComposerPrimitive.Attachments components={{ Attachment: AttachmentItem }} />
                             </div>
                         ) : null}
+
+                        <QueuedMessageList messages={queuedMessages} />
 
                         <div className="flex items-center px-4 py-3">
                             <ComposerPrimitive.Input

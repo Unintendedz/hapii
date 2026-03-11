@@ -161,4 +161,48 @@ describe('HappyComposer', () => {
         expect(screen.queryByRole('button', { name: 'composer.voice' })).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'composer.send' })).toBeDisabled()
     })
+
+    it('renders queued messages above the input', () => {
+        const t = (key: string, params?: Record<string, string | number>) => {
+            if (key === 'composer.queue.title') return 'Queued messages'
+            if (key === 'composer.queue.sending') return 'Sending'
+            if (key === 'composer.queue.queued') return 'Queued'
+            if (key === 'composer.queue.attachmentsOnly') return 'Attachments only'
+            if (key === 'composer.queue.attachments') return `${params?.n ?? 0} attachments`
+            return key
+        }
+
+        render(
+            <I18nContext.Provider value={{ t, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer
+                    sessionId="s1"
+                    queuedMessages={[
+                        {
+                            localId: 'm1',
+                            text: 'first queued message',
+                            attachmentsCount: 0,
+                            status: 'sending'
+                        },
+                        {
+                            localId: 'm2',
+                            text: '',
+                            attachmentsCount: 2,
+                            status: 'queued'
+                        }
+                    ]}
+                />
+            </I18nContext.Provider>
+        )
+
+        const queueHeading = screen.getByText('Queued messages')
+        const textbox = screen.getByRole('textbox')
+
+        expect(queueHeading).toBeInTheDocument()
+        expect(screen.getByText('Sending')).toBeInTheDocument()
+        expect(screen.getByText('Queued')).toBeInTheDocument()
+        expect(screen.getByText('first queued message')).toBeInTheDocument()
+        expect(screen.getByText('Attachments only')).toBeInTheDocument()
+        expect(screen.getByText('2 attachments')).toBeInTheDocument()
+        expect(queueHeading.compareDocumentPosition(textbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
 })

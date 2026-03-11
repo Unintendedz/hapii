@@ -65,7 +65,7 @@ function Harness(props: {
     sleep: (ms: number) => Promise<void>
     onSessionResolved?: (sessionId: string) => void
 }) {
-    const { sendMessage } = useSendMessage(props.api as never, props.sessionId, {
+    const { sendMessage, queuedMessages } = useSendMessage(props.api as never, props.sessionId, {
         resolveSessionId: async (currentSessionId) => {
             return await resolveSessionIdForSend({
                 api: props.api as never,
@@ -85,6 +85,9 @@ function Harness(props: {
         <div>
             <button type="button" onClick={() => sendMessage('hello')}>Send</button>
             <button type="button" onClick={() => sendMessage('follow-up')}>Queue</button>
+            <div data-testid="queue-state">
+                {queuedMessages.map((message) => `${message.status}:${message.text}`).join('|')}
+            </div>
         </div>
     )
 }
@@ -210,6 +213,10 @@ describe('useSendMessage integration', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
 
         await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('sending:hello|queued:follow-up')
+        })
+
+        await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(1)
         })
 
@@ -217,6 +224,10 @@ describe('useSendMessage integration', () => {
 
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('')
         })
 
         expect(api.sendMessage).toHaveBeenNthCalledWith(1, 'session-1', 'hello', expect.any(String), undefined)
@@ -278,6 +289,10 @@ describe('useSendMessage integration', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
 
         await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('sending:hello|queued:follow-up')
+        })
+
+        await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(1)
         })
 
@@ -288,6 +303,10 @@ describe('useSendMessage integration', () => {
 
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('')
         })
 
         expect(api.sendMessage).toHaveBeenNthCalledWith(2, 'session-2', 'follow-up', expect.any(String), undefined)

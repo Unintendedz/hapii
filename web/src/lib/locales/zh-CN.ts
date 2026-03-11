@@ -223,6 +223,11 @@ export default {
   'composer.send': '发送',
   'composer.stop': '停止',
   'composer.voice': '语音助手',
+  'composer.queue.title': '排队消息',
+  'composer.queue.sending': '发送中',
+  'composer.queue.queued': '排队中',
+  'composer.queue.attachmentsOnly': '仅附件',
+  'composer.queue.attachments': '{n} 个附件',
 
   // Voice assistant
   'voice.connecting': '连接中...',
