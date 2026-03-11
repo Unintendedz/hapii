@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-11
 
+`22:08:03` &ensp; [`76a8dd8`](https://github.com/Unintendedz/hapii/commit/76a8dd8) — Add inline edit/delete controls for queued messages above the composer, plus pause/resume controls for the queue; pressing Stop now auto-pauses later queued sends so the next message does not appear immediately
+
 `21:58:03` &ensp; [`483994e`](https://github.com/Unintendedz/hapii/commit/483994e) — Fix the queue only serializing HTTP sends instead of waiting for the active agent turn to finish; later messages now wait for the current turn to complete before being sent
 
 `21:50:02` &ensp; [`300f892`](https://github.com/Unintendedz/hapii/commit/300f892) — Fix the queue panel still showing when only one message is actively sending; the panel now appears only when there are real waiting messages behind it

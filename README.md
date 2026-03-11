@@ -12,6 +12,8 @@
 
 ### 2026-03-11
 
+`22:08:03` &ensp; [`76a8dd8`](https://github.com/Unintendedz/hapii/commit/76a8dd8) — 排队消息支持在输入框上方直接编辑/删除，并增加暂停/恢复队列入口；点击“停止”时会自动暂停后续排队发送，避免下一条立刻上屏
+
 `21:58:03` &ensp; [`483994e`](https://github.com/Unintendedz/hapii/commit/483994e) — 修复排队消息只串行 HTTP 发送、没有真正等待上一轮 agent 工作完成的问题；现在会等当前一轮结束后再发送下一条
 
 `21:50:02` &ensp; [`300f892`](https://github.com/Unintendedz/hapii/commit/300f892) — 修复仅有一条发送中消息时仍显示“排队消息”面板的问题；现在只有真正存在等待发送的消息时才展示队列
