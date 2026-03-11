@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-11
+
+`16:10:36` &ensp; [`f1730d7`](https://github.com/Unintendedz/hapii/commit/f1730d7) — Queue multiple composer messages and flush them in order even while a session is running or resuming, and remove the voice button from the chat composer
+
 ### 2026-03-08
 
 `11:19:54` &ensp; [`9788bcf`](https://github.com/Unintendedz/hapii/commit/9788bcf) — Fix session-sidebar project groups reopening automatically after you manually collapse them while a session is still running; when reopened, sessions older than 12 hours are hidden behind “Load more sessions” again
