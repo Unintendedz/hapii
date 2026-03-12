@@ -12,6 +12,8 @@
 
 ### 2026-03-12
 
+`22:34:07` &ensp; [`90573c2`](https://github.com/Unintendedz/hapii/commit/90573c2) — 修复用户消息保留换行后，某些 Markdown 列表项会额外多出一行空白的问题
+
 `22:22:00` &ensp; [`f2629a3`](https://github.com/Unintendedz/hapii/commit/f2629a3) — 修复新建会话页会预探测历史目录、触发 macOS Documents / Pictures / Music 权限弹窗的问题；同时保留聊天用户消息里的回车换行显示
 
 ### 2026-03-11

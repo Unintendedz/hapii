@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-12
 
+`22:34:07` &ensp; [`90573c2`](https://github.com/Unintendedz/hapii/commit/90573c2) — Fix extra blank lines appearing in some Markdown list items after preserving user-entered line breaks in chat messages
+
 `22:22:00` &ensp; [`f2629a3`](https://github.com/Unintendedz/hapii/commit/f2629a3) — Fix the new-session page probing historical directories and triggering macOS Documents / Pictures / Music permission prompts, and preserve user-entered line breaks in chat messages
 
 ### 2026-03-11
