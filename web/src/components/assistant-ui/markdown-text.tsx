@@ -123,7 +123,7 @@ function OrderedList(props: ComponentPropsWithoutRef<'ol'>) {
 }
 
 function ListItem(props: ComponentPropsWithoutRef<'li'>) {
-    return <li {...props} className={cn('aui-md-li whitespace-pre-wrap', props.className)} />
+    return <li {...props} className={cn('aui-md-li', props.className)} />
 }
 
 function Hr(props: ComponentPropsWithoutRef<'hr'>) {

@@ -11,4 +11,13 @@ describe('default markdown components', () => {
         expect(paragraph).toBeTruthy()
         expect(paragraph?.className).toContain('whitespace-pre-wrap')
     })
+
+    it('does not force pre-wrap on list items', () => {
+        const ListItem = defaultComponents.li
+        const { container } = render(<ListItem>item</ListItem>)
+        const item = container.querySelector('li')
+
+        expect(item).toBeTruthy()
+        expect(item?.className).not.toContain('whitespace-pre-wrap')
+    })
 })
