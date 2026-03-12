@@ -11,6 +11,7 @@ const mockSpawnSession = vi.fn()
 const mockHapticNotification = vi.fn()
 const mockAddRecentPath = vi.fn()
 const mockSetLastUsedMachineId = vi.fn()
+const mockUseDirectorySuggestions = vi.fn<() => string[]>(() => [])
 
 vi.mock('@/hooks/usePlatform', () => ({
     usePlatform: () => ({
@@ -40,7 +41,7 @@ vi.mock('@/hooks/queries/useSessions', () => ({
 }))
 
 vi.mock('@/hooks/useDirectorySuggestions', () => ({
-    useDirectorySuggestions: () => [],
+    useDirectorySuggestions: () => mockUseDirectorySuggestions(),
 }))
 
 vi.mock('@/hooks/useActiveSuggestions', () => ({
@@ -95,6 +96,8 @@ describe('NewSession preset sync', () => {
         mockHapticNotification.mockReset()
         mockAddRecentPath.mockReset()
         mockSetLastUsedMachineId.mockReset()
+        mockUseDirectorySuggestions.mockReset()
+        mockUseDirectorySuggestions.mockReturnValue([])
     })
 
     it('updates directory across project quick-create and global new entry', async () => {
@@ -191,5 +194,32 @@ describe('NewSession preset sync', () => {
         await waitFor(() => {
             expect(onSuccess).toHaveBeenCalledWith('session-recovered')
         })
+    })
+
+    it('does not probe the filesystem just to show directory suggestions', async () => {
+        mockUseDirectorySuggestions.mockReturnValue([
+            '/Users/x',
+            '/Users/x/Documents/project-a',
+            '/Users/x/Pictures/project-b'
+        ])
+
+        const checkMachinePathsExists = vi.fn(async () => ({ exists: {} }))
+
+        render(
+            <I18nProvider>
+                <NewSession
+                    api={{ checkMachinePathsExists } as unknown as ApiClient}
+                    machines={machines}
+                    onCancel={vi.fn()}
+                    onSuccess={vi.fn()}
+                />
+            </I18nProvider>
+        )
+
+        const input = screen.getByPlaceholderText('/path/to/project')
+        fireEvent.focus(input)
+        fireEvent.change(input, { target: { value: '/Users/x' } })
+
+        expect(checkMachinePathsExists).not.toHaveBeenCalled()
     })
 })

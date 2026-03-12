@@ -34,30 +34,6 @@ export type NewSessionInitialPreset = {
     sessionType?: SessionType
 }
 
-function hasSamePathExistence(
-    current: Record<string, boolean>,
-    next: Record<string, boolean>
-): boolean {
-    if (current === next) {
-        return true
-    }
-
-    const currentKeys = Object.keys(current)
-    const nextKeys = Object.keys(next)
-
-    if (currentKeys.length !== nextKeys.length) {
-        return false
-    }
-
-    for (const key of currentKeys) {
-        if (current[key] !== next[key]) {
-            return false
-        }
-    }
-
-    return true
-}
-
 const SPAWN_RECOVERY_WINDOW_MS = 90_000
 
 function isUncertainSpawnTransportError(rawMessage: string): boolean {
@@ -132,7 +108,6 @@ export function NewSession(props: {
     const [directory, setDirectory] = useState('')
     const [suppressSuggestions, setSuppressSuggestions] = useState(false)
     const [isDirectoryFocused, setIsDirectoryFocused] = useState(false)
-    const [pathExistence, setPathExistence] = useState<Record<string, boolean>>({})
     const [agent, setAgent] = useState<AgentType>(loadPreferredAgent)
     const [model, setModel] = useState('auto')
     const [yoloMode, setYoloMode] = useState(loadPreferredYoloMode)
@@ -142,7 +117,6 @@ export function NewSession(props: {
     const [initialPresetApplied, setInitialPresetApplied] = useState(false)
     const worktreeInputRef = useRef<HTMLInputElement>(null)
     const skipNextAgentModelReset = useRef(false)
-    const checkedPathsSignatureRef = useRef('')
     const appliedPresetSignatureRef = useRef<string | null>(null)
 
     const presetDirectory = props.initialPreset?.directory?.trim() ?? ''
@@ -280,61 +254,9 @@ export function NewSession(props: {
 
     const allPaths = useDirectorySuggestions(machineId, sessions, recentPaths)
 
-    const pathsToCheck = useMemo(
-        () => Array.from(new Set(allPaths)).slice(0, 300),
-        [allPaths]
-    )
-
-    const pathsCheckSignature = useMemo(() => {
-        if (!machineId || pathsToCheck.length === 0) {
-            return ''
-        }
-        return `${machineId}\n${pathsToCheck.join('\n')}`
-    }, [machineId, pathsToCheck])
-
-    useEffect(() => {
-        let cancelled = false
-
-        if (!machineId || pathsToCheck.length === 0) {
-            checkedPathsSignatureRef.current = ''
-            setPathExistence((current) => (Object.keys(current).length === 0 ? current : {}))
-            return () => { cancelled = true }
-        }
-
-        if (!isDirectoryFocused) {
-            return () => { cancelled = true }
-        }
-
-        if (checkedPathsSignatureRef.current === pathsCheckSignature) {
-            return () => { cancelled = true }
-        }
-
-        checkedPathsSignatureRef.current = pathsCheckSignature
-
-        void props.api.checkMachinePathsExists(machineId, pathsToCheck)
-            .then((result) => {
-                if (cancelled) return
-                const next = result.exists ?? {}
-                setPathExistence((current) => (hasSamePathExistence(current, next) ? current : next))
-            })
-            .catch(() => {
-                if (cancelled) return
-                setPathExistence((current) => (Object.keys(current).length === 0 ? current : {}))
-            })
-
-        return () => {
-            cancelled = true
-        }
-    }, [isDirectoryFocused, machineId, pathsCheckSignature, pathsToCheck, props.api])
-
-    const verifiedPaths = useMemo(
-        () => allPaths.filter((path) => pathExistence[path]),
-        [allPaths, pathExistence]
-    )
-
     const getSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
         const lowered = query.toLowerCase()
-        return verifiedPaths
+        return allPaths
             .filter((path) => path.toLowerCase().includes(lowered))
             .slice(0, 8)
             .map((path) => ({
@@ -342,7 +264,7 @@ export function NewSession(props: {
                 text: path,
                 label: path
             }))
-    }, [verifiedPaths])
+    }, [allPaths])
 
     const activeQuery = (!isDirectoryFocused || suppressSuggestions) ? null : directory
 

@@ -23,6 +23,46 @@ function parseBooleanParam(value: string | undefined): boolean | undefined {
     return undefined
 }
 
+function normalizeFileSystemPath(value: string | undefined): string | null {
+    if (typeof value !== 'string') {
+        return null
+    }
+
+    const trimmed = value.trim()
+    if (!trimmed) {
+        return null
+    }
+
+    if (/^[a-z]:[\\/]?$/i.test(trimmed)) {
+        return `${trimmed[0].toLowerCase()}:\\`
+    }
+
+    const normalized = trimmed.replace(/\\/g, '/')
+    if (normalized === '/') {
+        return '/'
+    }
+
+    return normalized.replace(/\/+$/, '')
+}
+
+function isBroadSessionRoot(path: string | undefined, homeDir: string | undefined): boolean {
+    const normalizedPath = normalizeFileSystemPath(path)
+    if (!normalizedPath) {
+        return false
+    }
+
+    if (normalizedPath === '/' || /^[a-z]:\\$/i.test(normalizedPath)) {
+        return true
+    }
+
+    const normalizedHomeDir = normalizeFileSystemPath(homeDir)
+    if (!normalizedHomeDir) {
+        return false
+    }
+
+    return normalizedPath.toLowerCase() === normalizedHomeDir.toLowerCase()
+}
+
 async function runRpc<T>(fn: () => Promise<T>): Promise<T | { success: false; error: string }> {
     try {
         return await fn()
@@ -144,6 +184,13 @@ export function createGitRoutes(getSyncEngine: () => SyncEngine | null): Hono<We
         const sessionPath = sessionResult.session.metadata?.path
         if (!sessionPath) {
             return c.json({ success: false, error: 'Session path not available' })
+        }
+
+        if (isBroadSessionRoot(sessionPath, sessionResult.session.metadata?.homeDir)) {
+            return c.json({
+                success: false,
+                error: 'File search is disabled for sessions started from your home/root directory. Start the session inside a project folder instead.'
+            })
         }
 
         const parsed = fileSearchSchema.safeParse(c.req.query())
