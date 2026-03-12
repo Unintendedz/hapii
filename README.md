@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-03-12
+
+`22:22:00` &ensp; [`f2629a3`](https://github.com/Unintendedz/hapii/commit/f2629a3) — 修复新建会话页会预探测历史目录、触发 macOS Documents / Pictures / Music 权限弹窗的问题；同时保留聊天用户消息里的回车换行显示
+
 ### 2026-03-11
 
 `22:08:03` &ensp; [`76a8dd8`](https://github.com/Unintendedz/hapii/commit/76a8dd8) — 排队消息支持在输入框上方直接编辑/删除，并增加暂停/恢复队列入口；点击“停止”时会自动暂停后续排队发送，避免下一条立刻上屏

@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-12
+
+`22:22:00` &ensp; [`f2629a3`](https://github.com/Unintendedz/hapii/commit/f2629a3) — Fix the new-session page probing historical directories and triggering macOS Documents / Pictures / Music permission prompts, and preserve user-entered line breaks in chat messages
+
 ### 2026-03-11
 
 `22:08:03` &ensp; [`76a8dd8`](https://github.com/Unintendedz/hapii/commit/76a8dd8) — Add inline edit/delete controls for queued messages above the composer, plus pause/resume controls for the queue; pressing Stop now auto-pauses later queued sends so the next message does not appear immediately
