@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-13
+
+`11:03:05` &ensp; [`8055d3c`](https://github.com/Unintendedz/hapii/commit/8055d3c) — Fix queued messages disappearing after switching away from a session and back, and tighten the post-stop pause behavior so only real backlog is auto-paused while a brand-new single message sends immediately
+
 ### 2026-03-12
 
 `22:34:07` &ensp; [`90573c2`](https://github.com/Unintendedz/hapii/commit/90573c2) — Fix extra blank lines appearing in some Markdown list items after preserving user-entered line breaks in chat messages
