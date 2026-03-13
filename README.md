@@ -12,6 +12,8 @@
 
 ### 2026-03-13
 
+`16:27:45` &ensp; [`c64a0a8`](https://github.com/Unintendedz/hapii/commit/c64a0a8) — 修复长回复块“开头 / 目录”会把前置工具调用内容算进去的问题；现在会跳过纯 tool call，只定位正文内容
+
 `11:20:11` &ensp; [`34079db`](https://github.com/Unintendedz/hapii/commit/34079db) — 修复会话右键归档弹窗不能直接按回车确认的问题，并让侧栏 12 小时隐藏规则也会收起长时间空闲但仍保活的旧会话
 
 `11:20:10` &ensp; [`a16379d`](https://github.com/Unintendedz/hapii/commit/a16379d) — 修复 24 小时自动归档对长时间空闲但仍保活的旧会话不生效的问题；Hub 现在会按最近有效活动时间自动归档它们

@@ -12,6 +12,8 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-13
 
+`16:27:45` &ensp; [`c64a0a8`](https://github.com/Unintendedz/hapii/commit/c64a0a8) — Fix long-reply “start / sections” navigation including leading tool-call content; jump-to-start and the TOC now skip pure tool-call blocks and target the actual answer body
+
 `11:20:11` &ensp; [`34079db`](https://github.com/Unintendedz/hapii/commit/34079db) — Fix the session right-click archive dialog so Enter confirms immediately, and make the 12-hour sidebar hiding rule also collapse long-idle sessions that are still technically alive
 
 `11:20:10` &ensp; [`a16379d`](https://github.com/Unintendedz/hapii/commit/a16379d) — Fix 24-hour auto-archive not affecting long-idle sessions that were still technically alive; the hub now archives them based on their last meaningful activity time
