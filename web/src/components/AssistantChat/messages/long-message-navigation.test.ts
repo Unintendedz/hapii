@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
     collectLongMessageHeadings,
+    findLongMessageStartElement,
     getActiveLongMessageHeadingId,
+    LONG_MESSAGE_NAVIGATION_CONTENT_ATTR,
+    LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR,
     normalizeLongMessageHeadingSegment,
     shouldShowLongMessageJumpControls,
 } from './long-message-navigation'
@@ -63,6 +66,26 @@ describe('collectLongMessageHeadings', () => {
             { id: 'custom-id-2', label: 'Beta', level: 2 },
         ])
     })
+
+    it('ignores headings inside excluded tool sections when marked content exists', () => {
+        const container = document.createElement('div')
+        container.innerHTML = `
+            <div ${LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR}="true">
+                <h2>Tool plan</h2>
+            </div>
+            <div ${LONG_MESSAGE_NAVIGATION_CONTENT_ATTR}="true">
+                <h2>Answer</h2>
+                <h3>Details</h3>
+            </div>
+        `
+
+        const headings = collectLongMessageHeadings(container, 'msg-3')
+
+        expect(headings).toEqual([
+            { id: 'msg-3-answer', label: 'Answer', level: 2 },
+            { id: 'msg-3-details', label: 'Details', level: 3 },
+        ])
+    })
 })
 
 describe('getActiveLongMessageHeadingId', () => {
@@ -86,5 +109,33 @@ describe('getActiveLongMessageHeadingId', () => {
             { id: 'a', top: 80 },
             { id: 'b', top: 220 },
         ], 800)).toBe('b')
+    })
+})
+
+describe('findLongMessageStartElement', () => {
+    it('skips leading excluded tool content and lands on the first marked answer block', () => {
+        const container = document.createElement('div')
+        container.innerHTML = `
+            <div ${LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR}="true">
+                <p>Tool output</p>
+            </div>
+            <div ${LONG_MESSAGE_NAVIGATION_CONTENT_ATTR}="true" id="answer">
+                <p>Final answer</p>
+            </div>
+        `
+
+        expect(findLongMessageStartElement(container)?.id).toBe('answer')
+    })
+
+    it('falls back to the first visible non-excluded element without markers', () => {
+        const container = document.createElement('div')
+        container.innerHTML = `
+            <div ${LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR}="true">
+                <p>Tool output</p>
+            </div>
+            <p id="answer">Final answer</p>
+        `
+
+        expect(findLongMessageStartElement(container)?.id).toBe('answer')
     })
 })

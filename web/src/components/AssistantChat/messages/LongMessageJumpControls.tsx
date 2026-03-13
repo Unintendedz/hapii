@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { useTranslation } from '@/lib/use-translation'
 import {
     collectLongMessageHeadings,
+    findLongMessageStartElement,
     getActiveLongMessageHeadingId,
     normalizeLongMessageHeadingSegment,
     shouldShowLongMessageJumpControls,
@@ -244,9 +245,10 @@ export function LongMessageJumpControls(props: LongMessageJumpControlsProps) {
     }, [])
 
     const handleScrollToStart = useCallback(() => {
-        scrollToElement(messageRef.current, 'start')
+        const startElement = contentRef.current ? findLongMessageStartElement(contentRef.current) : null
+        scrollToElement(startElement ?? messageRef.current, 'start')
         setTocOpen(false)
-    }, [messageRef, scrollToElement])
+    }, [contentRef, messageRef, scrollToElement])
 
     const handleScrollToEnd = useCallback(() => {
         scrollToElement(bottomRef.current, 'end')

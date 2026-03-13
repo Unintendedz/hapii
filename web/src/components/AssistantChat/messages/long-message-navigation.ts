@@ -10,6 +10,10 @@ export type LongMessageHeadingPosition = {
 }
 
 const HEADING_SELECTOR = 'h2, h3, h4'
+export const LONG_MESSAGE_NAVIGATION_CONTENT_ATTR = 'data-hapi-long-message-content'
+export const LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR = 'data-hapi-long-message-exclude'
+const LONG_MESSAGE_NAVIGATION_CONTENT_SELECTOR = `[${LONG_MESSAGE_NAVIGATION_CONTENT_ATTR}="true"]`
+const LONG_MESSAGE_NAVIGATION_EXCLUDE_SELECTOR = `[${LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR}="true"]`
 
 export function normalizeLongMessageHeadingSegment(text: string): string {
     const normalized = text
@@ -45,11 +49,30 @@ export function getActiveLongMessageHeadingId(
     return activeId
 }
 
+export function findLongMessageStartElement(container: ParentNode): HTMLElement | null {
+    for (const element of Array.from(container.querySelectorAll<HTMLElement>(LONG_MESSAGE_NAVIGATION_CONTENT_SELECTOR))) {
+        if (element.closest(LONG_MESSAGE_NAVIGATION_EXCLUDE_SELECTOR)) continue
+        return element
+    }
+
+    for (const element of Array.from(container.querySelectorAll<HTMLElement>('*'))) {
+        if (element.closest(LONG_MESSAGE_NAVIGATION_EXCLUDE_SELECTOR)) continue
+        if (!(element.textContent?.trim())) continue
+        return element
+    }
+
+    return null
+}
+
 export function collectLongMessageHeadings(container: ParentNode, idPrefix: string): LongMessageHeading[] {
     const seenIds = new Map<string, number>()
     const headings: LongMessageHeading[] = []
+    const usesMarkedContent = Boolean(container.querySelector(LONG_MESSAGE_NAVIGATION_CONTENT_SELECTOR))
 
     for (const element of Array.from(container.querySelectorAll<HTMLElement>(HEADING_SELECTOR))) {
+        if (element.closest(LONG_MESSAGE_NAVIGATION_EXCLUDE_SELECTOR)) continue
+        if (usesMarkedContent && !element.closest(LONG_MESSAGE_NAVIGATION_CONTENT_SELECTOR)) continue
+
         const label = element.textContent?.trim() ?? ''
         if (!label) continue
 

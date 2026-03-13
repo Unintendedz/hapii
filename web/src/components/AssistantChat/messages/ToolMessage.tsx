@@ -7,6 +7,7 @@ import { CodeBlock } from '@/components/CodeBlock'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { LazyRainbowText } from '@/components/LazyRainbowText'
 import { MessageStatusIndicator } from '@/components/AssistantChat/messages/MessageStatusIndicator'
+import { LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR } from '@/components/AssistantChat/messages/long-message-navigation'
 import { ToolCard } from '@/components/ToolCard/ToolCard'
 import { useHappyChatContext } from '@/components/AssistantChat/context'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
@@ -29,6 +30,10 @@ function isToolCallBlock(value: unknown): value is ToolCallBlock {
 function isPendingPermissionBlock(block: ChatBlock): boolean {
     return block.kind === 'tool-call' && block.tool.permission?.status === 'pending'
 }
+
+const LONG_MESSAGE_EXCLUDE_PROPS = {
+    [LONG_MESSAGE_NAVIGATION_EXCLUDE_ATTR]: 'true'
+} as const
 
 function splitTaskChildren(block: ToolCallBlock): { pending: ChatBlock[]; rest: ChatBlock[] } {
     const pending: ChatBlock[] = []
@@ -168,7 +173,10 @@ export function HappyToolMessage(props: ToolCallMessagePartProps) {
         const resultText = hasResult ? safeStringify(props.result) : ''
 
         return (
-            <div className="py-1 min-w-0 max-w-full overflow-x-hidden">
+            <div
+                {...LONG_MESSAGE_EXCLUDE_PROPS}
+                className="py-1 min-w-0 max-w-full overflow-x-hidden"
+            >
                 <div className="rounded-xl bg-[var(--app-secondary-bg)] p-3 shadow-sm">
                     <div className="flex items-center gap-2 text-xs">
                         <div className="font-mono text-[var(--app-hint)]">
@@ -203,7 +211,10 @@ export function HappyToolMessage(props: ToolCallMessagePartProps) {
     const taskChildren = isTask ? splitTaskChildren(block) : null
 
     return (
-        <div className="py-1 min-w-0 max-w-full overflow-x-hidden">
+        <div
+            {...LONG_MESSAGE_EXCLUDE_PROPS}
+            className="py-1 min-w-0 max-w-full overflow-x-hidden"
+        >
             <ToolCard
                 api={ctx.api}
                 sessionId={ctx.sessionId}

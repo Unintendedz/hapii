@@ -6,6 +6,7 @@ import { HappyToolMessage } from '@/components/AssistantChat/messages/ToolMessag
 import { MessageActionMenu } from '@/components/AssistantChat/messages/MessageActionMenu'
 import { MessageSelectDialog } from '@/components/AssistantChat/messages/MessageSelectDialog'
 import { LongMessageJumpControls } from '@/components/AssistantChat/messages/LongMessageJumpControls'
+import { LONG_MESSAGE_NAVIGATION_CONTENT_ATTR } from '@/components/AssistantChat/messages/long-message-navigation'
 import { useHappyChatContext } from '@/components/AssistantChat/context'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -16,8 +17,20 @@ const TOOL_COMPONENTS = {
     Fallback: HappyToolMessage
 } as const
 
+const LONG_MESSAGE_CONTENT_PROPS = {
+    [LONG_MESSAGE_NAVIGATION_CONTENT_ATTR]: 'true'
+} as const
+
+function NavigableMarkdownText() {
+    return (
+        <div {...LONG_MESSAGE_CONTENT_PROPS} className="min-w-0">
+            <MarkdownText />
+        </div>
+    )
+}
+
 const MESSAGE_PART_COMPONENTS = {
-    Text: MarkdownText,
+    Text: NavigableMarkdownText,
     Reasoning: Reasoning,
     ReasoningGroup: ReasoningGroup,
     tools: TOOL_COMPONENTS
