@@ -12,6 +12,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ### 2026-03-13
 
+`11:20:11` &ensp; [`34079db`](https://github.com/Unintendedz/hapii/commit/34079db) — Fix the session right-click archive dialog so Enter confirms immediately, and make the 12-hour sidebar hiding rule also collapse long-idle sessions that are still technically alive
+
+`11:20:10` &ensp; [`a16379d`](https://github.com/Unintendedz/hapii/commit/a16379d) — Fix 24-hour auto-archive not affecting long-idle sessions that were still technically alive; the hub now archives them based on their last meaningful activity time
+
 `11:03:05` &ensp; [`8055d3c`](https://github.com/Unintendedz/hapii/commit/8055d3c) — Fix queued messages disappearing after switching away from a session and back, and tighten the post-stop pause behavior so only real backlog is auto-paused while a brand-new single message sends immediately
 
 ### 2026-03-12
