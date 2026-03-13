@@ -1,13 +1,12 @@
 import { AgentStateSchema, MetadataSchema } from '@hapi/protocol/schemas'
 import type { ModelMode, PermissionMode, ReasoningEffort, Session } from '@hapi/protocol/types'
+import { AUTO_ARCHIVE_IDLE_SESSION_REASON, shouldAutoArchiveSession } from '@hapi/protocol'
 import type { Store } from '../store'
 import { clampAliveTime } from './aliveTime'
 import { EventPublisher } from './eventPublisher'
 import { extractTodoWriteTodosFromMessageContent, TodosSchema } from './todos'
 
 const SESSION_TIMEOUT_MS = 30_000
-const AUTO_ARCHIVE_INACTIVE_SESSION_MS = 24 * 60 * 60 * 1000
-const AUTO_ARCHIVE_REASON = 'Auto-archived after 24 hours of inactivity'
 
 function clampWorkStartTime(t: number, now: number): number | null {
     if (!Number.isFinite(t)) return null
@@ -28,10 +27,6 @@ function normalizeRuntimeConfigVersion(value: unknown): number | null {
 function isSessionArchived(session: Pick<Session, 'metadata'>): boolean {
     return session.metadata?.lifecycleState === 'archived'
         || session.metadata?.archivedBy !== undefined
-}
-
-function getSessionLastTouchedAt(session: Pick<Session, 'createdAt' | 'updatedAt' | 'activeAt'>): number {
-    return Math.max(session.createdAt, session.updatedAt, session.activeAt)
 }
 
 export class SessionCache {
@@ -352,12 +347,19 @@ export class SessionCache {
         for (const session of this.sessions.values()) {
             if (session.active) continue
             if (isSessionArchived(session)) continue
-            if (now - getSessionLastTouchedAt(session) <= AUTO_ARCHIVE_INACTIVE_SESSION_MS) continue
+            if (!shouldAutoArchiveSession({
+                updatedAt: session.updatedAt,
+                thinking: session.thinking,
+                pendingRequestsCount: session.agentState?.requests
+                    ? Object.keys(session.agentState.requests).length
+                    : 0,
+                work: session.work
+            }, now)) continue
 
             try {
                 this.markSessionArchivedInternal(session.id, {
                     archivedBy: 'hub',
-                    archiveReason: AUTO_ARCHIVE_REASON,
+                    archiveReason: AUTO_ARCHIVE_IDLE_SESSION_REASON,
                     lifecycleStateSince: now
                 })
             } catch (error) {

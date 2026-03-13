@@ -7,7 +7,12 @@
  * - No E2E encryption; data is stored as JSON in SQLite
  */
 
-import { getResumeTokenFromMetadata, normalizeAgentFlavor } from '@hapi/protocol'
+import {
+    AUTO_ARCHIVE_IDLE_SESSION_REASON,
+    getResumeTokenFromMetadata,
+    normalizeAgentFlavor,
+    shouldAutoArchiveSession
+} from '@hapi/protocol'
 import type { DecryptedMessage, ModelMode, PermissionMode, ReasoningEffort, Session, SyncEvent } from '@hapi/protocol/types'
 import type { Server } from 'socket.io'
 import type { Store } from '../store'
@@ -65,6 +70,7 @@ export class SyncEngine {
     private readonly messageService: MessageService
     private readonly rpcGateway: RpcGateway
     private inactivityTimer: NodeJS.Timeout | null = null
+    private readonly autoArchivingSessionIds: Set<string> = new Set()
 
     constructor(
         store: Store,
@@ -220,8 +226,45 @@ export class SyncEngine {
     }
 
     private expireInactive(): void {
-        this.sessionCache.expireInactive()
-        this.machineCache.expireInactive()
+        const now = Date.now()
+        this.sessionCache.expireInactive(now)
+        this.machineCache.expireInactive(now)
+        void this.autoArchiveStaleSessions(now)
+    }
+
+    private async autoArchiveStaleSessions(now: number): Promise<void> {
+        const sessions = this.sessionCache.getSessions()
+
+        for (const session of sessions) {
+            if (this.autoArchivingSessionIds.has(session.id)) {
+                continue
+            }
+            if (session.metadata?.lifecycleState === 'archived' || session.metadata?.archivedBy !== undefined) {
+                continue
+            }
+            if (!shouldAutoArchiveSession({
+                updatedAt: session.updatedAt,
+                thinking: session.thinking,
+                pendingRequestsCount: session.agentState?.requests
+                    ? Object.keys(session.agentState.requests).length
+                    : 0,
+                work: session.work
+            }, now)) {
+                continue
+            }
+
+            this.autoArchivingSessionIds.add(session.id)
+            try {
+                await this.archiveSession(session.id, {
+                    archivedBy: 'hub',
+                    archiveReason: AUTO_ARCHIVE_IDLE_SESSION_REASON
+                })
+            } catch (error) {
+                console.error(`[SyncEngine] Failed to auto-archive session ${session.id}`, error)
+            } finally {
+                this.autoArchivingSessionIds.delete(session.id)
+            }
+        }
     }
 
     private reloadAll(): void {
@@ -279,13 +322,20 @@ export class SyncEngine {
         await this.rpcGateway.abortSession(sessionId)
     }
 
-    async archiveSession(sessionId: string): Promise<void> {
+    async archiveSession(
+        sessionId: string,
+        options?: { archivedBy?: string; archiveReason?: string }
+    ): Promise<void> {
         const archivedAt = Date.now()
+        const archivedBy = options?.archivedBy ?? 'hub'
+        const archiveReason = options?.archiveReason ?? 'Archived via hub'
 
         try {
             await this.rpcGateway.killSession(sessionId)
-            this.handleSessionEnd({ sid: sessionId, time: archivedAt })
-            return
+            await this.sessionCache.markSessionArchived(sessionId, {
+                archivedBy,
+                archiveReason
+            })
         } catch (error) {
             if (!isSessionRpcUnavailableError(error)) {
                 throw error
@@ -294,13 +344,16 @@ export class SyncEngine {
             const message = error instanceof Error ? error.message : String(error)
             try {
                 await this.sessionCache.markSessionArchived(sessionId, {
-                    archivedBy: 'hub',
-                    archiveReason: `Forced archive: ${message}`
+                    archivedBy,
+                    archiveReason: options?.archiveReason ?? `Forced archive: ${message}`
                 })
             } finally {
                 this.handleSessionEnd({ sid: sessionId, time: archivedAt })
             }
+            return
         }
+
+        this.handleSessionEnd({ sid: sessionId, time: archivedAt })
     }
 
     async switchSession(sessionId: string, to: 'remote' | 'local'): Promise<void> {
