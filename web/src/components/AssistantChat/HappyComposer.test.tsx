@@ -324,4 +324,25 @@ describe('HappyComposer', () => {
 
         expect(onResumeQueuedMessages).toHaveBeenCalledTimes(1)
     })
+
+    it('does not auto-pause when aborting without queued backlog', () => {
+        const onPauseQueuedMessages = vi.fn()
+
+        assistantState.thread.isRunning = true
+
+        render(
+            <I18nContext.Provider value={{ t: (key: string) => key, locale: 'en', setLocale: vi.fn() }}>
+                <HappyComposer
+                    sessionId="s1"
+                    queuedMessages={[]}
+                    onPauseQueuedMessages={onPauseQueuedMessages}
+                />
+            </I18nContext.Provider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'composer.abort' }))
+
+        expect(onPauseQueuedMessages).not.toHaveBeenCalled()
+        expect(cancelRunMock).toHaveBeenCalledTimes(1)
+    })
 })

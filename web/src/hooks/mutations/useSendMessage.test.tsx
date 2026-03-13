@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@/types/api'
 import { clearMessageWindow, getMessageWindowState } from '@/lib/message-window-store'
 import { resolveSessionIdForSend } from '@/lib/session-resume'
-import { useSendMessage } from './useSendMessage'
+import { clearSendQueue, useSendMessage } from './useSendMessage'
 
 vi.mock('@/hooks/usePlatform', () => ({
     usePlatform: () => ({
@@ -132,6 +132,8 @@ describe('useSendMessage integration', () => {
         cleanup()
         clearMessageWindow('session-1')
         clearMessageWindow('session-2')
+        clearSendQueue('session-1')
+        clearSendQueue('session-2')
     })
 
     it('waits for session warmup and then sends without resuming', async () => {
@@ -589,6 +591,67 @@ describe('useSendMessage integration', () => {
         })
     })
 
+    it('keeps queued messages when the session view unmounts and remounts', async () => {
+        const active = makeSession(1_000_000, {
+            active: true,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: active })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async () => {}),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        const firstView = render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Queue' }))
+
+        await waitFor(() => {
+            expect(screen.getByTestId('queue-state')).toHaveTextContent('queued:hello|queued:follow-up')
+        })
+
+        firstView.unmount()
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        expect(screen.getByTestId('queue-state')).toHaveTextContent('queued:hello|queued:follow-up')
+    })
+
     it('keeps the queue paused until resumed after stopping the current turn', async () => {
         const active = makeSession(1_000_000, {
             active: true,
@@ -676,6 +739,53 @@ describe('useSendMessage integration', () => {
 
         await waitFor(() => {
             expect(api.sendMessage).toHaveBeenCalledTimes(2)
+        })
+    })
+
+    it('does not keep a brand-new send paused after stopping with no backlog', async () => {
+        const active = makeSession(1_000_000, {
+            active: true,
+            metadata: {
+                path: '/tmp/project',
+                host: 'localhost',
+                flavor: 'codex',
+            },
+        })
+
+        const api = {
+            getSession: vi.fn(async () => ({ session: active })),
+            resumeSession: vi.fn(async () => 'session-2'),
+            sendMessage: vi.fn(async () => {}),
+        }
+
+        const queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        })
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <Harness
+                    api={api}
+                    sessionId="session-1"
+                    initialSession={active}
+                    thinking={false}
+                    now={() => 1_000_000}
+                    sleep={async () => {}}
+                />
+            </QueryClientProvider>
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'PauseQueue' }))
+
+        expect(screen.getByTestId('queue-paused')).toHaveTextContent('false')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+        await waitFor(() => {
+            expect(api.sendMessage).toHaveBeenCalledTimes(1)
         })
     })
 })

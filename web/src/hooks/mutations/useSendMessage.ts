@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { AttachmentMetadata, DecryptedMessage } from '@/types/api'
 import { makeClientSideId } from '@/lib/messages'
@@ -29,6 +29,34 @@ export type QueuedComposerMessage = {
     status: 'sending' | 'queued'
 }
 
+type QueueSnapshot = {
+    queuedMessages: QueuedComposerMessage[]
+    isProcessing: boolean
+    isResolving: boolean
+    isQueuePaused: boolean
+}
+
+type QueueStore = {
+    key: string
+    queue: SendQueueItem[]
+    snapshot: QueueSnapshot
+    listeners: Set<() => void>
+    api: ApiClient | null
+    options?: UseSendMessageOptions
+    haptic: ReturnType<typeof usePlatform>['haptic']
+    processing: boolean
+    resolving: boolean
+    paused: boolean
+    awaitingTurnCompletion: boolean
+    observedThinking: boolean
+    turnStartFallbackTimer: ReturnType<typeof setTimeout> | null
+    resolvedSessionId: string | null
+    pendingSessionResolution: {
+        fromSessionId: string
+        toSessionId: string
+    } | null
+}
+
 type BlockedReason = 'no-api' | 'no-session'
 
 type UseSendMessageOptions = {
@@ -37,6 +65,21 @@ type UseSendMessageOptions = {
     onSessionResolved?: (sessionId: string) => void
     onBlocked?: (reason: BlockedReason) => void
 }
+
+const EMPTY_SNAPSHOT: QueueSnapshot = {
+    queuedMessages: [],
+    isProcessing: false,
+    isResolving: false,
+    isQueuePaused: false,
+}
+
+const noopHaptic: ReturnType<typeof usePlatform>['haptic'] = {
+    impact: () => {},
+    notification: () => {},
+    selection: () => {},
+}
+
+const queueStores = new Map<string, QueueStore>()
 
 function findMessageByLocalId(
     sessionId: string,
@@ -80,6 +123,377 @@ function getRetryPayload(message: DecryptedMessage): {
     }
 }
 
+function createQueueSnapshot(store: QueueStore, processing = store.processing): QueueSnapshot {
+    return {
+        queuedMessages: store.queue.map((item, index) => ({
+            localId: item.localId,
+            text: item.text,
+            attachmentsCount: item.attachments?.length ?? 0,
+            status: processing && index === 0 ? 'sending' : 'queued'
+        })),
+        isProcessing: store.processing,
+        isResolving: store.resolving,
+        isQueuePaused: store.paused && store.queue.length > 0,
+    }
+}
+
+function notify(store: QueueStore): void {
+    for (const listener of store.listeners) {
+        listener()
+    }
+}
+
+function clearTurnStartFallbackTimer(store: QueueStore): void {
+    if (store.turnStartFallbackTimer !== null) {
+        clearTimeout(store.turnStartFallbackTimer)
+        store.turnStartFallbackTimer = null
+    }
+}
+
+function cleanupQueueStore(key: string): void {
+    const store = queueStores.get(key)
+    if (!store) {
+        return
+    }
+    if (store.listeners.size > 0) {
+        return
+    }
+    if (store.queue.length > 0 || store.processing || store.resolving || store.awaitingTurnCompletion) {
+        return
+    }
+    clearTurnStartFallbackTimer(store)
+    queueStores.delete(key)
+}
+
+function syncQueueSnapshot(store: QueueStore, processing = store.processing): void {
+    if (store.queue.length === 0 && !store.processing && !store.resolving) {
+        store.paused = false
+        if (!store.pendingSessionResolution) {
+            store.resolvedSessionId = null
+        }
+    }
+
+    store.snapshot = createQueueSnapshot(store, processing)
+    notify(store)
+    cleanupQueueStore(store.key)
+}
+
+function releaseAwaitingTurnCompletion(store: QueueStore): void {
+    clearTurnStartFallbackTimer(store)
+    store.awaitingTurnCompletion = false
+    store.observedThinking = false
+}
+
+function armAwaitingTurnCompletion(store: QueueStore): void {
+    clearTurnStartFallbackTimer(store)
+    store.awaitingTurnCompletion = true
+    store.observedThinking = store.options?.thinking === true
+
+    store.turnStartFallbackTimer = setTimeout(() => {
+        if (store.observedThinking) {
+            return
+        }
+        if (store.options?.thinking) {
+            store.observedThinking = true
+            return
+        }
+
+        releaseAwaitingTurnCompletion(store)
+        void flushQueue(store)
+    }, 800)
+}
+
+function enqueueOptimisticMessage(input: SendQueueItem): void {
+    const optimisticMessage: DecryptedMessage = {
+        id: input.localId,
+        seq: null,
+        localId: input.localId,
+        content: {
+            role: 'user',
+            content: {
+                type: 'text',
+                text: input.text,
+                attachments: input.attachments
+            }
+        },
+        createdAt: input.createdAt,
+        status: 'sending',
+        originalText: input.text,
+    }
+
+    appendOptimisticMessage(input.optimisticSessionId, optimisticMessage)
+}
+
+function prepareQueuedMessageForSend(input: SendQueueItem): void {
+    if (input.optimisticApplied) {
+        updateMessageStatus(input.optimisticSessionId, input.localId, 'sending')
+        return
+    }
+
+    enqueueOptimisticMessage(input)
+    input.optimisticApplied = true
+}
+
+async function flushQueue(store: QueueStore): Promise<void> {
+    if (store.processing || store.awaitingTurnCompletion || store.paused) {
+        return
+    }
+
+    store.processing = true
+    syncQueueSnapshot(store, true)
+
+    try {
+        while (store.queue.length > 0) {
+            if (store.options?.thinking) {
+                break
+            }
+
+            const current = store.queue[0]
+            const currentApi = store.api
+
+            prepareQueuedMessageForSend(current)
+
+            if (!currentApi) {
+                updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
+                store.haptic.notification('error')
+                store.queue.shift()
+                syncQueueSnapshot(store, true)
+                continue
+            }
+
+            let targetSessionId = current.sessionId
+            const currentOptions = store.options
+
+            if (currentOptions?.resolveSessionId) {
+                store.resolving = true
+                syncQueueSnapshot(store, true)
+
+                try {
+                    const resolvedSessionId = await currentOptions.resolveSessionId(targetSessionId)
+                    if (resolvedSessionId && resolvedSessionId !== targetSessionId) {
+                        store.resolvedSessionId = resolvedSessionId
+                        store.pendingSessionResolution = {
+                            fromSessionId: store.pendingSessionResolution?.fromSessionId ?? current.optimisticSessionId,
+                            toSessionId: resolvedSessionId,
+                        }
+                        for (const queued of store.queue) {
+                            if (queued.sessionId === targetSessionId) {
+                                queued.sessionId = resolvedSessionId
+                            }
+                        }
+                        targetSessionId = resolvedSessionId
+                    }
+                } catch (error) {
+                    updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
+                    store.haptic.notification('error')
+                    console.error('Failed to resolve session before send:', error)
+                    store.queue.shift()
+                    syncQueueSnapshot(store, true)
+                    continue
+                } finally {
+                    store.resolving = false
+                    syncQueueSnapshot(store, true)
+                }
+            }
+
+            let sendStarted = false
+
+            try {
+                await currentApi.sendMessage(targetSessionId, current.text, current.localId, current.attachments)
+                updateMessageStatus(current.optimisticSessionId, current.localId, 'sent')
+                store.haptic.notification('success')
+                sendStarted = true
+            } catch (error) {
+                updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
+                store.haptic.notification('error')
+                console.error('Failed to send message:', error)
+            } finally {
+                store.queue.shift()
+                syncQueueSnapshot(store, true)
+            }
+
+            if (sendStarted) {
+                armAwaitingTurnCompletion(store)
+                break
+            }
+        }
+    } finally {
+        store.processing = false
+        syncQueueSnapshot(store, false)
+
+        const pendingSessionResolution = store.pendingSessionResolution
+        if (store.queue.length === 0 && pendingSessionResolution) {
+            store.pendingSessionResolution = null
+            store.resolvedSessionId = null
+            store.options?.onSessionResolved?.(pendingSessionResolution.toSessionId)
+        }
+    }
+}
+
+function applyBindings(
+    store: QueueStore,
+    bindings: {
+        api: ApiClient | null
+        options?: UseSendMessageOptions
+        haptic: ReturnType<typeof usePlatform>['haptic']
+    }
+): void {
+    store.api = bindings.api
+    store.options = bindings.options
+    store.haptic = bindings.haptic
+
+    const thinking = bindings.options?.thinking === true
+
+    if (thinking) {
+        if (store.awaitingTurnCompletion) {
+            store.observedThinking = true
+            clearTurnStartFallbackTimer(store)
+        }
+        return
+    }
+
+    if (store.paused) {
+        if (store.awaitingTurnCompletion && store.observedThinking) {
+            releaseAwaitingTurnCompletion(store)
+        }
+        return
+    }
+
+    if (store.awaitingTurnCompletion && store.observedThinking) {
+        releaseAwaitingTurnCompletion(store)
+        void flushQueue(store)
+        return
+    }
+
+    if (!store.awaitingTurnCompletion && store.queue.length > 0 && !store.processing) {
+        void flushQueue(store)
+    }
+}
+
+function createQueueStore(key: string): QueueStore {
+    return {
+        key,
+        queue: [],
+        snapshot: EMPTY_SNAPSHOT,
+        listeners: new Set(),
+        api: null,
+        options: undefined,
+        haptic: noopHaptic,
+        processing: false,
+        resolving: false,
+        paused: false,
+        awaitingTurnCompletion: false,
+        observedThinking: false,
+        turnStartFallbackTimer: null,
+        resolvedSessionId: null,
+        pendingSessionResolution: null,
+    }
+}
+
+function getQueueStore(key: string): QueueStore {
+    const existing = queueStores.get(key)
+    if (existing) {
+        return existing
+    }
+
+    const created = createQueueStore(key)
+    queueStores.set(key, created)
+    return created
+}
+
+function subscribeQueueStore(key: string, listener: () => void): () => void {
+    const store = getQueueStore(key)
+    store.listeners.add(listener)
+
+    return () => {
+        store.listeners.delete(listener)
+        cleanupQueueStore(key)
+    }
+}
+
+function enqueueMessage(store: QueueStore, input: SendQueueItem): void {
+    store.queue.push(input)
+    syncQueueSnapshot(store)
+    void flushQueue(store)
+}
+
+function pauseQueue(store: QueueStore): void {
+    if (store.queue.length === 0) {
+        return
+    }
+
+    clearTurnStartFallbackTimer(store)
+    store.paused = true
+    syncQueueSnapshot(store)
+}
+
+function resumeQueue(store: QueueStore): void {
+    if (!store.paused && store.queue.length === 0) {
+        return
+    }
+
+    store.paused = false
+    syncQueueSnapshot(store)
+
+    if (!store.options?.thinking && store.awaitingTurnCompletion) {
+        releaseAwaitingTurnCompletion(store)
+    }
+
+    void flushQueue(store)
+}
+
+function editQueuedMessage(store: QueueStore, localId: string, text: string): void {
+    let changed = false
+
+    store.queue = store.queue.map((item, index) => {
+        const isSendingItem = store.processing && index === 0
+        if (item.localId !== localId || isSendingItem) {
+            return item
+        }
+
+        if (item.text === text) {
+            return item
+        }
+
+        changed = true
+        return {
+            ...item,
+            text,
+        }
+    })
+
+    if (changed) {
+        syncQueueSnapshot(store)
+    }
+}
+
+function deleteQueuedMessage(store: QueueStore, localId: string): void {
+    const nextQueue = store.queue.filter((item, index) => {
+        const isSendingItem = store.processing && index === 0
+        if (isSendingItem) {
+            return true
+        }
+        return item.localId !== localId
+    })
+
+    if (nextQueue.length === store.queue.length) {
+        return
+    }
+
+    store.queue = nextQueue
+    syncQueueSnapshot(store)
+}
+
+export function clearSendQueue(key: string): void {
+    const store = queueStores.get(key)
+    if (!store) {
+        return
+    }
+
+    clearTurnStartFallbackTimer(store)
+    queueStores.delete(key)
+}
+
 export function useSendMessage(
     api: ApiClient | null,
     sessionId: string | null,
@@ -96,310 +510,37 @@ export function useSendMessage(
     queuedMessages: QueuedComposerMessage[]
 } {
     const { haptic } = usePlatform()
-    const [isResolving, setIsResolving] = useState(false)
-    const [isProcessing, setIsProcessing] = useState(false)
-    const [isQueuePaused, setIsQueuePaused] = useState(false)
-    const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([])
-    const queueRef = useRef<SendQueueItem[]>([])
-    const processingRef = useRef(false)
-    const pausedRef = useRef(false)
-    const awaitingTurnCompletionRef = useRef(false)
-    const observedThinkingRef = useRef(false)
-    const turnStartFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const flushQueueRef = useRef<(() => Promise<void>) | null>(null)
-    const apiRef = useRef(api)
-    const optionsRef = useRef(options)
-    const resolvedSessionIdRef = useRef<string | null>(null)
-    const pendingSessionResolutionRef = useRef<{
-        fromSessionId: string
-        toSessionId: string
-    } | null>(null)
 
-    const syncQueuedMessages = useCallback((processing = processingRef.current) => {
-        setQueuedMessages(queueRef.current.map((item, index) => ({
-            localId: item.localId,
-            text: item.text,
-            attachmentsCount: item.attachments?.length ?? 0,
-            status: processing && index === 0 ? 'sending' : 'queued'
-        })))
-    }, [])
-
-    useEffect(() => {
-        if (!processingRef.current && queueRef.current.length === 0) {
-            resolvedSessionIdRef.current = null
-            pendingSessionResolutionRef.current = null
-            pausedRef.current = false
-            setIsQueuePaused(false)
-            setQueuedMessages([])
-        }
-    }, [sessionId])
-
-    useEffect(() => {
-        apiRef.current = api
-    }, [api])
-
-    useEffect(() => {
-        optionsRef.current = options
-    }, [options])
-
-    const clearTurnStartFallbackTimer = useCallback(() => {
-        if (turnStartFallbackTimerRef.current !== null) {
-            clearTimeout(turnStartFallbackTimerRef.current)
-            turnStartFallbackTimerRef.current = null
-        }
-    }, [])
-
-    const releaseAwaitingTurnCompletion = useCallback(() => {
-        clearTurnStartFallbackTimer()
-        awaitingTurnCompletionRef.current = false
-        observedThinkingRef.current = false
-    }, [clearTurnStartFallbackTimer])
-
-    const armAwaitingTurnCompletion = useCallback(() => {
-        clearTurnStartFallbackTimer()
-        awaitingTurnCompletionRef.current = true
-        observedThinkingRef.current = optionsRef.current?.thinking === true
-
-        turnStartFallbackTimerRef.current = setTimeout(() => {
-            if (observedThinkingRef.current) {
-                return
+    const snapshot = useSyncExternalStore(
+        useCallback((onStoreChange) => {
+            if (!sessionId) {
+                return () => {}
             }
-            if (optionsRef.current?.thinking) {
-                observedThinkingRef.current = true
-                return
+            return subscribeQueueStore(sessionId, onStoreChange)
+        }, [sessionId]),
+        useCallback(() => {
+            if (!sessionId) {
+                return EMPTY_SNAPSHOT
             }
+            return getQueueStore(sessionId).snapshot
+        }, [sessionId]),
+        () => EMPTY_SNAPSHOT
+    )
 
-            releaseAwaitingTurnCompletion()
-            void flushQueueRef.current?.()
-        }, 800)
-    }, [clearTurnStartFallbackTimer, releaseAwaitingTurnCompletion])
-
-    const enqueueOptimisticMessage = useCallback((input: SendQueueItem) => {
-        const optimisticMessage: DecryptedMessage = {
-            id: input.localId,
-            seq: null,
-            localId: input.localId,
-            content: {
-                role: 'user',
-                content: {
-                    type: 'text',
-                    text: input.text,
-                    attachments: input.attachments
-                }
-            },
-            createdAt: input.createdAt,
-            status: 'sending',
-            originalText: input.text,
-        }
-
-        appendOptimisticMessage(input.optimisticSessionId, optimisticMessage)
-    }, [])
-
-    const prepareQueuedMessageForSend = useCallback((input: SendQueueItem) => {
-        if (input.optimisticApplied) {
-            updateMessageStatus(input.optimisticSessionId, input.localId, 'sending')
+    useEffect(() => {
+        if (!sessionId) {
             return
         }
 
-        enqueueOptimisticMessage(input)
-        input.optimisticApplied = true
-    }, [enqueueOptimisticMessage])
+        const store = getQueueStore(sessionId)
+        applyBindings(store, { api, options, haptic })
 
-    const flushQueue = useCallback(async () => {
-        if (processingRef.current || awaitingTurnCompletionRef.current || pausedRef.current) {
-            return
-        }
-
-        processingRef.current = true
-        setIsProcessing(true)
-        syncQueuedMessages(true)
-
-        try {
-            while (queueRef.current.length > 0) {
-                if (optionsRef.current?.thinking) {
-                    break
-                }
-
-                const current = queueRef.current[0]
-                const currentApi = apiRef.current
-
-                prepareQueuedMessageForSend(current)
-
-                if (!currentApi) {
-                    updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
-                    haptic.notification('error')
-                    queueRef.current.shift()
-                    syncQueuedMessages(true)
-                    continue
-                }
-
-                let targetSessionId = current.sessionId
-                const currentOptions = optionsRef.current
-
-                if (currentOptions?.resolveSessionId) {
-                    setIsResolving(true)
-                    try {
-                        const resolvedSessionId = await currentOptions.resolveSessionId(targetSessionId)
-                        if (resolvedSessionId && resolvedSessionId !== targetSessionId) {
-                            resolvedSessionIdRef.current = resolvedSessionId
-                            pendingSessionResolutionRef.current = {
-                                fromSessionId: pendingSessionResolutionRef.current?.fromSessionId ?? current.optimisticSessionId,
-                                toSessionId: resolvedSessionId,
-                            }
-                            for (const queued of queueRef.current) {
-                                if (queued.sessionId === targetSessionId) {
-                                    queued.sessionId = resolvedSessionId
-                                }
-                            }
-                            targetSessionId = resolvedSessionId
-                        }
-                    } catch (error) {
-                        updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
-                        haptic.notification('error')
-                        console.error('Failed to resolve session before send:', error)
-                        queueRef.current.shift()
-                        syncQueuedMessages(true)
-                        continue
-                    } finally {
-                        setIsResolving(false)
-                    }
-                }
-
-                let sendStarted = false
-                try {
-                    await currentApi.sendMessage(targetSessionId, current.text, current.localId, current.attachments)
-                    updateMessageStatus(current.optimisticSessionId, current.localId, 'sent')
-                    haptic.notification('success')
-                    sendStarted = true
-                } catch (error) {
-                    updateMessageStatus(current.optimisticSessionId, current.localId, 'failed')
-                    haptic.notification('error')
-                    console.error('Failed to send message:', error)
-                } finally {
-                    queueRef.current.shift()
-                    syncQueuedMessages(true)
-                }
-
-                if (sendStarted) {
-                    armAwaitingTurnCompletion()
-                    break
-                }
-            }
-        } finally {
-            processingRef.current = false
-            setIsProcessing(false)
-            syncQueuedMessages(false)
-
-            const pendingSessionResolution = pendingSessionResolutionRef.current
-            if (queueRef.current.length === 0 && pendingSessionResolution) {
-                pendingSessionResolutionRef.current = null
-                optionsRef.current?.onSessionResolved?.(pendingSessionResolution.toSessionId)
-            }
-        }
-    }, [armAwaitingTurnCompletion, haptic, prepareQueuedMessageForSend, syncQueuedMessages])
-
-    flushQueueRef.current = flushQueue
-
-    useEffect(() => {
-        const thinking = options?.thinking === true
-
-        if (thinking) {
-            if (awaitingTurnCompletionRef.current) {
-                observedThinkingRef.current = true
-                clearTurnStartFallbackTimer()
-            }
-            return
-        }
-
-        if (pausedRef.current) {
-            if (awaitingTurnCompletionRef.current && observedThinkingRef.current) {
-                releaseAwaitingTurnCompletion()
-            }
-            return
-        }
-
-        if (awaitingTurnCompletionRef.current && observedThinkingRef.current) {
-            releaseAwaitingTurnCompletion()
-            void flushQueueRef.current?.()
-            return
-        }
-
-        if (!awaitingTurnCompletionRef.current && queueRef.current.length > 0 && !processingRef.current) {
-            void flushQueueRef.current?.()
-        }
-    }, [options?.thinking, clearTurnStartFallbackTimer, releaseAwaitingTurnCompletion])
-
-    useEffect(() => {
         return () => {
-            clearTurnStartFallbackTimer()
+            cleanupQueueStore(sessionId)
         }
-    }, [clearTurnStartFallbackTimer])
+    }, [api, haptic, options, sessionId])
 
-    const enqueueMessage = useCallback((input: SendQueueItem) => {
-        queueRef.current.push(input)
-        syncQueuedMessages()
-        void flushQueue()
-    }, [flushQueue, syncQueuedMessages])
-
-    const pauseQueue = useCallback(() => {
-        clearTurnStartFallbackTimer()
-        pausedRef.current = true
-        setIsQueuePaused(true)
-    }, [clearTurnStartFallbackTimer])
-
-    const resumeQueue = useCallback(() => {
-        pausedRef.current = false
-        setIsQueuePaused(false)
-
-        if (!optionsRef.current?.thinking && awaitingTurnCompletionRef.current) {
-            releaseAwaitingTurnCompletion()
-        }
-
-        void flushQueueRef.current?.()
-    }, [releaseAwaitingTurnCompletion])
-
-    const editQueuedMessage = useCallback((localId: string, text: string) => {
-        let changed = false
-        queueRef.current = queueRef.current.map((item, index) => {
-            const isSendingItem = processingRef.current && index === 0
-            if (item.localId !== localId || isSendingItem) {
-                return item
-            }
-
-            if (item.text === text) {
-                return item
-            }
-
-            changed = true
-            return {
-                ...item,
-                text,
-            }
-        })
-
-        if (changed) {
-            syncQueuedMessages()
-        }
-    }, [syncQueuedMessages])
-
-    const deleteQueuedMessage = useCallback((localId: string) => {
-        const nextQueue = queueRef.current.filter((item, index) => {
-            const isSendingItem = processingRef.current && index === 0
-            if (isSendingItem) {
-                return true
-            }
-            return item.localId !== localId
-        })
-
-        if (nextQueue.length === queueRef.current.length) {
-            return
-        }
-
-        queueRef.current = nextQueue
-        syncQueuedMessages()
-    }, [syncQueuedMessages])
-
-    const sendMessage = (text: string, attachments?: AttachmentMetadata[]) => {
+    const sendMessage = useCallback((text: string, attachments?: AttachmentMetadata[]) => {
         if (!api) {
             options?.onBlocked?.('no-api')
             haptic.notification('error')
@@ -410,10 +551,13 @@ export function useSendMessage(
             haptic.notification('error')
             return
         }
+
+        const store = getQueueStore(sessionId)
         const localId = makeClientSideId('local')
         const createdAt = Date.now()
-        enqueueMessage({
-            sessionId: resolvedSessionIdRef.current ?? sessionId,
+
+        enqueueMessage(store, {
+            sessionId: store.resolvedSessionId ?? sessionId,
             optimisticSessionId: sessionId,
             text,
             localId,
@@ -421,9 +565,9 @@ export function useSendMessage(
             attachments,
             optimisticApplied: false,
         })
-    }
+    }, [api, haptic, options, sessionId])
 
-    const retryMessage = (localId: string) => {
+    const retryMessage = useCallback((localId: string) => {
         if (!api) {
             options?.onBlocked?.('no-api')
             haptic.notification('error')
@@ -436,13 +580,18 @@ export function useSendMessage(
         }
 
         const message = findMessageByLocalId(sessionId, localId)
-        if (!message) return
+        if (!message) {
+            return
+        }
 
         const retryPayload = getRetryPayload(message)
-        if (!retryPayload) return
+        if (!retryPayload) {
+            return
+        }
 
-        queueRef.current.push({
-            sessionId: resolvedSessionIdRef.current ?? sessionId,
+        const store = getQueueStore(sessionId)
+        enqueueMessage(store, {
+            sessionId: store.resolvedSessionId ?? sessionId,
             optimisticSessionId: sessionId,
             text: retryPayload.text,
             localId,
@@ -450,19 +599,45 @@ export function useSendMessage(
             attachments: retryPayload.attachments,
             optimisticApplied: true,
         })
-        syncQueuedMessages()
-        void flushQueue()
-    }
+    }, [api, haptic, options, sessionId])
+
+    const handleEditQueuedMessage = useCallback((localId: string, text: string) => {
+        if (!sessionId) {
+            return
+        }
+        editQueuedMessage(getQueueStore(sessionId), localId, text)
+    }, [sessionId])
+
+    const handleDeleteQueuedMessage = useCallback((localId: string) => {
+        if (!sessionId) {
+            return
+        }
+        deleteQueuedMessage(getQueueStore(sessionId), localId)
+    }, [sessionId])
+
+    const handlePauseQueue = useCallback(() => {
+        if (!sessionId) {
+            return
+        }
+        pauseQueue(getQueueStore(sessionId))
+    }, [sessionId])
+
+    const handleResumeQueue = useCallback(() => {
+        if (!sessionId) {
+            return
+        }
+        resumeQueue(getQueueStore(sessionId))
+    }, [sessionId])
 
     return {
         sendMessage,
         retryMessage,
-        editQueuedMessage,
-        deleteQueuedMessage,
-        pauseQueue,
-        resumeQueue,
-        isQueuePaused,
-        isSending: isProcessing || isResolving || queuedMessages.length > 0,
-        queuedMessages,
+        editQueuedMessage: handleEditQueuedMessage,
+        deleteQueuedMessage: handleDeleteQueuedMessage,
+        pauseQueue: handlePauseQueue,
+        resumeQueue: handleResumeQueue,
+        isQueuePaused: snapshot.isQueuePaused,
+        isSending: snapshot.isProcessing || snapshot.isResolving || snapshot.queuedMessages.length > 0,
+        queuedMessages: snapshot.queuedMessages,
     }
 }

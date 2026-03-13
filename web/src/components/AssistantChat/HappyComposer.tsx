@@ -499,13 +499,17 @@ export function HappyComposer(props: {
         setIsSwitching(false)
     }, [isSwitching, controlledByUser])
 
+    const hasQueuedBacklog = queuedMessages.some((message) => message.status === 'queued')
+
     const handleAbort = useCallback(() => {
         if (abortDisabled) return
         haptic('error')
         setIsAborting(true)
-        onPauseQueuedMessages?.()
+        if (hasQueuedBacklog) {
+            onPauseQueuedMessages?.()
+        }
         api.thread().cancelRun()
-    }, [abortDisabled, api, haptic, onPauseQueuedMessages])
+    }, [abortDisabled, api, haptic, hasQueuedBacklog, onPauseQueuedMessages])
 
     const handleSwitch = useCallback(async () => {
         if (switchDisabled || !onSwitchToRemote) return
