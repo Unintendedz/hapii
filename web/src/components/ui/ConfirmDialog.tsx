@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import {
     Dialog,
     DialogContent,
@@ -36,6 +37,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     } = props
 
     const [error, setError] = useState<string | null>(null)
+    const confirmButtonRef = useRef<HTMLButtonElement | null>(null)
 
     // Clear error when dialog opens/closes
     useEffect(() => {
@@ -58,40 +60,72 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         }
     }
 
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        if (isPending) {
+            return
+        }
+        void handleConfirm()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'Enter' || isPending) {
+            return
+        }
+
+        const target = event.target as HTMLElement | null
+        if (target?.closest('[data-confirm-dialog-cancel="true"]')) {
+            return
+        }
+
+        event.preventDefault()
+        void handleConfirm()
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-sm">
-                <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
-                    <DialogDescription className="mt-2">
-                        {description}
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent
+                className="max-w-sm"
+                onKeyDown={handleKeyDown}
+                onOpenAutoFocus={(event) => {
+                    event.preventDefault()
+                    confirmButtonRef.current?.focus()
+                }}
+            >
+                <form onSubmit={handleSubmit}>
+                    <DialogHeader>
+                        <DialogTitle>{title}</DialogTitle>
+                        <DialogDescription className="mt-2">
+                            {description}
+                        </DialogDescription>
+                    </DialogHeader>
 
-                {error ? (
-                    <div className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                        {error}
+                    {error ? (
+                        <div className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                            {error}
+                        </div>
+                    ) : null}
+
+                    <div className="mt-4 flex gap-2 justify-end">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={onClose}
+                            disabled={isPending}
+                            data-confirm-dialog-cancel="true"
+                        >
+                            {t('button.cancel')}
+                        </Button>
+                        <Button
+                            ref={confirmButtonRef}
+                            type="submit"
+                            variant={destructive ? 'destructive' : 'secondary'}
+                            disabled={isPending}
+                        >
+                            {isPending ? confirmingLabel : confirmLabel}
+                        </Button>
                     </div>
-                ) : null}
-
-                <div className="mt-4 flex gap-2 justify-end">
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={onClose}
-                        disabled={isPending}
-                    >
-                        {t('button.cancel')}
-                    </Button>
-                    <Button
-                        type="button"
-                        variant={destructive ? 'destructive' : 'secondary'}
-                        onClick={handleConfirm}
-                        disabled={isPending}
-                    >
-                        {isPending ? confirmingLabel : confirmLabel}
-                    </Button>
-                </div>
+                </form>
             </DialogContent>
         </Dialog>
     )

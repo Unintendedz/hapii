@@ -284,6 +284,35 @@ describe('SessionList archived load more behavior', () => {
         expect(screen.getByText('alpha-old-2')).toBeTruthy()
     })
 
+    it('hides idle active sessions older than 12 hours behind the same load-more row', () => {
+        const now = Date.now()
+
+        render(
+            <I18nProvider>
+                <SessionList
+                    activeSessions={[
+                        makeActiveSession('alpha-recent', '/projects/alpha', now - (2 * 60 * 60 * 1000), 'alpha-recent'),
+                        makeActiveSession('alpha-stale-active', '/projects/alpha', now - (13 * 60 * 60 * 1000), 'alpha-stale-active'),
+                    ]}
+                    archivedSessions={[]}
+                    archivedTotal={0}
+                    onSelect={vi.fn()}
+                    onNewSession={vi.fn()}
+                    onRefresh={vi.fn()}
+                    isLoading={false}
+                    api={null}
+                />
+            </I18nProvider>
+        )
+
+        expect(screen.getByText('alpha-recent')).toBeTruthy()
+        expect(screen.queryByText('alpha-stale-active')).toBeNull()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }))
+
+        expect(screen.getByText('alpha-stale-active')).toBeTruthy()
+    })
+
     it('keeps a manually collapsed active project collapsed while a selected thinking session is running', () => {
         vi.useFakeTimers()
         const now = new Date('2026-03-08T10:00:00.000Z').getTime()

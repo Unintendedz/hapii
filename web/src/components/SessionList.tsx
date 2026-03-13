@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { shouldHideSessionInList } from '@hapi/protocol'
 import type { SessionSummary } from '@/types/api'
 import type { ApiClient } from '@/api/client'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -21,7 +22,6 @@ type SessionGroup = {
 type GroupSection = 'active' | 'archived'
 
 const SESSION_GROUP_PAGE_SIZE = 8
-const STALE_UNARCHIVED_SESSION_MS = 12 * 60 * 60 * 1000
 
 function normalizeTimestampMs(value: number): number {
     if (!Number.isFinite(value)) return Number.NaN
@@ -211,12 +211,13 @@ function getInitialVisibleCount(
         return Math.min(group.sessions.length, SESSION_GROUP_PAGE_SIZE)
     }
 
-    const staleCutoff = now - STALE_UNARCHIVED_SESSION_MS
     const firstHiddenIndex = group.sessions.findIndex((session) => {
-        if (session.active) return false
-        const updatedAt = normalizeTimestampMs(session.updatedAt)
-        if (!Number.isFinite(updatedAt)) return false
-        return updatedAt < staleCutoff
+        return shouldHideSessionInList({
+            updatedAt: normalizeTimestampMs(session.updatedAt),
+            thinking: session.thinking,
+            pendingRequestsCount: session.pendingRequestsCount,
+            work: session.work
+        }, now)
     })
 
     return firstHiddenIndex === -1 ? group.sessions.length : firstHiddenIndex
@@ -410,8 +411,8 @@ export function SessionList(props: {
         const all = [...props.activeSessions, ...props.archivedSessions]
         return all.some((session) => session.thinking && Boolean(session.work?.current))
     }, [props.activeSessions, props.archivedSessions])
-    const now = useNow({ enabled: hasThinkingSessions, intervalMs: 1000 })
-    const visibilityNow = hasThinkingSessions ? now : Date.now()
+    const now = useNow({ enabled: true, intervalMs: hasThinkingSessions ? 1000 : 60_000 })
+    const visibilityNow = now
     const activeGroups = useMemo(
         () => groupSessionsByDirectory(props.activeSessions),
         [props.activeSessions]
