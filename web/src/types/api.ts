@@ -29,6 +29,7 @@ export type SessionMetadataSummary = {
     machineId?: string
     tools?: string[]
     flavor?: string | null
+    contextWindowTokens?: number
     worktree?: WorktreeMetadata
 }
 

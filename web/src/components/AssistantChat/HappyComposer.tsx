@@ -215,6 +215,7 @@ export function HappyComposer(props: {
     disabled?: boolean
     permissionMode?: PermissionMode
     modelMode?: ModelMode
+    contextWindowTokens?: number
     reasoningEffort?: ReasoningEffort
     active?: boolean
     allowSendWhenInactive?: boolean
@@ -244,6 +245,7 @@ export function HappyComposer(props: {
         disabled = false,
         permissionMode: rawPermissionMode,
         modelMode: rawModelMode,
+        contextWindowTokens,
         reasoningEffort: rawReasoningEffort,
         active = true,
         allowSendWhenInactive = false,
@@ -885,7 +887,7 @@ export function HappyComposer(props: {
                         thinking={thinking}
                         agentState={agentState}
                         contextSize={contextSize}
-                        modelMode={modelMode}
+                        contextWindowTokens={contextWindowTokens}
                         permissionMode={permissionMode}
                         reasoningEffort={reasoningEffort}
                         agentFlavor={agentFlavor}

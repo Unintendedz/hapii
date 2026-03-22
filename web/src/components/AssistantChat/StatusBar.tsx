@@ -6,9 +6,8 @@ import {
 } from '@hapi/protocol'
 import type { PermissionModeTone } from '@hapi/protocol'
 import { useMemo } from 'react'
-import type { AgentState, ModelMode, PermissionMode, ReasoningEffort } from '@/types/api'
+import type { AgentState, PermissionMode, ReasoningEffort } from '@/types/api'
 import type { ConversationStatus } from '@/realtime/types'
-import { getContextBudgetTokens } from '@/chat/modelConfig'
 import { useTranslation } from '@/lib/use-translation'
 
 // Vibing messages for thinking state
@@ -92,8 +91,29 @@ function getConnectionStatus(
     }
 }
 
-function getContextWarning(contextSize: number, maxContextSize: number, t: (key: string, params?: Record<string, string | number>) => string): { text: string; color: string } | null {
-    const percentageUsed = (contextSize / maxContextSize) * 100
+function formatTokenCount(value: number, locale: string): string {
+    return new Intl.NumberFormat(locale, {
+        notation: 'compact',
+        maximumFractionDigits: 1
+    }).format(value)
+}
+
+function getContextWarning(
+    contextSize: number,
+    contextWindowTokens: number | undefined,
+    locale: string,
+    t: (key: string, params?: Record<string, string | number>) => string
+): { text: string; color: string } | null {
+    if (!Number.isFinite(contextSize) || contextSize < 0) return null
+
+    if (!contextWindowTokens || !Number.isFinite(contextWindowTokens) || contextWindowTokens <= 0) {
+        return {
+            text: t('misc.contextUsed', { tokens: formatTokenCount(contextSize, locale) }),
+            color: 'text-[var(--app-hint)]'
+        }
+    }
+
+    const percentageUsed = (contextSize / contextWindowTokens) * 100
     const percentageRemaining = Math.max(0, 100 - percentageUsed)
 
     const percent = Math.round(percentageRemaining)
@@ -111,13 +131,13 @@ export function StatusBar(props: {
     thinking: boolean
     agentState: AgentState | null | undefined
     contextSize?: number
-    modelMode?: ModelMode
+    contextWindowTokens?: number
     permissionMode?: PermissionMode
     reasoningEffort?: ReasoningEffort
     agentFlavor?: string | null
     voiceStatus?: ConversationStatus
 }) {
-    const { t } = useTranslation()
+    const { t, locale } = useTranslation()
     const connectionStatus = useMemo(
         () => getConnectionStatus(props.active, props.thinking, props.agentState, props.voiceStatus, t),
         [props.active, props.thinking, props.agentState, props.voiceStatus, t]
@@ -126,11 +146,9 @@ export function StatusBar(props: {
     const contextWarning = useMemo(
         () => {
             if (props.contextSize === undefined) return null
-            const maxContextSize = getContextBudgetTokens(props.modelMode)
-            if (!maxContextSize) return null
-            return getContextWarning(props.contextSize, maxContextSize, t)
+            return getContextWarning(props.contextSize, props.contextWindowTokens, locale, t)
         },
-        [props.contextSize, props.modelMode, t]
+        [props.contextSize, props.contextWindowTokens, locale, t]
     )
 
     const permissionMode = props.permissionMode

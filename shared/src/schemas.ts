@@ -48,6 +48,7 @@ export const MetadataSchema = z.object({
     archiveReason: z.string().optional(),
     flavor: z.string().nullish(),
     resolvedModel: z.string().optional(),
+    contextWindowTokens: z.number().int().positive().optional(),
     worktree: WorktreeMetadataSchema.optional()
 })
 

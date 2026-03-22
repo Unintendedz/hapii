@@ -33,6 +33,7 @@ import { registerCommonHandlers } from '../modules/common/registerCommonHandlers
 import { cleanupUploadDir } from '../modules/common/handlers/uploads'
 import { TerminalManager } from '@/terminal/TerminalManager'
 import { applyVersionedAck } from './versionedUpdate'
+import { resolveAnthropicContextWindowTokens } from '@/claude/utils/resolveAnthropicContextWindow'
 
 export class ApiSessionClient extends EventEmitter {
     private readonly token: string
@@ -366,6 +367,32 @@ export class ApiSessionClient extends EventEmitter {
                     updatedAt: Date.now()
                 }
             }))
+        }
+
+        if (body.type === 'system' && body.subtype === 'init' && typeof body.model === 'string' && body.model.trim().length > 0) {
+            const resolvedModel = body.model.trim()
+            this.updateMetadata((metadata) => ({
+                ...metadata,
+                resolvedModel,
+                contextWindowTokens: undefined
+            }))
+
+            void resolveAnthropicContextWindowTokens(resolvedModel).then((contextWindowTokens) => {
+                if (!contextWindowTokens) {
+                    return
+                }
+
+                this.updateMetadata((metadata) => {
+                    if (metadata.resolvedModel !== resolvedModel) {
+                        return metadata
+                    }
+
+                    return {
+                        ...metadata,
+                        contextWindowTokens
+                    }
+                })
+            })
         }
     }
 

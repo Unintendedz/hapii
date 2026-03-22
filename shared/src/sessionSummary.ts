@@ -8,6 +8,7 @@ export type SessionSummaryMetadata = {
     summary?: { text: string }
     flavor?: string | null
     resolvedModel?: string
+    contextWindowTokens?: number
     worktree?: WorktreeMetadata
 }
 
@@ -35,6 +36,7 @@ export function toSessionSummary(session: Session): SessionSummary {
         summary: session.metadata.summary ? { text: session.metadata.summary.text } : undefined,
         flavor: session.metadata.flavor ?? null,
         resolvedModel: session.metadata.resolvedModel,
+        contextWindowTokens: session.metadata.contextWindowTokens,
         worktree: session.metadata.worktree
     } : null
 
