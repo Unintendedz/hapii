@@ -10,6 +10,10 @@
 
 ## 更新日志
 
+### 2026-03-22
+
+`11:47:06` &ensp; [`cd0577e`](https://github.com/Unintendedz/hapii/commit/cd0577e) — Claude 会话上下文状态栏改为仅在拿到明确上限时显示剩余百分比；拿不到可靠上限时只显示已用 tokens，并支持通过 Anthropic 官方 Models API 自动探测 context window
+
 ### 2026-03-13
 
 `16:27:45` &ensp; [`c64a0a8`](https://github.com/Unintendedz/hapii/commit/c64a0a8) — 修复长回复块“开头 / 目录”会把前置工具调用内容算进去的问题；现在会跳过纯 tool call，只定位正文内容

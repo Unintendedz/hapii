@@ -10,6 +10,10 @@ Run Claude Code / Codex / Gemini / OpenCode locally and control sessions remotel
 
 ## Changelog
 
+### 2026-03-22
+
+`11:47:06` &ensp; [`cd0577e`](https://github.com/Unintendedz/hapii/commit/cd0577e) — Show Claude context remaining only when a reliable limit is known; otherwise show used tokens only, and auto-probe the context window through Anthropic’s official Models API when available
+
 ### 2026-03-13
 
 `16:27:45` &ensp; [`c64a0a8`](https://github.com/Unintendedz/hapii/commit/c64a0a8) — Fix long-reply “start / sections” navigation including leading tool-call content; jump-to-start and the TOC now skip pure tool-call blocks and target the actual answer body
